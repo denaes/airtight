@@ -25,7 +25,7 @@
     "demo": "node scripts/demo.mjs",
     "benchmark": "node scripts/benchmark.mjs",
     "gen:secrets": "node scripts/gen-secrets.mjs",
-    "pretest": "node scripts/gen-secrets.mjs"
+    "pretest": "npm run gen:secrets && npm run build:rules"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
