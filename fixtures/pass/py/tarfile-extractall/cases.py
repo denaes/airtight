@@ -1,0 +1,6 @@
+tar.extractall(dest, filter="data")
+zf.extractall(path=target, filter="data")
+for m in tar: assert is_within_directory(dest, m.name)
+_safe_extract(tar, dest)
+archive.extractall(out, filter=tarfile.data_filter)
+shutil.unpack_archive(p, out)

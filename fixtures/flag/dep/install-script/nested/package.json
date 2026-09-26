@@ -1,0 +1,7 @@
+{
+  "name": "nested",
+  "scripts": {
+    "postinstall": "patch-package",
+    "preinstall": "npx only-allow pnpm"
+  }
+}

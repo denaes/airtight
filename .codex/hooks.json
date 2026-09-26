@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \".agents/skills/airtight/scripts/airtight\" ] || \".agents/skills/airtight/scripts/airtight\" hook",
+            "commandWindows": "if exist \".agents\\skills\\airtight\\scripts\\airtight.cmd\" \".agents\\skills\\airtight\\scripts\\airtight.cmd\" hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \".agents/skills/airtight/scripts/airtight\" ] || \".agents/skills/airtight/scripts/airtight\" hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

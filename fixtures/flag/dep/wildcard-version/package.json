@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "left-pad": "*",
+    "lodash": "latest",
+    "express": "x",
+    "chalk": ">= 0.0.0"
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: Airtight
+  short_description: "Use when the user wants to review, audit, threat-model, harden, or otherwise assess the..."
+  default_prompt: "Use airtight to review, audit, or harden the security of this project."

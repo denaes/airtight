@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: x0
+          image: app:1.0
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
+        - name: x1
+          image: app:1.0
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN"]
+        - name: x2
+          image: app:1.0
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["SETUID"]
+        - name: x3
+          image: app:1.0
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["SETGID"]
+        - name: x4
+          image: app:1.0
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["KILL"]

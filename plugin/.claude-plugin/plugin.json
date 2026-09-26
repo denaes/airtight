@@ -1,0 +1,14 @@
+{
+  "name": "airtight",
+  "description": "Security fluency for AI coding agents. One skill, deterministic rule packs, and an edit hook.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Airtight contributors"
+  },
+  "homepage": "https://github.com/denaes/airtight",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/denaes/airtight.git"
+  },
+  "skills": "./skills/"
+}

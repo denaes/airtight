@@ -1,0 +1,68 @@
+#!/bin/sh
+# airtight launcher.
+#
+# Finds a Node runtime and runs the engine. Kept deliberately small: hooks
+# invoke it on every edit, so it must stay under a few milliseconds and must
+# never be the reason an edit fails.
+set -eu
+
+# Parameter expansion rather than dirname: the launcher must still resolve
+# itself on a PATH too minimal to contain coreutils.
+case "$0" in
+  */*) self_dir=${0%/*} ;;
+  *)   self_dir=. ;;
+esac
+dir=$(CDPATH= cd -- "$self_dir" && pwd)
+
+# Resolution order, first hit wins.
+#   1. AIRTIGHT_ENGINE  an explicit path, for development and testing
+#   2. <dir>/engine/airtight.mjs   the bundled engine shipped inside the skill
+#   3. <dir>/../../../engine/src/cli.mjs   a source checkout of this repository
+engine=""
+if [ -n "${AIRTIGHT_ENGINE:-}" ] && [ -f "$AIRTIGHT_ENGINE" ]; then
+  engine="$AIRTIGHT_ENGINE"
+elif [ -f "$dir/engine/airtight.mjs" ]; then
+  engine="$dir/engine/airtight.mjs"
+elif [ -f "$dir/../../../engine/src/cli.mjs" ]; then
+  engine="$dir/../../../engine/src/cli.mjs"
+fi
+
+# The hook path fails open, always. A missing runtime or a missing engine must
+# never stop someone from working; it degrades the session, and the skill says
+# so through its own MANUAL_DETECTOR_REQUIRED directive rather than through a
+# failed tool call.
+fail_open_if_hook() {
+  case "${1:-}" in
+    hook) exit 0 ;;
+  esac
+}
+
+node_bin=""
+for candidate in "${AIRTIGHT_NODE:-}" node nodejs; do
+  [ -n "$candidate" ] || continue
+  if command -v "$candidate" >/dev/null 2>&1; then node_bin="$candidate"; break; fi
+done
+
+if [ -z "$node_bin" ]; then
+  fail_open_if_hook "${1:-}"
+  echo "airtight: no Node runtime found on PATH. Install Node 20 or later, or set AIRTIGHT_NODE." >&2
+  exit 127
+fi
+
+if [ -z "$engine" ]; then
+  fail_open_if_hook "${1:-}"
+  echo "airtight: engine not found next to $dir. Reinstall the skill." >&2
+  exit 127
+fi
+
+# The engine resolves its rule bundle relative to itself; point it at the
+# copy shipped in this skill when one is present.
+if [ -z "${AIRTIGHT_RULES:-}" ] && [ -f "$dir/rules.json" ]; then
+  AIRTIGHT_RULES="$dir/rules.json"
+  export AIRTIGHT_RULES
+fi
+
+AIRTIGHT_SKILL_DIR=$(CDPATH= cd -- "$dir/.." && pwd)
+export AIRTIGHT_SKILL_DIR
+
+exec "$node_bin" "$engine" "$@"

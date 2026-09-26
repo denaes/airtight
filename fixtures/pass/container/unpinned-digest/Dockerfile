@@ -1,0 +1,6 @@
+FROM node@sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890 AS a
+FROM python@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890 AS b
+FROM a
+FROM b
+USER nobody
+CMD ["true"]

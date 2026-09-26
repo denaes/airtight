@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop
+  namespace: default
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      volumes:
+        - name: sock
+          hostPath:
+            path: /var/run/docker.sock
+      containers:
+        - name: shop
+          image: shop:latest
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          env:
+            - name: DB_PASSWORD
+              value: "hunter2hunter2"

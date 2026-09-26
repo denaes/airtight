@@ -1,0 +1,38 @@
+{
+  "init": {
+    "description": "Set up a project for airtight. Inspects the repository, interviews on material gaps only, and writes THREATS.md and CONTROLS.md plus the machine-readable control register. Use when the user wants to get started with security, or when another command reports missing security context.",
+    "argumentHint": ""
+  },
+  "threat-model": {
+    "description": "Threat-model a feature before it is built, or an existing surface that has never been modelled. STRIDE per trust boundary plus abuse cases, producing the controls the design needs. Use when the user is designing something and asks what could go wrong.",
+    "argumentHint": "[feature]"
+  },
+  "review": {
+    "description": "Deep security review of a target: reachability from untrusted input to dangerous sinks, authorization and multi-tenancy correctness, and drift from the project's declared controls. Dual-subagent with adversarial verification. Use when the user asks whether something is exploitable, or wants a real review rather than a scan.",
+    "argumentHint": "[target (service, route, directory...)]"
+  },
+  "audit": {
+    "description": "Deterministic sweep across every enabled domain, with a scored report by domain and P0-P3 findings. Documents, does not fix. Use when the user wants the overall security posture or asks for a security check of the whole repository.",
+    "argumentHint": "[area (service, directory...)]"
+  },
+  "secrets": {
+    "description": "Scan the working tree and git history for committed credentials, with redacted output and a rotation plan ordered by blast radius. Use when the user mentions leaked keys, committed secrets, or asks whether anything sensitive is in the repository.",
+    "argumentHint": ""
+  },
+  "deps": {
+    "description": "Review dependency and advisory risk with honest reachability reporting, plus manifest and lockfile hygiene. Use when the user asks about vulnerable dependencies, CVEs, or supply-chain risk in packages.",
+    "argumentHint": "[manifest or package]"
+  },
+  "supply-chain": {
+    "description": "Review the build pipeline: what can execute code with your credentials, and what can change unnoticed. CI triggers, token scope, action pinning, runners, provenance. Use when the user asks about CI security, GitHub Actions hardening, or build integrity.",
+    "argumentHint": ""
+  },
+  "infra": {
+    "description": "Review infrastructure as code: Terraform, Kubernetes, and containers, focused on what is actually reachable and what an identity can reach if stolen. Use when the user asks about cloud posture, IaC security, or container hardening.",
+    "argumentHint": "[path or module]"
+  },
+  "harden": {
+    "description": "Apply remediations in triage order, verify once, and report what was fixed and what was not. The only command that edits. Use when the user asks to fix findings or to make something secure.",
+    "argumentHint": "[target]"
+  }
+}

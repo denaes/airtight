@@ -1,0 +1,242 @@
+# Containers pack.
+#
+# Dockerfile rules target `finalStage` rather than the flat instruction list
+# wherever the question is about the running container. A builder stage with no
+# USER is correct and normal; checking the flat list would flag every
+# multi-stage build ever written.
+
+- id: container/runs-as-root
+  name: Container runs as root
+  domain: containers
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  assert:
+    all:
+      - path: finalStage.image
+        present: true
+      - path: finalStage.instructions[*].name
+        not_matches: '^USER$'
+  message: Final image stage never sets USER, so the container runs as root
+  why: >-
+    A container escape or an RCE in the application lands with uid 0 inside the
+    container and on every bind-mounted host path. Dropping to a non-root user
+    is the cheapest meaningful containment this image can have.
+  fix: >-
+    Add a non-root USER after installing dependencies and before CMD, for
+    example `USER node` on Node base images or a dedicated uid such as
+    `USER 10001`.
+
+- id: container/explicit-root-user
+  name: Container explicitly switches back to root
+  domain: containers
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: finalStage.instructions[*]
+  assert:
+    all:
+      - path: name
+        equals: USER
+      - path: bare
+        matches: '^(root|0)$'
+  message: Final stage sets USER root
+  why: >-
+    Setting USER back to root in the shipping stage undoes the containment,
+    and it usually happens because a runtime step needed a privileged
+    directory that could have been chowned at build time instead.
+  fix: Chown the paths the process needs at build time, then keep the non-root USER for the runtime stage.
+
+- id: container/latest-tag
+  name: Base image pinned to a mutable tag
+  domain: containers
+  severity: medium
+  confidence: firm
+  cwe: CWE-1104
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: stages[*]
+  assert:
+    all:
+      - path: image
+        matches: ':latest$'
+  message: 'Base image uses the mutable :latest tag: {{image}}'
+  why: >-
+    The content behind :latest changes without notice, so the image you tested
+    is not necessarily the image you deploy, and a compromised upstream tag
+    reaches you on the next build.
+  fix: Pin to an explicit version, and ideally to a digest with @sha256.
+
+- id: container/unpinned-digest
+  name: Base image not pinned to a digest
+  domain: containers
+  severity: low
+  confidence: tentative
+  cwe: CWE-494
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: stages[*]
+  assert:
+    all:
+      # A bare stage alias such as `FROM builder` has neither, and is excluded.
+      - path: image
+        matches: '[:/]'
+      - path: image
+        not_matches: '@sha256:'
+  message: 'Base image is not pinned to a digest: {{image}}'
+  why: >-
+    A version tag can be moved by whoever owns the repository. Only a digest
+    makes the build reproducible and makes an upstream tag swap visible.
+  fix: Resolve the tag to a digest and pin it as image@sha256:..., then update it deliberately.
+
+- id: container/add-from-url
+  name: ADD fetches a remote URL
+  domain: containers
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-494
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: instructions[*]
+  assert:
+    all:
+      - path: name
+        equals: ADD
+      - path: bare
+        matches: 'https?://'
+  message: ADD downloads a remote URL into the image
+  why: >-
+    ADD from a URL fetches over the network at build time with no checksum and
+    no signature check, so whoever controls that URL controls what ends up in
+    your image.
+  fix: >-
+    Use RUN with curl or wget plus an explicit checksum verification, or vendor
+    the artifact and COPY it.
+
+- id: container/curl-pipe-shell
+  name: Build pipes a downloaded script straight into a shell
+  domain: containers
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-494
+  owasp: A08:2021
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: instructions[*]
+  assert:
+    all:
+      - path: name
+        equals: RUN
+      # [^|&;] keeps the pipe attached to this curl rather than to a later
+      # command in a && chain, and \b stops `| sha256sum` reading as `| sh`.
+      - path: args
+        matches: '(curl|wget)[^|&;]*\|\s*(sudo\s+)?(ba|z|k|d)?sh\b'
+  message: RUN pipes a downloaded script directly into a shell
+  why: >-
+    The script is executed unverified, and the server can serve different
+    content to your build than it serves to a human reviewing the URL.
+  fix: Download to a file, verify a pinned checksum or signature, then execute it.
+
+- id: container/secret-in-build-arg
+  name: Credential baked into an image layer
+  domain: containers
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-798
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: instructions[*]
+  assert:
+    all:
+      - path: name
+        matches: '^(ENV|ARG)$'
+      - path: bare
+        matches: '(?i)(password|passwd|secret|token|api_?key|private_?key|credential|access_?key)\s*='
+      - path: bare
+        matches: '=\s*[^\s$]'
+      - path: bare
+        not_matches: '=\s*(\$|\{\{)'
+  message: ENV or ARG assigns a credential, which persists in the image layer
+  why: >-
+    Layers are content-addressed and shipped whole. A value set here is
+    readable with `docker history` by anyone who can pull the image, and
+    deleting it in a later layer does not remove it.
+  fix: >-
+    Use BuildKit secret mounts (`RUN --mount=type=secret`) at build time, or
+    inject the value at runtime from a secret manager.
+
+- id: container/ssh-key-copied
+  name: Private key copied into the image
+  domain: containers
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-798
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: instructions[*]
+  assert:
+    all:
+      - path: name
+        matches: '^(COPY|ADD)$'
+      - path: bare
+        matches: '(?i)(id_rsa|id_ed25519|id_dsa|\.pem|\.p12|\.pfx|\.ppk)(\s|$)'
+  message: COPY or ADD brings private key material into the image
+  why: >-
+    Anyone who can pull the image gets the key, and it stays in the layer
+    history even if a later stage deletes the file.
+  fix: Mount the key at runtime, or use BuildKit SSH forwarding (`RUN --mount=type=ssh`) for build-time access.
+
+- id: container/world-writable-chmod
+  name: Build makes paths world-writable
+  domain: containers
+  severity: medium
+  confidence: firm
+  cwe: CWE-732
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: instructions[*]
+  assert:
+    all:
+      - path: name
+        equals: RUN
+      - path: args
+        matches: 'chmod\s+(-[a-zA-Z]+\s+)*777'
+  message: RUN sets 777 permissions
+  why: >-
+    World-writable paths let any process in the container, including one an
+    attacker lands, replace application code or configuration.
+  fix: >-
+    Grant ownership to the runtime user with `chown` and use 755 or 750
+    instead. 777 is almost always a workaround for a chown that was missing.
+
+- id: container/sudo-in-image
+  name: sudo installed in the image
+  domain: containers
+  severity: medium
+  confidence: firm
+  cwe: CWE-250
+  files: ['**/Dockerfile', '**/Dockerfile.*', '**/*.dockerfile', '**/Containerfile']
+  parse: dockerfile
+  for_each: instructions[*]
+  assert:
+    all:
+      - path: name
+        equals: RUN
+      - path: args
+        matches: '(apt-get|apt|yum|dnf|apk)\s+(-[a-zA-Z-]+\s+)*(install|add)[^&|;]*\bsudo\b'
+  message: Image installs sudo
+  why: >-
+    A container has no need to escalate: run the process as the user it should
+    be. Installing sudo turns a non-root USER from containment back into a
+    speed bump.
+  fix: Drop sudo and set the correct USER, chowning any paths the process must write.

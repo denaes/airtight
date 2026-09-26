@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "[ ! -f \"$(git rev-parse --show-toplevel)/.github/skills/airtight/scripts/airtight\" ] || \"$(git rev-parse --show-toplevel)/.github/skills/airtight/scripts/airtight\" hook",
+        "timeoutSec": 5
+      }
+    ],
+    "stop": [
+      {
+        "command": "[ ! -f \"$(git rev-parse --show-toplevel)/.github/skills/airtight/scripts/airtight\" ] || \"$(git rev-parse --show-toplevel)/.github/skills/airtight/scripts/airtight\" hook",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}

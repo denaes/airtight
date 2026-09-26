@@ -1,0 +1,6 @@
+app.run(host="127.0.0.1")
+sock.bind(("127.0.0.1", 8080))
+uvicorn.run(app, host=settings.bind_host, port=8000)
+server = HTTPServer(("localhost", 80), Handler)
+BIND_HOST = os.environ.get("BIND_HOST", "127.0.0.1")
+app.run(host=BIND_HOST)

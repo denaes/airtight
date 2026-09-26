@@ -1,0 +1,6 @@
+--index-url https://pypi.internal.example.com/simple
+--extra-index-url https://mirror.example.net/simple
+--index-url http://localhost:8080/simple
+--extra-index-url http://127.0.0.1:8080/simple
+requests==2.32.3
+urllib3==2.2.2

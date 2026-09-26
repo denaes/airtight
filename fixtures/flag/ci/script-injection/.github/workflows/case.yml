@@ -1,0 +1,12 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.event.issue.title }}"
+      - run: echo "${{ github.event.pull_request.body }}"
+      - run: git checkout "${{ github.head_ref }}"
+      - run: echo "${{ github.event.comment.body }}" >> notes.txt

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "[ ! -f \".grok/skills/airtight/scripts/airtight\" ] || \".grok/skills/airtight/scripts/airtight\" hook",
+        "timeout": 5
+      }
+    ],
+    "Stop": [
+      {
+        "command": "[ ! -f \".grok/skills/airtight/scripts/airtight\" ] || \".grok/skills/airtight/scripts/airtight\" hook",
+        "timeout": 30
+      }
+    ]
+  }
+}

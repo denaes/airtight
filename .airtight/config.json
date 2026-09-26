@@ -1,0 +1,18 @@
+{
+  "$comment": "Shared airtight config. Committed. Per-developer overrides go in config.local.json, which is gitignored.",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "fixtures/**",
+      "demo/**"
+    ],
+    "ignoreValues": []
+  },
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  }
+}

@@ -1,0 +1,235 @@
+# Dependency and supply-chain hygiene.
+#
+# Mostly the text tier rather than the json tier, deliberately: manifest
+# findings are about one line in one file, and the text tier gives an exact
+# line where a structured walk over JSON scalars would only point at the
+# enclosing object.
+
+- id: dep/install-script
+  name: Package defines an install lifecycle script
+  domain: supply-chain
+  severity: medium
+  confidence: firm
+  cwe: CWE-829
+  owasp: A08:2021
+  files: ['**/package.json']
+  match:
+    regex: '"(preinstall|postinstall|install)"\s*:'
+  message: Package declares an install lifecycle script
+  why: >-
+    Install scripts run automatically on npm install, with the developer's
+    privileges and network access, before any code review of the dependency
+    has happened. They are the standard payload location for a compromised
+    package.
+  fix: >-
+    Confirm the script is yours and is necessary. Consider running CI installs
+    with --ignore-scripts and invoking the build step explicitly.
+
+- id: dep/wildcard-version
+  name: Dependency accepts any version
+  domain: supply-chain
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-1104
+  owasp: A06:2021
+  files: ['**/package.json']
+  match:
+    regex: '"[^"]+"\s*:\s*"(\*|latest|x|>=\s*0\.0\.0)"'
+  message: Dependency version is a wildcard
+  why: >-
+    Any publish by the maintainer, or by anyone who compromises their account,
+    is installed on the next fresh install. There is no review window and no
+    lockfile guarantee for a new environment.
+  fix: Pin to a caret or exact range, and let a bot propose upgrades so they pass through review.
+
+- id: dep/git-dependency-unpinned
+  name: Git dependency not pinned to a commit
+  domain: supply-chain
+  severity: high
+  confidence: firm
+  cwe: CWE-829
+  owasp: A08:2021
+  files: ['**/package.json']
+  match:
+    regex: '"(git\+(https?|ssh)://|github:)[^"]+"'
+    # package.json carries repository, homepage and bugs URLs that are not
+    # dependencies at all. Scope to lines that are a dependency entry.
+    not_regex: '"(url|repository|homepage|bugs|funding|directory)"\s*:|#[0-9a-f]{40}"'
+  message: Git dependency resolves to a branch rather than a commit
+  why: >-
+    Without a commit hash the reference is mutable: a force push to the branch
+    changes what you install, with no version bump and nothing in your diff.
+  fix: >-
+    Append the full 40-character commit SHA to the dependency URL, as
+    "#8f4b7c2e1d9a6035fe2cb14d7a09e853b6c1f240".
+
+- id: dep/http-registry
+  name: Package registry configured over plaintext
+  domain: supply-chain
+  severity: critical
+  confidence: confirmed
+  tests: report
+  tier: immediate
+  cwe: CWE-319
+  owasp: A08:2021
+  files: ['**/.npmrc', '**/.yarnrc', '**/.yarnrc.yml', '**/pip.conf', '**/pip.ini']
+  match:
+    regex: '(?i)(registry|index-url|extra-index-url|npmRegistryServer)\s*[=:]\s*http://'
+    not_regex: 'http://(localhost|127\.0\.0\.1)'
+  message: Package source is configured over plaintext HTTP
+  why: >-
+    Anyone on the network path can substitute the package that gets installed,
+    and the installed code runs with the developer's or the build agent's
+    privileges.
+  fix: Use the HTTPS endpoint of the same registry.
+
+- id: dep/npm-audit-disabled
+  name: Dependency audit turned off
+  domain: supply-chain
+  severity: medium
+  confidence: confirmed
+  cwe: CWE-1104
+  files: ['**/.npmrc']
+  match:
+    regex: '(?i)^\s*audit\s*=\s*false'
+  message: npm audit is disabled in project configuration
+  why: >-
+    Disabling audit silences the advisory check for everyone on the project,
+    including the person who would otherwise have caught a newly disclosed
+    vulnerability in a transitive dependency.
+  fix: >-
+    Leave audit enabled. If a specific advisory is not applicable, record that
+    decision with an override rather than switching off the whole check.
+
+- id: dep/pip-trusted-host
+  name: pip configured to skip certificate validation
+  domain: supply-chain
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-295
+  owasp: A08:2021
+  files: ['**/requirements*.txt', '**/pip.conf', '**/pip.ini', '**/Dockerfile', '**/Dockerfile.*']
+  match:
+    regex: '--trusted-host\s+\S+'
+    not_regex: '--trusted-host\s+(localhost|127\.0\.0\.1)'
+  message: pip is told to trust a host without certificate validation
+  why: >-
+    --trusted-host disables TLS verification for that index, so an active
+    network attacker can serve a different package, and pip will execute its
+    setup.py during install.
+  fix: Fix the certificate chain instead, by installing the internal CA on the build image.
+
+- id: dep/pip-index-http
+  name: pip index served over plaintext
+  domain: supply-chain
+  severity: critical
+  confidence: confirmed
+  tests: report
+  tier: immediate
+  cwe: CWE-319
+  owasp: A08:2021
+  files: ['**/requirements*.txt', '**/pip.conf', '**/pip.ini', '**/Dockerfile', '**/Dockerfile.*']
+  match:
+    regex: '--(extra-)?index-url\s+http://'
+    not_regex: 'http://(localhost|127\.0\.0\.1)'
+  message: pip index URL uses plaintext HTTP
+  why: Packages are fetched over a channel anyone on the path can modify, and pip executes package build code during install.
+  fix: Use the HTTPS endpoint of the index.
+
+- id: dep/pip-unpinned
+  name: Python dependency not pinned
+  domain: supply-chain
+  severity: medium
+  confidence: firm
+  cwe: CWE-1104
+  owasp: A06:2021
+  files: ['**/requirements*.txt']
+  match:
+    regex: '^\s*([A-Za-z][A-Za-z0-9._-]+)\s*(\[[^\]]*\])?\s*$'
+    not_regex: '^\s*(#|-|\w+\s*[=<>~!])'
+  message: Requirement has no version constraint
+  why: >-
+    An unpinned requirement resolves to whatever is newest at install time, so
+    the build is not reproducible and a compromised release is picked up
+    immediately.
+  fix: Pin with == and manage upgrades with pip-tools or a bot, or commit a hash-pinned lock file.
+
+- id: dep/go-replace-local-path
+  name: Go module replaced with a local path
+  domain: supply-chain
+  severity: medium
+  confidence: firm
+  cwe: CWE-1104
+  files: ['**/go.mod']
+  match:
+    regex: '^\s*replace\s+\S+\s+=>\s+\.{1,2}/'
+  message: go.mod replaces a module with a local filesystem path
+  why: >-
+    A local replace directive builds from a path that does not exist in CI or
+    on another developer's machine, and it silently bypasses checksum
+    verification for that module.
+  fix: Remove the replace before merging, or use a Go workspace file which is not committed.
+
+- id: dep/lockfile-http-resolved
+  name: Lockfile resolves a package over plaintext
+  domain: supply-chain
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-319
+  owasp: A08:2021
+  files: ['**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml', '**/composer.lock']
+  match:
+    regex: '"?resolved"?\s*[:=]?\s*"?http://'
+    not_regex: 'http://(localhost|127\.0\.0\.1)'
+  message: Lockfile resolves a package over plaintext HTTP
+  why: >-
+    Every install from this lockfile fetches that package over a modifiable
+    channel, and the integrity hash does not help if the attacker can also
+    rewrite the lockfile entry in transit.
+  fix: Repoint the registry to HTTPS and regenerate the lockfile.
+
+- id: dep/curl-pipe-shell-script
+  name: Script pipes a download straight into a shell
+  domain: supply-chain
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-494
+  owasp: A08:2021
+  files: ['**/*.sh', '**/*.bash', '**/Makefile', '**/*.mk', '**/justfile']
+  match:
+    regex: '(curl|wget)[^|&;]*\|\s*(sudo\s+)?(ba|z|k|d)?sh\b'
+    not_regex: '(?i)^\s*#'
+  message: Script pipes a downloaded file directly into a shell
+  why: >-
+    The downloaded script is executed unverified, and a server can serve
+    different content to an automated fetch than to a human reading the URL.
+  fix: Download to a file, verify a pinned checksum or signature, then execute it.
+
+- id: dep/npm-auth-token-committed
+  name: Registry auth token in project configuration
+  domain: supply-chain
+  severity: critical
+  confidence: firm
+  tests: report
+  tier: immediate
+  cwe: CWE-798
+  files: ['**/.npmrc', '**/.yarnrc', '**/.yarnrc.yml', '**/pip.conf']
+  match:
+    # The lookahead sits at a fixed position and swallows the optional quote
+    # itself. Written as `["'']?(?!\$\{)` the optional group backtracks to
+    # empty, the lookahead is tested against the quote instead of the `${`,
+    # and every ${NPM_TOKEN} reference matches.
+    regex: '(?i)(_auth(Token)?|password|npmAuthToken)\s*[=:]\s*(?!["'']?\$[{A-Za-z])["'']?\S{8,}'
+  redact: true
+  snippet: capture
+  message: Registry credential is written into project configuration
+  why: >-
+    A publish-scoped token in a committed .npmrc lets anyone with repository
+    read access ship a release of your package to every consumer.
+  fix: >-
+    Reference an environment variable with ${NPM_TOKEN} and supply it from CI
+    secrets, then revoke the committed token.

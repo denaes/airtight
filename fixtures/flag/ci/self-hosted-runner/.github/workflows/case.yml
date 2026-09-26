@@ -1,0 +1,17 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: self-hosted
+    steps: [{run: "true"}]
+  b:
+    runs-on: [self-hosted, linux]
+    steps: [{run: "true"}]
+  c:
+    runs-on: self-hosted-gpu
+    steps: [{run: "true"}]
+  d:
+    runs-on: [self-hosted, arm64]
+    steps: [{run: "true"}]

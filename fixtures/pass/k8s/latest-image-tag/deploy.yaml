@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: a
+          image: nginx:1.27.1
+        - name: b
+          image: redis:7.4-alpine
+        - name: c
+          image: app@sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890
+        - name: d
+          image: registry.example.com/team/app:2.3.1
+        - name: e
+          image: ghcr.io/org/tool:v1.0.0

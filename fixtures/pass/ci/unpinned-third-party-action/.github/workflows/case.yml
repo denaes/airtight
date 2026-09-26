@@ -1,0 +1,14 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+      - uses: some-vendor/deploy@8f4b7c2e1d9a6035fe2cb14d7a09e853b6c1f240
+      - uses: ./.github/actions/local
+      - uses: another/thing@3d1a9f7e2b8c460512ad7e93cf04b6812d7e5a09
+      - run: echo done

@@ -1,0 +1,6 @@
+h = argon2.PasswordHasher().hash(password)
+ok = bcrypt.checkpw(password.encode(), stored)
+etag = hashlib.md5(file_bytes).hexdigest()
+checksum = hashlib.sha256(content).hexdigest()
+key = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
+fingerprint = hashlib.sha1(public_key).hexdigest()

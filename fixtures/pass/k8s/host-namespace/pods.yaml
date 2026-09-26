@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: a
+  namespace: apps
+spec:
+  hostNetwork: false
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: b
+  namespace: apps
+spec:
+  hostPID: false
+  hostIPC: false
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: c
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: d
+  namespace: apps
+spec:
+  dnsPolicy: ClusterFirst
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e
+  namespace: apps
+spec:
+  serviceAccountName: app
+  containers:
+    - name: app
+      image: app:1.0

@@ -1,0 +1,6 @@
+requests==2.32.3
+urllib3==2.2.2
+--index-url https://pypi.internal.example.com/simple
+--trusted-host localhost
+--trusted-host 127.0.0.1
+certifi==2024.7.4

@@ -1,0 +1,445 @@
+# Kubernetes pack.
+#
+# Every rule gates on `kind` and `apiVersion` being present, because the file
+# glob cannot distinguish a manifest from any other YAML in the repository.
+#
+# Container rules iterate both containers and initContainers: an init container
+# runs with the same pod security context and is a standard way to do the
+# privileged work the main container is not allowed to do.
+
+- id: k8s/privileged-container
+  name: Container runs privileged
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  owasp: A01:2021
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]', '**.initContainers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: securityContext.privileged
+        equals: true
+  message: Container sets securityContext.privileged = true
+  why: >-
+    A privileged container has every capability and effectively full access to
+    the host kernel and devices. Escaping to the node is a documented one-liner,
+    and from the node the whole cluster is reachable.
+  fix: >-
+    Remove privileged and add only the specific capabilities the workload
+    needs. If it genuinely needs host access, isolate it on a dedicated node
+    pool with its own RBAC.
+
+- id: k8s/docker-socket-mount
+  name: Container mounts the container runtime socket
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        present: true
+      - path: '**.hostPath.path'
+        matches: '(docker\.sock|containerd\.sock|crio\.sock)$'
+  message: Pod mounts the container runtime socket from the host
+  why: >-
+    Access to the runtime socket is equivalent to root on the node: it can
+    start a new privileged container mounting the host filesystem. This is the
+    single most reliable container escape there is.
+  fix: >-
+    Use the Kubernetes API with a scoped service account instead. If a build
+    workload needs image creation, use a rootless builder such as Kaniko or
+    Buildah.
+
+- id: k8s/host-namespace
+  name: Pod shares a host namespace
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-653
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        present: true
+    any:
+      - path: '**.hostNetwork'
+        equals: true
+      - path: '**.hostPID'
+        equals: true
+      - path: '**.hostIPC'
+        equals: true
+  message: Pod shares the host network, PID, or IPC namespace
+  why: >-
+    Sharing a host namespace removes the isolation the pod boundary exists to
+    provide: hostNetwork exposes every local service and the node's identity,
+    and hostPID lets the container see and signal host processes.
+  fix: Remove the host namespace flag. If a service needs node-level access, use a DaemonSet with the narrowest namespace it truly requires.
+
+- id: k8s/host-path-volume
+  name: Pod mounts a host path
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  cwe: CWE-22
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        present: true
+      - path: '**.hostPath.path'
+        matches: '^/'
+      - path: '**.hostPath.path'
+        not_matches: '(docker\.sock|containerd\.sock|crio\.sock)$'
+  message: Pod mounts a path from the host filesystem
+  why: >-
+    A hostPath mount crosses the isolation boundary. Depending on the path it
+    can expose node credentials, other pods' data, or a writable location the
+    kubelet will later execute from.
+  fix: Use a PersistentVolumeClaim, configMap, or emptyDir. Where hostPath is unavoidable, mount it readOnly and narrow the path.
+
+- id: k8s/dangerous-capabilities
+  name: Container adds dangerous capabilities
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]', '**.initContainers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: securityContext.capabilities.add[*]
+        matches: '^(ALL|SYS_ADMIN|SYS_PTRACE|SYS_MODULE|NET_ADMIN|NET_RAW|DAC_READ_SEARCH|SYS_BOOT|BPF)$'
+  message: Container adds a capability that undermines the sandbox
+  why: >-
+    SYS_ADMIN is close to privileged in practice, SYS_PTRACE allows inspecting
+    and injecting into other processes, and SYS_MODULE loads kernel modules.
+    Each is a documented escape route.
+  fix: Drop ALL capabilities and add back only the narrow ones the process needs, such as NET_BIND_SERVICE for a low port.
+
+- id: k8s/allow-privilege-escalation
+  name: Container allows privilege escalation
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]', '**.initContainers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: securityContext.allowPrivilegeEscalation
+        equals: true
+  message: Container sets allowPrivilegeEscalation = true
+  why: >-
+    The process can gain more privileges than its parent through setuid
+    binaries or file capabilities, which turns a limited RCE into a root one
+    inside the container.
+  fix: Set allowPrivilegeEscalation = false. It is the default under the restricted Pod Security Standard for a reason.
+
+- id: k8s/run-as-root
+  name: Container runs as root
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]', '**.initContainers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+    any:
+      - path: securityContext.runAsUser
+        equals: 0
+      - path: securityContext.runAsNonRoot
+        equals: false
+  message: Container runs as uid 0
+  why: >-
+    Root in the container is root on the host for anything that crosses the
+    boundary, including hostPath mounts and any capability the runtime leaves
+    in place.
+  fix: Set runAsNonRoot = true and runAsUser to a non-zero uid, and make the image's files readable by it.
+
+- id: k8s/writable-root-filesystem
+  name: Container root filesystem is writable
+  domain: infrastructure
+  severity: medium
+  confidence: tentative
+  cwe: CWE-732
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: image
+        present: true
+      - path: securityContext.readOnlyRootFilesystem
+        not_matches: '^true$'
+  message: Container does not set readOnlyRootFilesystem
+  why: >-
+    A writable root filesystem lets an attacker who achieves execution persist
+    a payload, modify application code, or drop a binary the next restart will
+    run.
+  fix: Set readOnlyRootFilesystem = true and mount an emptyDir for the paths the process legitimately writes.
+
+- id: k8s/no-resource-limits
+  name: Container declares no resource limits
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  cwe: CWE-770
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: image
+        present: true
+      - path: resources.limits
+        present: false
+  message: Container sets no resources.limits
+  why: >-
+    Without limits one compromised or looping container can exhaust node
+    memory and CPU, evicting everything else scheduled there. It turns a
+    single-workload bug into a node-wide outage.
+  fix: Set resources.limits for memory and CPU, and matching requests so the scheduler places the pod honestly.
+
+- id: k8s/automount-service-account-token
+  name: Service account token mounted unnecessarily
+  domain: infrastructure
+  severity: medium
+  confidence: tentative
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        matches: '^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet)$'
+      - path: '**.automountServiceAccountToken'
+        present: false
+  message: Pod does not disable automountServiceAccountToken
+  why: >-
+    The token is mounted into every container by default, so any code
+    execution in the pod immediately has an API credential to enumerate and
+    move laterally with.
+  fix: Set automountServiceAccountToken = false on the pod spec unless the workload actually calls the Kubernetes API.
+
+- id: k8s/wildcard-rbac
+  name: Role grants every verb on every resource
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  owasp: A01:2021
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['rules[*]']
+  assert:
+    all:
+      - path: $.kind
+        matches: '^(Role|ClusterRole)$'
+      - path: verbs[*]
+        equals: '*'
+      - path: resources[*]
+        equals: '*'
+  message: Role rule grants verbs "*" on resources "*"
+  why: >-
+    On a ClusterRole this is cluster-admin by another name: read every secret,
+    create privileged pods on any node, and modify the RBAC that would
+    constrain it.
+  fix: Enumerate the verbs and resources the workload uses. `kubectl auth can-i --list` against the current binding is a good starting point.
+
+- id: k8s/cluster-admin-binding
+  name: Binding grants cluster-admin
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        matches: '^(ClusterRoleBinding|RoleBinding)$'
+      - path: roleRef.name
+        equals: cluster-admin
+  message: Binding grants the cluster-admin role
+  why: >-
+    Whatever holds this binding can do anything in the cluster. Bound to a
+    service account, it means any code execution in that workload is a full
+    cluster compromise.
+  fix: Create a role with the specific permissions needed and bind that instead.
+
+- id: k8s/anonymous-subject-binding
+  name: Binding grants access to unauthenticated users
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-306
+  owasp: A01:2021
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['subjects[*]']
+  assert:
+    all:
+      - path: $.kind
+        matches: 'Binding$'
+      - path: name
+        matches: '^system:(unauthenticated|anonymous)$'
+  message: Role binding includes system:unauthenticated or system:anonymous
+  why: Anyone who can reach the API server, authenticated or not, receives the bound permissions.
+  fix: Remove the subject. If public read access to something is genuinely required, expose it through an application, not the Kubernetes API.
+
+- id: k8s/secret-in-env-literal
+  name: Secret hardcoded in a container environment variable
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-798
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.env[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: name
+        matches: '(?i)(password|passwd|secret|token|api_?key|access_?key|private_?key|credential)'
+      - path: value
+        matches: '^.{6,}$'
+  message: 'Environment variable {{name}} holds a literal value in the manifest'
+  why: >-
+    Manifests are usually in version control and readable by everyone with
+    repository access, which is a far wider group than those who should hold
+    production credentials.
+  fix: Reference a Secret with valueFrom.secretKeyRef, and source the Secret from an external store rather than committing it.
+
+- id: k8s/latest-image-tag
+  name: Container image uses a mutable tag
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  cwe: CWE-1104
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]', '**.initContainers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: image
+        matches: ':latest$'
+  message: 'Container image uses the mutable :latest tag: {{image}}'
+  why: >-
+    Rollouts become non-deterministic and non-reproducible: two pods of the
+    same Deployment can run different code, and a rollback does not roll the
+    image back.
+  fix: Pin to an immutable tag or a digest, and set imagePullPolicy accordingly.
+
+- id: k8s/untagged-image
+  name: Container image has no tag
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  cwe: CWE-1104
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  for_each: ['**.containers[*]', '**.initContainers[*]']
+  assert:
+    all:
+      - path: $.kind
+        present: true
+      - path: image
+        matches: '^[a-z0-9./_-]+$'
+      - path: image
+        not_matches: '[:@]'
+  message: 'Container image has no tag, so it resolves to :latest: {{image}}'
+  why: An untagged image is :latest with the problem hidden, which makes the non-determinism harder to notice in review.
+  fix: Pin to an explicit tag or digest.
+
+- id: k8s/nodeport-service
+  name: Service exposed as NodePort
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  cwe: CWE-284
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        equals: Service
+      - path: spec.type
+        equals: NodePort
+  message: Service is of type NodePort
+  why: >-
+    NodePort opens the port on every node, bypassing ingress controls, WAF, and
+    whatever authentication the ingress layer applies.
+  fix: Use ClusterIP with an Ingress, or a LoadBalancer service with restricted source ranges.
+
+- id: k8s/default-namespace
+  name: Workload deploys into the default namespace
+  domain: infrastructure
+  severity: low
+  confidence: firm
+  cwe: CWE-1188
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        matches: '^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob)$'
+      - path: metadata.namespace
+        equals: default
+  message: Workload is pinned to the default namespace
+  why: >-
+    The default namespace usually has no NetworkPolicy, no resource quota, and
+    no distinct RBAC, so workloads there inherit the weakest posture in the
+    cluster.
+  fix: Deploy into a dedicated namespace with its own NetworkPolicy, quota, and Pod Security Standard label.

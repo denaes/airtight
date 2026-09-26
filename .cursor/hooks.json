@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "[ ! -f \".cursor/skills/airtight/scripts/airtight\" ] || \".cursor/skills/airtight/scripts/airtight\" hook-before-edit"
+      }
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: a
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: b
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: c
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: d
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: app:1.0

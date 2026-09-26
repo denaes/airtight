@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: x0
+          image: app:1.0
+          env:
+            - name: DB_PASSWORD
+              value: "hunter2secret"
+        - name: x1
+          image: app:1.0
+          env:
+            - name: API_KEY
+              value: "ak-abc123def"
+        - name: x2
+          image: app:1.0
+          env:
+            - name: AUTH_TOKEN
+              value: "tok-9f8e7d"
+        - name: x3
+          image: app:1.0
+          env:
+            - name: CLIENT_SECRET
+              value: "cs-112233"

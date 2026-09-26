@@ -1,0 +1,331 @@
+# Python dangerous sinks.
+#
+# Same split as the JavaScript pack: rules that can see the taint in the same
+# expression are firm, rules that can only see the sink are tentative.
+
+- id: py/eval-exec
+  name: Dynamic code execution
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-95
+  owasp: A03:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?<![\w.])(eval|exec)\s*\('
+    not_regex: '(?i)^\s*#|\bast\.literal_eval\b'
+  message: Code is compiled and executed at runtime
+  why: >-
+    Any input reaching eval or exec is arbitrary code with the process's
+    privileges. Python has no sandbox for this: restricted-mode escapes are
+    well documented and short.
+  fix: Use ast.literal_eval for data, a dict for dispatch, or a purpose-built expression parser.
+
+- id: py/yaml-unsafe-load
+  name: YAML parsed with the unsafe loader
+  domain: appsec
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-502
+  owasp: A08:2021
+  files: ['**/*.py']
+  match:
+    regex: '\byaml\.(load|unsafe_load|full_load)\s*\('
+    not_regex: 'Loader\s*=\s*(yaml\.)?(Safe|CSafe)Loader|\byaml\.safe_load\b'
+  message: YAML is parsed with a loader that can instantiate arbitrary objects
+  why: >-
+    The default loader honours tags like !!python/object/apply, which
+    constructs arbitrary Python objects and can call arbitrary functions.
+    Loading untrusted YAML is loading untrusted code.
+  fix: Use yaml.safe_load, or pass Loader=yaml.SafeLoader explicitly.
+
+- id: py/pickle-loads
+  name: Pickle deserialization
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tests: ignore
+  tier: immediate
+  cwe: CWE-502
+  owasp: A08:2021
+  files: ['**/*.py']
+  match:
+    regex: '\b(pickle|cPickle|dill|shelve)\.(loads?|Unpickler)\s*\('
+    not_regex: '(?i)^\s*#'
+  message: Data is deserialized with pickle
+  why: >-
+    Unpickling executes the __reduce__ method of whatever the stream says the
+    object is, so a crafted payload runs code during load. This is the
+    intended behaviour of the format, not a bug in it.
+  fix: >-
+    Use JSON for data interchange. If you must accept pickled data, sign it
+    with HMAC and verify before unpickling, and treat the key as a credential.
+
+- id: py/subprocess-shell-true
+  name: Subprocess invoked with a shell
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/*.py']
+  match:
+    regex: '\bshell\s*=\s*True'
+    not_regex: '(?i)^\s*#'
+  message: Subprocess is invoked with shell=True
+  why: >-
+    The command string is interpreted by a shell, so any interpolated value
+    can introduce `;`, `|`, or `$()`. With a list argument and no shell there
+    is nothing to escape in the first place.
+  fix: Pass the command as a list and drop shell=True. Use shlex.quote only if a shell is genuinely unavoidable.
+
+- id: py/os-system-interpolation
+  name: os.system with an interpolated command
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/*.py']
+  match:
+    regex: '\bos\.(system|popen)\s*\(\s*(f["'']|["''][^"'']*["'']\s*%|["''][^"'']*["'']\s*\+|.*\.format\s*\()'
+  message: os.system builds its command from an interpolated value
+  why: os.system always goes through a shell, so an interpolated value is a command injection candidate with no escaping in the way.
+  fix: Use subprocess.run with an argument list and shell defaulting to False.
+
+- id: py/sql-fstring
+  name: SQL built with an f-string
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-89
+  owasp: A03:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)f(["''])(?:(?!\1).)*(?:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\{'
+  message: SQL statement built with an f-string
+  why: >-
+    The value is substituted before the driver sees the statement, so it
+    becomes SQL syntax rather than a parameter. DB-API placeholders exist
+    precisely to avoid this and are no harder to write.
+  fix: Use %s or :name placeholders and pass the values as the execute call's second argument.
+
+- id: py/sql-percent-format
+  name: SQL built with percent formatting
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-89
+  owasp: A03:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)\.execute\s*\(\s*(["''])(?:(?!\1).)*(?:\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b)(?:(?!\1).)*\1\s*%[^,)]'
+  message: SQL statement built with percent formatting before execute
+  why: >-
+    Formatting with `%` happens in Python, so the driver receives an already
+    assembled string. Passing the values as execute's second argument looks
+    almost identical and is parameterized.
+  fix: Change `cur.execute(q % vals)` to `cur.execute(q, vals)`.
+
+- id: py/requests-verify-false
+  name: TLS certificate verification disabled
+  domain: appsec
+  severity: critical
+  confidence: confirmed
+  tests: ignore
+  tier: immediate
+  cwe: CWE-295
+  owasp: A02:2021
+  files: ['**/*.py']
+  match:
+    regex: '\bverify\s*=\s*False|ssl\._create_unverified_context\s*\('
+  message: TLS certificate verification is turned off
+  why: >-
+    The connection is encrypted to whoever answered, which is no defence
+    against an active network attacker. This is usually added to silence a
+    certificate error and then never removed.
+  fix: Pass verify with the path to your internal CA bundle, or install the CA into the system trust store.
+
+- id: py/cert-reqs-none
+  name: TLS verification mode set to CERT_NONE
+  domain: appsec
+  severity: high
+  confidence: firm
+  cwe: CWE-295
+  owasp: A02:2021
+  files: ['**/*.py']
+  match:
+    regex: '(cert_reqs|verify_mode)\s*=\s*[^\n]*CERT_NONE'
+  message: TLS verification mode is set to CERT_NONE
+  why: >-
+    The connection is encrypted to whoever answered, which is no defence
+    against an active network attacker. Reported at firm rather than confirmed
+    because a library implementing an opt-out looks identical to a caller
+    taking it.
+  fix: Set cert_reqs to CERT_REQUIRED and supply the CA bundle the peer should be validated against.
+
+- id: py/assert-for-authorization
+  name: Authorization enforced with assert
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tests: ignore
+  tier: immediate
+  cwe: CWE-617
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)^\s*assert\s+.*\b(is_admin|is_staff|is_superuser|has_perm|has_permission|can_[a-z_]+|is_authenticated|is_owner|current_user)\b'
+  message: An authorization check is written as an assert
+  why: >-
+    Python removes assert statements entirely under -O, which production
+    deployments and many container images enable. The check silently
+    disappears and every request is authorized.
+  fix: Raise an explicit exception, such as PermissionDenied or HTTPException(403).
+
+- id: py/flask-debug-enabled
+  name: Debug mode enabled
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tests: ignore
+  tier: immediate
+  cwe: CWE-489
+  owasp: A05:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)\.run\s*\([^)]*\bdebug\s*=\s*True|^\s*DEBUG\s*=\s*True'
+  message: Debug mode is enabled
+  why: >-
+    The Werkzeug debugger exposes an interactive Python console on any
+    traceback. Reachable from the network it is unauthenticated remote code
+    execution, and Django's DEBUG leaks settings and query contents.
+  fix: Read the flag from the environment and default it to False.
+
+- id: py/weak-password-hash
+  name: Password hashed with a fast digest
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-916
+  owasp: A02:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)hashlib\.(md5|sha1|sha256|sha512)\s*\([^\n]*\b(password|passwd|passphrase|pwd)\b'
+  message: A general-purpose digest is used where a password hash belongs
+  why: >-
+    These digests are built to be fast, which is exactly wrong for password
+    storage. A commodity GPU tries billions of candidates per second.
+  fix: Use argon2-cffi, or hashlib.scrypt with a per-password salt and a tuned work factor.
+
+- id: py/random-for-secret
+  name: Non-cryptographic randomness for a security value
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-338
+  owasp: A02:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?<![\w.])random\.(random|randint|choice|choices|randrange|sample|shuffle|getrandbits)\s*\('
+    require_regex: '(?i)(token|secret|password|nonce|salt|otp|session|api_?key|reset|verif|csrf)'
+  message: The random module is used in a file that generates security values
+  why: >-
+    random is a Mersenne Twister with observable state: 624 outputs are enough
+    to reconstruct it and predict everything that follows.
+  fix: Use the secrets module, such as secrets.token_urlsafe(32) or secrets.randbelow.
+
+- id: py/jinja-autoescape-off
+  name: Template autoescaping disabled
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-79
+  owasp: A03:2021
+  files: ['**/*.py']
+  match:
+    regex: 'autoescape\s*=\s*False'
+  message: Jinja autoescaping is turned off
+  why: Every variable rendered into a template becomes raw HTML, so one stored value with a script tag becomes cross-site scripting on every page that renders it.
+  fix: Leave autoescape on and mark the specific trusted values with Markup, rather than disabling it globally.
+
+- id: py/xxe-unsafe-parser
+  name: XML parsed with an entity-expanding parser
+  domain: appsec
+  severity: high
+  confidence: tentative
+  cwe: CWE-611
+  owasp: A05:2021
+  files: ['**/*.py']
+  match:
+    regex: '\b(xml\.etree\.ElementTree|etree|minidom|sax|pulldom)\.(parse|fromstring|parseString)\s*\('
+    not_regex: 'defusedxml'
+  message: XML is parsed with a parser that may expand external entities
+  why: >-
+    A document declaring an external entity can read local files or make the
+    server issue requests on the attacker's behalf, and billion-laughs
+    expansion can exhaust memory.
+  fix: Use defusedxml, which provides drop-in replacements with entity expansion disabled.
+
+- id: py/tarfile-extractall
+  name: Archive extracted without path validation
+  domain: appsec
+  severity: high
+  confidence: firm
+  cwe: CWE-22
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '\.extractall\s*\('
+    not_regex: 'filter\s*=|is_within_directory|_safe_extract|data_filter'
+  message: Archive is extracted without validating member paths
+  why: >-
+    A member named ../../etc/cron.d/x writes outside the destination
+    directory. This is Zip Slip, and it is a write primitive that frequently
+    becomes code execution.
+  fix: Pass filter="data" on Python 3.12 or later, or validate each member's resolved path stays under the destination.
+
+- id: py/tempfile-mktemp
+  name: Insecure temporary file creation
+  domain: appsec
+  severity: medium
+  confidence: confirmed
+  cwe: CWE-377
+  files: ['**/*.py']
+  match:
+    regex: '\btempfile\.mktemp\s*\('
+  message: tempfile.mktemp is used to choose a path
+  why: >-
+    mktemp returns a name without creating the file, so anything can create a
+    symlink at that path before you open it and redirect your write.
+  fix: Use tempfile.NamedTemporaryFile or mkstemp, which create the file atomically.
+
+- id: py/bind-all-interfaces
+  name: Service binds to all interfaces
+  domain: appsec
+  severity: medium
+  confidence: tentative
+  tests: ignore
+  cwe: CWE-1327
+  files: ['**/*.py']
+  match:
+    regex: '(?i)(host\s*=\s*["'']0\.0\.0\.0["'']|\.bind\s*\(\s*\(\s*["'']0\.0\.0\.0["''])'
+  message: Service binds to 0.0.0.0
+  why: >-
+    Binding to all interfaces exposes the service on every network the host is
+    attached to, which in a container with host networking or a VM with a
+    public interface means the internet.
+  fix: >-
+    Bind to 127.0.0.1 and put a reverse proxy in front, or make the bind
+    address configurable and default it to loopback. Inside a container with
+    its own network namespace 0.0.0.0 is often correct; confirm which case
+    this is.

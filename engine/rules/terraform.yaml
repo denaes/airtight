@@ -1,0 +1,501 @@
+# Terraform pack.
+#
+# Rules iterate allBlocks[*], the depth-flattened block list, so a rule can
+# match a nested `ingress` block without knowing how deeply it sits. `address`
+# carries the full dotted path, which is how a nested block knows what kind of
+# resource encloses it.
+
+- id: terraform/open-ingress-sensitive-port
+  name: Administrative port open to the internet
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: type
+        equals: ingress
+      - path: attrs.cidr_blocks[*]
+        matches: '^(0\.0\.0\.0/0|::/0)$'
+      - path: address
+        matches: 'security_group'
+    # Either the rule names an administrative port outright, or it opens a
+    # range so wide that it necessarily contains them. A plain 80 or 443 to the
+    # world is normal and must not land here.
+    any:
+      - path: attrs.from_port
+        matches: '^(22|23|135|139|445|1433|1521|3306|3389|5432|5984|6379|9200|9300|11211|27017|27018)$'
+      - path: attrs.to_port
+        matches: '^(22|23|135|139|445|1433|1521|3306|3389|5432|5984|6379|9200|9300|11211|27017|27018)$'
+      - path: attrs.protocol
+        equals: '-1'
+  message: Security group opens an administrative port to 0.0.0.0/0
+  why: >-
+    SSH, RDP, and database ports reachable from the whole internet are found by
+    mass scanners within minutes of going live, and credential stuffing against
+    them is continuous and automated.
+  fix: >-
+    Restrict cidr_blocks to your own ranges, or reach the host through a
+    bastion, SSM Session Manager, or a private endpoint instead.
+
+- id: terraform/open-ingress
+  name: Security group open to the internet
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: type
+        equals: ingress
+      - path: attrs.cidr_blocks[*]
+        matches: '^(0\.0\.0\.0/0|::/0)$'
+      - path: address
+        matches: 'security_group'
+      # Stand down where open-ingress-sensitive-port already reports. Two
+      # findings on one line spends the hook's budget saying the same thing.
+      - path: attrs.from_port
+        not_matches: '^(22|23|135|139|445|1433|1521|3306|3389|5432|5984|6379|9200|9300|11211|27017|27018)$'
+      - path: attrs.to_port
+        not_matches: '^(22|23|135|139|445|1433|1521|3306|3389|5432|5984|6379|9200|9300|11211|27017|27018)$'
+      - path: attrs.protocol
+        not_equals: '-1'
+  message: Ingress rule allows traffic from 0.0.0.0/0
+  why: >-
+    An internet-wide source range removes the network layer from your defence
+    in depth, leaving whatever the application itself enforces as the only
+    control.
+  fix: Narrow cidr_blocks to the ranges that actually need access, or reference a source security group.
+
+- id: terraform/iam-wildcard-action
+  name: IAM policy grants every action
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-250
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: attrs.policy
+        matches: '"Action"\s*:\s*(\[\s*)?"\*"'
+      - path: attrs.policy
+        matches: '"Effect"\s*:\s*"Allow"'
+  message: IAM policy document allows Action "*"
+  why: >-
+    A principal holding this can do anything the account can do, including
+    escalating its own privileges and deleting the audit trail that would show
+    it happened.
+  fix: Enumerate the actions the workload actually calls. Start from CloudTrail data rather than guessing.
+
+- id: terraform/iam-wildcard-resource
+  name: IAM policy applies to every resource
+  domain: infrastructure
+  severity: high
+  confidence: tentative
+  cwe: CWE-250
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: attrs.policy
+        matches: '"Resource"\s*:\s*(\[\s*)?"\*"'
+      - path: attrs.policy
+        matches: '"Effect"\s*:\s*"Allow"'
+      - path: attrs.policy
+        not_matches: '"Action"\s*:\s*(\[\s*)?"\*"'
+  message: IAM policy document allows Resource "*"
+  why: >-
+    Some actions genuinely require a wildcard resource, so this is not always
+    wrong, but it usually means the policy was written without knowing which
+    ARNs the workload touches.
+  fix: Scope Resource to specific ARNs where the action supports it, and leave a comment where it genuinely cannot.
+
+- id: terraform/s3-public-acl
+  name: S3 bucket ACL grants public access
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_s3_bucket(_acl)?$'
+      - path: attrs.acl
+        matches: '^public-read'
+  message: 'S3 bucket ACL is {{attrs.acl}}'
+  why: >-
+    A public bucket is enumerable by anyone, and public-read-write additionally
+    lets strangers store content you will pay for and be blamed for.
+  fix: >-
+    Set the ACL to private and serve public objects through CloudFront with an
+    origin access identity. Enable the account-level public access block too.
+
+- id: terraform/s3-public-access-block-disabled
+  name: S3 public access block explicitly disabled
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: aws_s3_bucket_public_access_block
+      - path: attrs.block_public_acls
+        equals: false
+  message: S3 public access block sets block_public_acls to false
+  why: >-
+    This is the account's backstop against an accidentally public bucket.
+    Turning it off removes the control that catches the mistake everyone
+    eventually makes.
+  fix: Set block_public_acls, block_public_policy, ignore_public_acls and restrict_public_buckets to true.
+
+- id: terraform/rds-publicly-accessible
+  name: Database instance is publicly accessible
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_(db_instance|rds_cluster|redshift_cluster)$'
+      - path: attrs.publicly_accessible
+        equals: true
+  message: Database instance sets publicly_accessible = true
+  why: >-
+    The database gets a public IP and is reachable from the internet subject
+    only to its security group. Database ports are among the most scanned on
+    the internet.
+  fix: Set publicly_accessible = false and reach the database from inside the VPC or over a private endpoint.
+
+- id: terraform/rds-unencrypted
+  name: Database storage is not encrypted
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  cwe: CWE-311
+  owasp: A02:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_(db_instance|rds_cluster)$'
+      - path: attrs.storage_encrypted
+        equals: false
+  message: Database sets storage_encrypted = false
+  why: >-
+    Snapshots and the underlying volumes are readable by anyone who obtains
+    them, and encryption cannot be enabled in place later without a snapshot
+    and restore.
+  fix: Set storage_encrypted = true and specify a customer-managed KMS key where policy requires one.
+
+- id: terraform/ebs-unencrypted
+  name: Block volume is not encrypted
+  domain: infrastructure
+  severity: medium
+  confidence: confirmed
+  cwe: CWE-311
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_ebs_volume$'
+      - path: attrs.encrypted
+        equals: false
+  message: EBS volume sets encrypted = false
+  why: Detached or snapshotted volumes carry their data in the clear to whoever ends up holding them.
+  fix: Set encrypted = true, and enable EBS encryption by default at the account level.
+
+- id: terraform/imdsv1-allowed
+  name: Instance allows IMDSv1
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  cwe: CWE-918
+  owasp: A10:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: type
+        equals: metadata_options
+      - path: attrs.http_tokens
+        equals: optional
+  message: Instance metadata service allows IMDSv1 (http_tokens = optional)
+  why: >-
+    IMDSv1 answers any request that reaches it, so a server-side request
+    forgery in the application becomes instance credential theft. IMDSv2
+    requires a PUT-issued token, which SSRF generally cannot perform.
+  fix: Set http_tokens = "required" and http_put_response_hop_limit = 1.
+
+- id: terraform/hardcoded-credential
+  name: Credential hardcoded in Terraform
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-798
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allAttrs[*]
+  assert:
+    all:
+      - path: name
+        matches: '(?i)^(password|passwd|secret|token|api_?key|access_?key|secret_?key|private_?key|client_?secret|auth_?token|credential)s?$'
+      # A literal, not a variable reference, data lookup, or interpolation.
+      - path: value
+        matches: '^[A-Za-z0-9+/=_.@!$%^&*-]{8,}$'
+      # Any Terraform reference is a lowercase dotted identifier chain
+      # (var.x, random_password.db.result,
+      # data.aws_secretsmanager_secret_version.db.secret_string). Enumerating
+      # prefixes missed the ones whose resource type begins with the prefix.
+      - path: value
+        not_matches: '^[a-z][a-z0-9_]*(\.[a-z0-9_*\[\]-]+)+$'
+      - path: value
+        not_matches: '\$\{'
+  message: 'Attribute {{name}} is assigned a literal credential'
+  why: >-
+    Terraform source is usually more widely readable than the infrastructure it
+    describes, and the value also lands in state, which is rarely encrypted as
+    carefully as people assume.
+  fix: >-
+    Move the value to a variable sourced from a secret manager, and mark the
+    variable sensitive so it stays out of plan output.
+
+- id: terraform/lb-http-listener
+  name: Load balancer listener serves plaintext HTTP
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  cwe: CWE-319
+  owasp: A02:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_(lb|alb)_listener$'
+      - path: attrs.protocol
+        equals: HTTP
+      - path: attrs.default_action
+        not_matches: 'redirect'
+  message: Load balancer listener uses plaintext HTTP without redirecting
+  why: >-
+    Credentials and session cookies cross the network in the clear, and any
+    network position between client and load balancer can read or modify them.
+  fix: Terminate TLS on the listener, or make the HTTP listener a 301 redirect to HTTPS.
+
+- id: terraform/weak-tls-policy
+  name: Load balancer accepts obsolete TLS
+  domain: infrastructure
+  severity: medium
+  confidence: confirmed
+  cwe: CWE-327
+  owasp: A02:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: attrs.ssl_policy
+        matches: '(TLS-1-0|TLS-1-1|2015-05|2016-08)'
+  message: 'TLS policy permits TLS 1.0 or 1.1: {{attrs.ssl_policy}}'
+  why: TLS 1.0 and 1.1 are deprecated, fail PCI-DSS, and carry cipher suites with practical downgrade attacks.
+  fix: Use a TLS 1.2 or 1.3 policy such as ELBSecurityPolicy-TLS13-1-2-2021-06.
+
+- id: terraform/cloudtrail-not-multi-region
+  name: CloudTrail is not multi-region
+  domain: infrastructure
+  severity: medium
+  confidence: confirmed
+  cwe: CWE-778
+  owasp: A09:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: aws_cloudtrail
+      - path: attrs.is_multi_region_trail
+        equals: false
+  message: CloudTrail sets is_multi_region_trail = false
+  why: >-
+    Activity in unmonitored regions is invisible, and operating in an unused
+    region is a standard move precisely because nobody is looking there.
+  fix: Set is_multi_region_trail = true and enable log file validation.
+
+- id: terraform/log-validation-disabled
+  name: CloudTrail log file validation disabled
+  domain: infrastructure
+  severity: medium
+  confidence: confirmed
+  cwe: CWE-778
+  owasp: A09:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: aws_cloudtrail
+      - path: attrs.enable_log_file_validation
+        equals: false
+  message: CloudTrail sets enable_log_file_validation = false
+  why: Without validation digests you cannot demonstrate that the audit trail was not edited after an incident.
+  fix: Set enable_log_file_validation = true.
+
+- id: terraform/unencrypted-state-backend
+  name: Remote state backend not encrypted
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  cwe: CWE-311
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: type
+        equals: backend
+      - path: labels[0]
+        equals: s3
+      - path: attrs.encrypt
+        not_matches: '^true$'
+  message: S3 state backend does not set encrypt = true
+  why: >-
+    Terraform state contains every value the configuration touched, including
+    generated passwords and keys, in plaintext. It is frequently the most
+    sensitive object in the account.
+  fix: Set encrypt = true, add a kms_key_id, and enable versioning plus a lock table on the state bucket.
+
+- id: terraform/sqs-sns-public-policy
+  name: Queue or topic policy allows any principal
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  cwe: CWE-284
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_(sqs_queue|sns_topic|s3_bucket)_policy$'
+      - path: attrs.policy
+        matches: '"Principal"\s*:\s*("\*"|\{\s*"AWS"\s*:\s*"\*"\s*\})'
+      - path: attrs.policy
+        matches: '"Effect"\s*:\s*"Allow"'
+  message: Resource policy allows Principal "*"
+  why: >-
+    Any AWS account, and often any anonymous caller, can invoke the allowed
+    actions. On a queue that means message injection or drainage; on a bucket
+    it means public data.
+  fix: Name the specific principals, and add a condition on aws:SourceAccount or aws:SourceArn.
+
+- id: terraform/kms-rotation-disabled
+  name: KMS key rotation disabled
+  domain: infrastructure
+  severity: low
+  confidence: confirmed
+  cwe: CWE-320
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: aws_kms_key
+      - path: attrs.enable_key_rotation
+        not_matches: '^true$'
+  message: KMS key does not enable automatic rotation
+  why: A key that never rotates means a single compromise covers every ciphertext the key ever produced.
+  fix: Set enable_key_rotation = true. AWS handles the rotation and keeps old material for decryption.
+
+- id: terraform/eks-public-endpoint
+  name: Kubernetes control plane endpoint is public
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  cwe: CWE-284
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: type
+        equals: vpc_config
+      - path: attrs.endpoint_public_access
+        equals: true
+      - path: attrs.public_access_cidrs[*]
+        matches: '^0\.0\.0\.0/0$'
+  message: EKS API server endpoint is reachable from 0.0.0.0/0
+  why: >-
+    The Kubernetes API is the control plane for everything in the cluster, and
+    exposing it to the internet makes every authentication weakness in it
+    globally reachable.
+  fix: Set endpoint_private_access = true, and restrict public_access_cidrs to your own ranges if public access is required.
+
+- id: terraform/lambda-env-secret
+  name: Lambda environment variable holds a credential
+  domain: infrastructure
+  severity: high
+  confidence: tentative
+  cwe: CWE-798
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allAttrs[*]
+  assert:
+    all:
+      - path: fullName
+        matches: '^variables\.'
+      - path: address
+        matches: 'aws_lambda_function'
+      - path: name
+        matches: '(?i)(password|secret|token|api_?key|access_?key|credential)'
+      - path: value
+        matches: '^[A-Za-z0-9+/=_.@-]{8,}$'
+      - path: value
+        not_matches: '^[a-z][a-z0-9_]*(\.[a-z0-9_*\[\]-]+)+$'
+      - path: value
+        not_matches: '\$\{'
+  message: 'Lambda environment variable {{name}} holds a literal value'
+  why: >-
+    Lambda environment variables are visible to anyone with lambda:GetFunction
+    and are stored unencrypted at rest unless a KMS key is configured.
+  fix: Read the secret from Secrets Manager or Parameter Store at cold start, or configure a KMS key for the environment.

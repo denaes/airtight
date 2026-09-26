@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: x0
+          image: app:1.0
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: password
+        - name: x1
+          image: app:1.0
+          env:
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: key
+        - name: x2
+          image: app:1.0
+          env:
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: token
+        - name: x3
+          image: app:1.0
+          env:
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oidc
+                  key: client-secret
+        - name: y
+          image: app:1.0
+          env:
+            - name: LOG_LEVEL
+              value: "info"

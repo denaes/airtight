@@ -1,0 +1,6 @@
+FROM alpine:3.20
+ENV API_KEY=abc123def456
+ARG NPM_TOKEN=npmtok_realvalue
+ENV DB_PASSWORD=hunter2
+ARG PRIVATE_KEY=MIIEvQIBADANBg
+USER nobody

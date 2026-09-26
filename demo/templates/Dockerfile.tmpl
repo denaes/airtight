@@ -1,0 +1,10 @@
+FROM node:latest
+
+WORKDIR /app
+ENV STRIPE_SECRET={{STRIPE_KEY}}
+ADD https://cdn.example.com/tools/setup.sh /tmp/setup.sh
+RUN curl -fsSL https://get.example.com/agent | sh
+COPY . .
+RUN npm install && chmod 777 /app/uploads
+
+CMD ["node", "src/server.js"]

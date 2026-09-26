@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "a": "git+https://github.com/o/a.git#main",
+    "b": "git+ssh://git@github.com/o/b.git",
+    "c": "github:o/c#develop",
+    "d": "git+https://gitlab.com/o/d.git#v1.2.3"
+  }
+}

@@ -1,0 +1,20 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps: [{run: "true"}]
+  b:
+    runs-on: ubuntu-24.04
+    steps: [{run: "true"}]
+  c:
+    runs-on: macos-14
+    steps: [{run: "true"}]
+  d:
+    runs-on: windows-latest
+    steps: [{run: "true"}]
+  e:
+    runs-on: ${{ matrix.os }}
+    steps: [{run: "true"}]

@@ -1,0 +1,8 @@
+FROM golang:1.23 AS builder
+WORKDIR /src
+RUN go build -o /out/app ./cmd/app
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /out/app /app
+USER 10001
+ENTRYPOINT ["/app"]

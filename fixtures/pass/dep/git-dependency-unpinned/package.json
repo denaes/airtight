@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "a": "git+https://github.com/o/a.git#8f4b7c2e1d9a6035fe2cb14d7a09e853b6c1f240",
+    "b": "git+ssh://git@github.com/o/b.git#3d1a9f7e2b8c460512ad7e93cf04b6812d7e5a09",
+    "c": "github:o/c#a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+    "d": "^1.2.3",
+    "e": "4.17.21",
+    "f": "npm:@scope/pkg@1.0.0"
+  }
+}

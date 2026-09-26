@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: a
+          image: app:1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+        - name: b
+          image: app:1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+        - name: c
+          image: app:1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+        - name: d
+          image: app:1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+        - name: e
+          image: app:1.0
+          securityContext:
+            allowPrivilegeEscalation: false

@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: a
+  namespace: apps
+spec:
+  volumes:
+    - name: v
+      emptyDir: {}
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: b
+  namespace: apps
+spec:
+  volumes:
+    - name: v
+      configMap:
+        name: c
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: c
+  namespace: apps
+spec:
+  volumes:
+    - name: v
+      secret:
+        secretName: s
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: d
+  namespace: apps
+spec:
+  volumes:
+    - name: v
+      persistentVolumeClaim:
+        claimName: p
+  containers:
+    - name: app
+      image: app:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e
+  namespace: apps
+spec:
+  volumes:
+    - name: v
+      hostPath:
+        path: /var/run/docker.sock
+  containers:
+    - name: app
+      image: app:1.0

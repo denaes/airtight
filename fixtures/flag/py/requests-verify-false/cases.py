@@ -1,0 +1,5 @@
+requests.get(url, verify=False)
+session.post(url, json=body, verify = False)
+ctx = ssl._create_unverified_context()
+httpx.get(url, verify=False)
+urllib3.PoolManager().request("GET", url, verify=False)

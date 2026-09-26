@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: x0
+          image: app:1.0
+          securityContext:
+            capabilities:
+              add: ["SYS_ADMIN"]
+        - name: x1
+          image: app:1.0
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+        - name: x2
+          image: app:1.0
+          securityContext:
+            capabilities:
+              add: ["SYS_PTRACE"]
+        - name: x3
+          image: app:1.0
+          securityContext:
+            capabilities:
+              add: ["ALL"]

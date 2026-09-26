@@ -1,0 +1,12 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some-vendor/deploy@v2
+      - uses: another/thing@main
+      - uses: third/party@1.2.3
+      - uses: fourth/action@release

@@ -1,0 +1,17 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: test -n "${{ secrets.DEPLOY_TOKEN }}" || exit 1
+        env:
+          T: ${{ secrets.DEPLOY_TOKEN }}
+      - run: echo "token length is ${#T}"
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: echo "deploying"
+      - run: echo "${{ github.sha }}"

@@ -1,0 +1,3 @@
+requests
+pyyaml
+--index-url http://pypi.internal.example.com/simple

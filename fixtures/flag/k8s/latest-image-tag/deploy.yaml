@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+  namespace: apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: a
+          image: nginx:latest
+        - name: b
+          image: redis:latest
+        - name: c
+          image: registry.example.com/team/app:latest
+      initContainers:
+        - name: init
+          image: busybox:latest

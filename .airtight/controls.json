@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "$comment": "Machine form of CONTROLS.md. Each control names the rules that verify it, so the claim is checked at every commit rather than asserted once a year.",
+  "controls": [
+    {
+      "id": "secrets.none-in-source",
+      "name": "No credentials in source or history",
+      "statement": "Credentials are supplied by the environment or a secret manager and never committed. Synthetic values in the test corpus are waived inline, by name, with the reason recorded at the point of use.",
+      "implementation": { "mechanism": "airtight secrets pack plus inline waivers" },
+      "verification": ["rule:secret/*"],
+      "frameworks": {
+        "soc2": ["CC6.1", "CC6.6"],
+        "iso27001": ["A.5.17", "A.8.24"],
+        "pci": ["3.6.1", "8.3.1"]
+      },
+      "status": "enforced",
+      "evidence": []
+    },
+    {
+      "id": "appsec.no-injection-sinks",
+      "name": "No unparameterized injection sinks",
+      "statement": "Queries are parameterized, subprocesses take argument arrays, and no code path compiles a string at runtime.",
+      "implementation": { "mechanism": "airtight js and py sink packs" },
+      "verification": ["rule:js/*", "rule:py/*"],
+      "frameworks": {
+        "soc2": ["CC8.1"],
+        "iso27001": ["A.8.28"],
+        "owasp-asvs": ["V5.3"]
+      },
+      "status": "enforced",
+      "evidence": []
+    },
+    {
+      "id": "supplychain.dependencies-pinned",
+      "name": "Dependencies resolve deterministically over TLS",
+      "statement": "Every dependency is version-pinned, fetched over HTTPS, and free of install lifecycle scripts we did not write.",
+      "implementation": { "mechanism": "airtight dep pack plus a committed lockfile" },
+      "verification": ["rule:dep/*"],
+      "frameworks": {
+        "soc2": ["CC7.1"],
+        "iso27001": ["A.8.30"],
+        "slsa": ["build-L2"]
+      },
+      "status": "enforced",
+      "evidence": []
+    },
+    {
+      "id": "ci.workflows-hardened",
+      "name": "CI workflows are hardened",
+      "statement": "Third-party actions are pinned to commit SHAs, the token is least-privilege, and untrusted pull request code is never executed with repository secrets.",
+      "implementation": { "mechanism": "airtight ci pack" },
+      "verification": ["rule:ci/*"],
+      "frameworks": {
+        "soc2": ["CC7.1", "CC8.1"],
+        "iso27001": ["A.8.31"],
+        "slsa": ["build-L2"]
+      },
+      "status": "planned",
+      "evidence": []
+    },
+    {
+      "id": "containers.non-root",
+      "name": "Containers run as a non-root user",
+      "statement": "Shipping images drop to a non-root user before CMD and pin their base image.",
+      "implementation": { "mechanism": "airtight container pack" },
+      "verification": ["rule:container/*"],
+      "frameworks": {
+        "soc2": ["CC6.1"],
+        "iso27001": ["A.8.9"]
+      },
+      "status": "not-applicable",
+      "evidence": ["This project ships no container image."]
+    },
+    {
+      "id": "engine.secrets-never-rendered",
+      "name": "The engine cannot print a credential",
+      "statement": "Redaction happens at Finding construction and is enforced again by a scan-wide vault on every output path. A build-gating test plants known secrets and greps every output mode for them.",
+      "implementation": { "file": "engine/src/redact.mjs" },
+      "verification": ["test:tests/redaction.test.mjs"],
+      "frameworks": {
+        "soc2": ["CC6.1"],
+        "iso27001": ["A.8.12"]
+      },
+      "status": "enforced",
+      "evidence": ["tests/redaction.test.mjs drives every output path including the CLI"]
+    }
+  ]
+}

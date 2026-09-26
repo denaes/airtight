@@ -1,0 +1,12 @@
+name: x
+on: [push]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ secrets.DEPLOY_TOKEN }}"
+      - run: printf '%s' "${{ secrets.NPM_TOKEN }}"
+      - run: cat <<< "${{ secrets.API_KEY }}"
+      - run: echo "value=${{ secrets.WEBHOOK }}" >> out.txt

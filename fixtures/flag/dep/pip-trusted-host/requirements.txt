@@ -1,0 +1,4 @@
+--trusted-host pypi.internal.example.com
+--trusted-host files.pythonhosted.org
+requests==2.32.3 --trusted-host pypi.org
+--trusted-host mirror.example.net

@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 7 * * 1'
+
+# Least privilege at the workflow level, widened per job only where needed.
+# Our own ci pack flags a workflow without this block, so this file is also a
+# worked example of the thing it checks for.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+
+      - name: Build
+        run: npm run build:release
+
+      # skill/ is the source of truth and the harness directories are
+      # generated from it. If they disagree, the committed output is stale and
+      # a plugin install would ship something nobody reviewed.
+      - name: Generated output is current
+        run: git diff --exit-code -- .claude plugin .claude-plugin skill/scripts/engine skill/scripts/rules.json
+
+      # The engine bundle must run with nothing installed. Removing
+      # node_modules is the only honest way to prove it.
+      - name: Engine bundle is self-contained
+        run: |
+          rm -rf node_modules
+          node skill/scripts/engine/airtight.mjs engine-probe
+          node skill/scripts/engine/airtight.mjs rules --json > /dev/null
+
+  self-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run build:rules
+
+      # Airtight scans itself. Exit 2 means findings, which fails the job.
+      - name: Self-scan
+        run: node engine/src/cli.mjs detect .
+
+      - name: Declared controls are holding
+        run: node engine/src/cli.mjs controls verify
+
+      # The demo's golden output is a regression test with a second job: it
+      # keeps the numbers in the README and demo/README.md honest. A claim
+      # nobody re-derives is a claim that quietly stops being true.
+      - name: Demo output has not drifted
+        run: node scripts/demo.mjs --check
+
+      # Generated docs must be current for the same reason a stale rule
+      # reference is worse than none: it says a class is covered when it is not.
+      # Clone real repositories and fail if any well-maintained one produces
+      # a P0. Scheduled rather than per-PR: it needs the network, and the
+      # number it guards changes slowly.
+      - name: Benchmark against real repositories
+        if: github.event_name == 'schedule'
+        run: node scripts/benchmark.mjs
+
+      - name: Generated docs are current
+        run: |
+          npm run build:docs
+          git diff --exit-code -- docs/

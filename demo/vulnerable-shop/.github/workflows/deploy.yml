@@ -1,0 +1,19 @@
+name: Deploy
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions: write-all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: some-vendor/deploy-action@v2
+      - name: Greet
+        run: echo "Thanks for ${{ github.event.pull_request.title }}"
+      - name: Debug
+        run: echo "token=${{ secrets.DEPLOY_TOKEN }}"
