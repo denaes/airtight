@@ -3,15 +3,15 @@
 ## Install
 
 ```bash
-npx airtight install
+npx airtight-security install
 ```
 
 It detects the harnesses you have and asks before writing. To skip detection:
 
 ```bash
-npx airtight install --providers=claude-code,cursor --yes
-npx airtight install --scope=global        # into ~/<harness dir>
-npx airtight install --no-hooks            # skill only
+npx airtight-security install --providers=claude-code,cursor --yes
+npx airtight-security install --scope=global        # into ~/<harness dir>
+npx airtight-security install --no-hooks            # skill only
 ```
 
 Claude Code users can also install from the plugin marketplace:
@@ -27,13 +27,22 @@ git clone https://github.com/denaes/airtight
 cp -r airtight/.cursor your-project/
 ```
 
+The npm package is `airtight-security`, because `airtight` was already taken.
+The command it installs is `airtight`, and the slash command in your harness is
+`/airtight`:
+
+```bash
+npm install -g airtight-security
+airtight detect .
+```
+
 Requires Node 20 or later and nothing else. The engine ships as one bundled
 file with no runtime dependencies.
 
 Check what landed:
 
 ```bash
-npx airtight check
+npx airtight-security check
 ```
 
 ## First run

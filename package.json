@@ -1,5 +1,5 @@
 {
-  "name": "airtight",
+  "name": "airtight-security",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -25,7 +25,8 @@
     "demo": "node scripts/demo.mjs",
     "benchmark": "node scripts/benchmark.mjs",
     "gen:secrets": "node scripts/gen-secrets.mjs",
-    "pretest": "npm run gen:secrets && npm run build:rules"
+    "pretest": "npm run gen:secrets && npm run build:rules",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
@@ -35,7 +36,8 @@
     "name": "Airtight contributors"
   },
   "bin": {
-    "airtight": "cli/bin/airtight.js"
+    "airtight": "cli/bin/airtight.js",
+    "airtight-security": "cli/bin/airtight.js"
   },
   "files": [
     "cli/",

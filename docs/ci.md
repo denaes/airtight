@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: '24'
 
-      - run: npx airtight install --providers=claude-code --yes --no-hooks
+      - run: npx airtight-security install --providers=claude-code --yes --no-hooks
 
       # Block only on what is both severe and certain. Everything else is
       # reported and tracked rather than used to stop a merge.

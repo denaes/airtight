@@ -60,9 +60,21 @@ function detect(projectRoot) {
   return { project, global };
 }
 
+/**
+ * The nearest ancestor that looks like a project.
+ *
+ * An existing harness directory counts, and is checked first: a directory that
+ * already has .claude/ or .cursor/ in it is unambiguously where the skill
+ * belongs. Without that check, running this from a subdirectory whose parent
+ * happens to hold a package.json installs into the parent instead -- which is
+ * exactly what happened the first time this was tested against a packed
+ * tarball.
+ */
 function findProjectRoot(start) {
+  const harnessDirs = providerList().map((p) => p.configDir);
   let dir = resolve(start);
   for (;;) {
+    if (harnessDirs.some((d) => existsSync(join(dir, d)))) return dir;
     if (existsSync(join(dir, '.git')) || existsSync(join(dir, 'package.json'))) return dir;
     const parent = dirname(dir);
     if (parent === dir) return resolve(start);

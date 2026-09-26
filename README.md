@@ -3,20 +3,35 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** wave 1 is complete and installable across 18 harnesses. Engine,
-> eight rule packs, findings store, control register, skill surface, edit
-> hook, installer, docs, and a demo. Not yet measured against a repository
-> neither the author nor the rules were written for — see
-> [what is not proven](#what-is-not-proven).
+> **Status:** v0.1.0, installable from npm across 18 harnesses. Engine with 121
+> rules, findings store, control register, nine commands, edit hook, installer,
+> docs, and a demo. Benchmarked against four real repositories; see
+> [measured against real code](#measured-against-real-code) for what that
+> covers and what it does not.
 
 **[Documentation](docs/)** · [Getting started](docs/getting-started.md) ·
 [Rule reference](docs/rules.md) · [Harnesses](docs/harnesses.md) ·
-[Demo](demo/)
+[Benchmark](docs/benchmark.md) · [Demo](demo/)
+
+## Why
+
+Every model was trained on tutorial code, Stack Overflow answers, and README
+snippets, all of which optimize for *it runs* over *it holds*. That produces a
+recognizable set of tells, the security equivalent of purple gradients and Inter
+everywhere: `eval()` for dynamic dispatch, string-concatenated SQL,
+`verify=False` to make the request work, `0.0.0.0/0` to make the deploy work,
+the API key inlined "for now."
+
+Airtight splits the work along the line that actually matters. The deterministic
+engine owns the mechanical floor: token formats, dangerous sinks, container and
+CI misconfiguration. The model layer owns what only reasoning can reach:
+whether a sink is reachable with attacker-controlled input, whether the
+authorization logic is correct, and where the trust boundaries really sit.
 
 ## Install
 
 ```bash
-npx airtight install
+npx airtight-security install
 ```
 
 Detects the harnesses you have and asks before writing. **18 supported** —
@@ -24,6 +39,9 @@ Claude Code, Cursor, Codex, Copilot, Gemini, OpenCode, Grok, Hermes and more,
 each getting its own frontmatter, agent format, command prefix and hook
 manifest. Confidence per harness is recorded rather than implied; see
 [harnesses](docs/harnesses.md).
+
+The package is `airtight-security` (`airtight` was taken on npm); the command
+it installs is `airtight`.
 
 Claude Code can also install from the plugin marketplace:
 
@@ -78,21 +96,12 @@ hand — [full method and results](docs/benchmark.md), reproducible with
 `confirmed` confidence.** On NodeGoat it catches the flagship injection flaw
 (`eval(req.body.preTax)`) and the unvalidated redirect.
 
-The first run of this benchmark was much worse: **32 false positives out of
-35, 26 of them P0.** Three quarters were test files doing the correct thing —
-fastify disabling TLS verification against its own self-signed test server,
-requests round-tripping pickle, committed test certificates. Rules now declare
-what test context means for them, text rules can skip matches inside string
-literals, and priority is floored at P1 in test paths.
-
-### What is still not measured
-
-Four repositories, three of them JavaScript or Python HTTP libraries. No
-monorepo, no Go or Java codebase, and **no real Terraform estate or Kubernetes
-deployment** — those two packs are 38 of the 121 rules and are entirely
-unmeasured against real infrastructure. Recall is eyeballed, not scored
-against labelled ground truth. And this measures the engine only; the model
-layer is not benchmarked at all.
+Four repositories is a start, not a coverage claim. Three of them are
+JavaScript or Python HTTP libraries, so the Terraform and Kubernetes packs —
+38 of the 121 rules — have not been run against real infrastructure. Recall is
+judged by reading, not scored against labelled ground truth, and this measures
+the engine only, not the model layer. [What the benchmark does and does not
+cover](docs/benchmark.md#what-this-still-does-not-measure).
 
 ## Commands
 
@@ -128,43 +137,29 @@ prevent.
 | `js` | 20 | text | Injection sinks, TLS and CORS misconfiguration, weak crypto and randomness |
 | `py` | 17 | text | Deserialization, `shell=True`, f-string SQL, `assert` for authorization |
 
-## Why
-
-Every model was trained on tutorial code, Stack Overflow answers, and README
-snippets, all of which optimize for *it runs* over *it holds*. That produces a
-recognizable set of tells, the security equivalent of purple gradients and Inter
-everywhere: `eval()` for dynamic dispatch, string-concatenated SQL,
-`verify=False` to make the request work, `0.0.0.0/0` to make the deploy work,
-the API key inlined "for now."
-
-Airtight splits the work along the line that actually matters. The deterministic
-engine owns the mechanical floor: token formats, dangerous sinks, container and
-CI misconfiguration. The model layer owns what only reasoning can reach:
-whether a sink is reachable with attacker-controlled input, whether the
-authorization logic is correct, and where the trust boundaries really sit.
-
-## Development
-
-`skill/` and `engine/` are the authoring surfaces. `.claude/`, `plugin/`, and
-`skill/scripts/engine/` are generated and committed — see `AGENTS.md`.
+## The edit hook
 
 ```bash
-npm install
-npm run build
-npm test
-
-node engine/src/cli.mjs detect .          # exit 0 clean, 2 findings
-node engine/src/cli.mjs detect --json .   # machine-readable
-node engine/src/cli.mjs rules             # the loaded taxonomy
+node engine/src/cli.mjs hooks on        # install for this project
+node engine/src/cli.mjs hooks status
 ```
 
-Rules are data, authored as YAML in `engine/rules/` and compiled to JSON at
-build time. The runner ships as one file with no runtime dependencies.
+Two tiers. After each edit the immediate tier runs: the rules that are
+mechanical, unambiguous, and cheap to correct right there. On stop, every rule
+runs over the files touched that session. A `critical` finding at `confirmed`
+confidence blocks the write; everything else advises; a detector failure always
+fails open, and so does a missing Node runtime.
 
-Every rule carries a severity, an independent **confidence**, a CWE, and both a
-true-positive and a false-positive fixture corpus. A rule missing either half
-does not merge — the false-positive corpus is what earns a finding the right to
-interrupt someone's edit.
+Restraint is most of the design. The hook deduplicates within a session, stands
+down entirely after six edits to one file, and caps output at five findings and
+8000 characters. A hook that interrupts too often gets switched off, and a hook
+that is switched off protects nobody.
+
+Two messages it is careful about. A file whose findings were already reported
+says *"still has 1 finding reported earlier"*, never *"no findings"* — turning a
+deduplication into a false all-clear is worse than staying silent. And a genuinely
+clean scan says so while underselling itself: the rules cover known shapes, not
+reachability, authorization logic, or business rules.
 
 ## Findings persist
 
@@ -211,30 +206,6 @@ A framework reference is satisfied only when every control mapped to it is both
 declared enforced *and* verified holding. Zero findings against a control nobody
 has implemented yet is not evidence of anything.
 
-## The edit hook
-
-```bash
-node engine/src/cli.mjs hooks on        # install for this project
-node engine/src/cli.mjs hooks status
-```
-
-Two tiers. After each edit the immediate tier runs: the rules that are
-mechanical, unambiguous, and cheap to correct right there. On stop, every rule
-runs over the files touched that session. A `critical` finding at `confirmed`
-confidence blocks the write; everything else advises; a detector failure always
-fails open, and so does a missing Node runtime.
-
-Restraint is most of the design. The hook deduplicates within a session, stands
-down entirely after six edits to one file, and caps output at five findings and
-8000 characters. A hook that interrupts too often gets switched off, and a hook
-that is switched off protects nobody.
-
-Two messages it is careful about. A file whose findings were already reported
-says *"still has 1 finding reported earlier"*, never *"no findings"* — turning a
-deduplication into a false all-clear is worse than staying silent. And a genuinely
-clean scan says so while underselling itself: the rules cover known shapes, not
-reachability, authorization logic, or business rules.
-
 ## Secrets are handled differently
 
 Impeccable's design hook deliberately skips `.env`, `*.pem`, and `secrets.*`.
@@ -245,6 +216,29 @@ test plants known secrets and greps every output path for them.
 
 Findings keep a short non-reversible fingerprint of the value, so the same
 credential in three files is three edits to make but one key to rotate.
+
+## Development
+
+`skill/` and `engine/` are the authoring surfaces. `.claude/`, `plugin/`, and
+`skill/scripts/engine/` are generated and committed — see `AGENTS.md`.
+
+```bash
+npm install
+npm run build
+npm test
+
+node engine/src/cli.mjs detect .          # exit 0 clean, 2 findings
+node engine/src/cli.mjs detect --json .   # machine-readable
+node engine/src/cli.mjs rules             # the loaded taxonomy
+```
+
+Rules are data, authored as YAML in `engine/rules/` and compiled to JSON at
+build time. The runner ships as one file with no runtime dependencies.
+
+Every rule carries a severity, an independent **confidence**, a CWE, and both a
+true-positive and a false-positive fixture corpus. A rule missing either half
+does not merge — the false-positive corpus is what earns a finding the right to
+interrupt someone's edit.
 
 ## Credits
 

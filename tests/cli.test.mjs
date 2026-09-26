@@ -233,3 +233,22 @@ test('no test performs a global install', () => {
   assert.deepEqual(offenders, [],
     'test the global path by unit-testing globalRoot, never by installing');
 });
+
+test('a directory that already has a harness directory is the project root', () => {
+  // Regression, found by installing a packed tarball rather than running from
+  // the source tree. A subdirectory with .claude/ in it, whose parent happens
+  // to hold a package.json, was installing into the parent.
+  const outer = project();
+  try {
+    writeFileSync(join(outer, 'package.json'), '{"name":"outer"}');
+    const inner = join(outer, 'app');
+    mkdirSync(join(inner, '.claude'), { recursive: true });
+
+    const { code, out } = run([CLI, 'install', '--providers=claude-code', '--yes'], { cwd: inner });
+    assert.equal(code, 0, out);
+    assert.ok(existsSync(join(inner, '.claude/skills/airtight/SKILL.md')),
+      'must install beside the existing harness directory');
+    assert.ok(!existsSync(join(outer, '.claude/skills/airtight/SKILL.md')),
+      'and not in the ancestor that merely has a package.json');
+  } finally { rmSync(outer, { recursive: true, force: true }); }
+});

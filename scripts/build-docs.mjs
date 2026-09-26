@@ -135,8 +135,8 @@ function harnessesDoc() {
     `Airtight installs into ${providerList().length} harnesses. Install with:`,
     '',
     '```bash',
-    'npx airtight install                      # detects what you have',
-    'npx airtight install --providers=cursor   # or name them',
+    'npx airtight-security install                      # detects what you have',
+    'npx airtight-security install --providers=cursor   # or name them',
     '```',
     '',
     'Confidence is recorded per harness rather than implied. It matters: a skill that '
