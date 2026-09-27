@@ -21,6 +21,17 @@ Keep generated churn out of feature branches. A generated diff conflicts with
 every other open branch, so treat `build:release` as a release step unless the
 generated output *is* the change.
 
+## Pre-commit progress audit
+
+Before committing any milestone or progress update, run:
+
+```bash
+npm run audit:progress        # scans docs, readme, harnesses, demo, tests, versions
+npm run audit:progress:fix    # automatically resolves documentation and harness drift
+```
+
+Or activate the `repo-progress-audit` workspace skill. A commit must never land with stale rule counts in `README.md`, an out-of-sync `docs/rules.md`, a drifted demo golden, or un-synced tracked harnesses.
+
 ## Adding a rule
 
 In this order. Skipping the first step is how a rule ends up matching

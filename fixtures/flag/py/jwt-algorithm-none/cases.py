@@ -1,0 +1,8 @@
+jwt.decode(token, key, algorithms=["none"])
+jwt.decode(token, verify=False)
+jwt.decode(token, key, options={"verify_signature": False})
+jwt.decode(raw_jwt, options={"verify_signature": False}, algorithms=["RS256"])
+jwt.decode(token, algorithms=['HS256', 'none'])
+jwt.decode(token, algorithms=['none'])
+jwt.decode(token, key, options={'verify_signature': False})
+jwt.decode(token, key, verify=False)

@@ -11,7 +11,7 @@
     {
       "name": "airtight",
       "description": "Security fluency for AI coding agents. One skill, deterministic rule packs, and an edit hook.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "./plugin",
       "category": "security",
       "tags": [

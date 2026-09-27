@@ -166,14 +166,61 @@ function parse(argv) {
   return opts;
 }
 
+const ENGINE_VERBS = new Set([
+  'detect', 'rules', 'findings', 'controls', 'context',
+  'hook', 'hooks', 'engine-probe',
+]);
+
+function findEngine() {
+  const candidates = [
+    process.env.AIRTIGHT_ENGINE,
+    join(PKG_ROOT, 'skill', 'scripts', 'engine', 'airtight.mjs'),
+    join(PKG_ROOT, 'engine', 'src', 'cli.mjs'),
+  ].filter(Boolean);
+  return candidates.find((p) => existsSync(p));
+}
+
+function resolveRuleBundle() {
+  if (process.env.AIRTIGHT_RULES && existsSync(process.env.AIRTIGHT_RULES)) return process.env.AIRTIGHT_RULES;
+  const candidates = [
+    join(PKG_ROOT, 'skill', 'scripts', 'rules.json'),
+    join(PKG_ROOT, 'engine', 'build', 'rules.json'),
+    join(PKG_ROOT, 'engine', 'rules.json'),
+  ];
+  return candidates.find((p) => existsSync(p));
+}
+
+async function runEngine(argv) {
+  const enginePath = findEngine();
+  if (!enginePath) {
+    console.error('airtight: engine not found. Run npm run build or reinstall the package.');
+    return 1;
+  }
+  const rulesPath = resolveRuleBundle();
+  if (rulesPath && !process.env.AIRTIGHT_RULES) {
+    process.env.AIRTIGHT_RULES = rulesPath;
+  }
+  const mod = await import(pathToFileURL(enginePath).href);
+  return mod.run(argv);
+}
+
 const USAGE = `airtight ${pkg.version} — security guidance for AI coding agents
 
+Harness management
   npx airtight install      install the skill into this project or globally
   npx airtight update       refresh an existing install in place
   npx airtight check        report what is installed and whether it is current
   npx airtight uninstall    remove the skill from detected harnesses
 
-Options
+Analysis and posture
+  npx airtight detect [paths]   scan for security findings (default: .)
+  npx airtight rules            list loaded rules
+  npx airtight findings <sub>   sync | list | accept | overdue
+  npx airtight controls <sub>   verify | coverage
+  npx airtight context          project truth and session directives
+  npx airtight hooks <sub>      on | off | status
+
+Installer options
   --providers=a,b   choose harnesses explicitly (skips detection)
   --scope=project   install into ./<harness dir>   (default when one is present)
   --scope=global    install into ~/<harness dir>
@@ -306,8 +353,15 @@ function uninstall() {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+  const verb = argv[0];
+
+  if (verb && ENGINE_VERBS.has(verb)) {
+    return await runEngine(argv);
+  }
+
   let opts;
-  try { opts = parse(process.argv.slice(2)); } catch (err) {
+  try { opts = parse(argv); } catch (err) {
     console.error(`airtight: ${err.message}`);
     return 1;
   }

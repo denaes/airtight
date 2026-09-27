@@ -1,0 +1,120 @@
+# Java dangerous sinks and vulnerability rules.
+
+- id: java/command-exec
+  name: Operating system command executed via shell interpreter
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/*.java']
+  match:
+    regex: '^(?!\s*(?://|\*|/\*)).*?\b(?:Runtime\.getRuntime\s*\(\s*\)\.exec|new\s+ProcessBuilder)\b.*?(?:(["''])(?:(?!\1).)*?\b(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?)\s+(?:-(?:c|Command)|/[cC])\b(?:(?!\1).)*\1\s*\+|(?:(["''])(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?)\2\s*,\s*(["''])(?:-(?:c|Command)|/[cC])\3(?:\s*\+|\s*,\s*(?:[a-zA-Z_$(]|(["''])(?:(?!\4).)*\4\s*\+))))'
+  message: Java command execution invokes shell interpreter with dynamic command string
+  why: >-
+    Executing commands through a shell interpreter like sh, bash, or cmd.exe with dynamic arguments allows command injection via shell metacharacters.
+  fix: >-
+    Pass the executable and arguments as separate array elements or List items to ProcessBuilder without invoking a shell.
+
+- id: java/sql-concatenation
+  name: SQL query built by string formatting or concatenation
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-89
+  owasp: A03:2021
+  files: ['**/*.java']
+  match:
+    regex: '^(?!\s*(?://|\*|/\*)).*?(?:\bString\.format\s*\(\s*(?:[A-Za-z_.]+\s*,\s*)?(["''])(?:(?!\1).)*(?i:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*,|(["''])(?:(?!\2).)*(?i:\bSELECT\b(?:(?!\2).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\2).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\2).)*\2\s*\+\s*[A-Za-z_$(])'
+  message: SQL statement executed with dynamic string concatenation instead of PreparedStatement parameters
+  why: >-
+    Interpolating or concatenating dynamic user variables into SQL queries allows attackers to alter query logic and structure, leading to unauthorized database access, data tampering, or data loss.
+  fix: >-
+    Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting.
+
+- id: java/insecure-deserialization
+  name: Arbitrary object deserialization from untrusted input
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-502
+  owasp: A08:2021
+  files: ['**/*.java']
+  match:
+    regex: '^(?!\s*(?://|\*|/\*)).*?(?:\b(?:ObjectInputStream|XMLDecoder)\b.*?\.\s*read(?:Object|Unshared)|\b(?!(?:super|vois|validating\w*)\b)[a-zA-Z0-9_$]+\s*\.\s*read(?:Object|Unshared))\s*\(\s*\)'
+  message: ObjectInputStream or XMLDecoder deserializes untrusted streams, allowing remote code execution via gadget chains
+  why: >-
+    Java deserialization invokes readObject() callbacks automatically on instantiated classes during deserialization, enabling remote code execution through classpath gadget chains.
+  fix: >-
+    Use safe structured serialization formats like JSON or Protocol Buffers, or enforce a strict ObjectInputFilter allowlist on ObjectInputStream.
+
+- id: java/xxe-parser
+  name: XML parser configured to allow external entity resolution
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-611
+  owasp: A05:2021
+  files: ['**/*.java']
+  match:
+    regex: '^(?!\s*(?://|\*|/\*)).*?\b(?:setFeature\s*\(\s*(?:(?:(?:XMLConstants\.)?FEATURE_SECURE_PROCESSING|(["''])(?:(?!\1).)*?(?:disallow-doctype-decl|feature/secure-processing)\1)\s*,\s*(?:false\b|Boolean\.FALSE\b)|(["''])(?:(?!\2).)*?(?:external-general-entities|external-parameter-entities|load-external-dtd)\2\s*,\s*(?:true\b|Boolean\.TRUE\b))|setExpandEntityReferences\s*\(\s*(?:true\b|Boolean\.TRUE\b))'
+  message: XML parser explicitly enables external entity expansion or disables secure processing features
+  why: >-
+    Allowing external entity resolution or disabling secure processing enables XML External Entity (XXE) attacks. Attackers can read arbitrary local files, forge server-side requests (SSRF), or cause DoS via billion laughs.
+  fix: >-
+    Enable XMLConstants.FEATURE_SECURE_PROCESSING and set "http://apache.org/xml/features/disallow-doctype-decl" to true. Disable external entity resolution.
+
+- id: java/weak-hash
+  name: Weak hash algorithm MD5 or SHA-1 used
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-328
+  owasp: A02:2021
+  files: ['**/*.java']
+  match:
+    regex: '(?i)^(?!\s*(?://|\*|/\*))(?:(?!//).)*?\b(?:MessageDigest\.getInstance\s*\(\s*(["''])(?:md5|sha-?1)\1|DigestUtils\.(?:md5|sha1?|getMd5Digest|getSha1Digest)(?:Hex)?\s*\()'
+  message: MD5 or SHA-1 hash algorithm selected via MessageDigest or DigestUtils
+  why: >-
+    MD5 and SHA-1 suffer from collision and preimage vulnerabilities and are unsuitable for cryptographic security or data integrity verification.
+  fix: >-
+    Use SHA-256 or SHA-512 for integrity checksums, or a slow salted algorithm like BCrypt or Argon2id for passwords.
+
+- id: java/insecure-cipher
+  name: Weak cipher or insecure ECB mode used
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-327
+  owasp: A02:2021
+  files: ['**/*.java']
+  match:
+    regex: '(?i)^(?!\s*(?://|/\*|\*))(?:(?!//|/\*).)*?\bCipher\s*\.\s*getInstance\s*\(\s*(["''])(?:(?:DES(?:ede)?|TripleDES|Blowfish|RC4|ARCFOUR|ARC4)\b|(?:(?!RSA/)[A-Za-z0-9_/-])+/ECB\b)(?:(?!\1).)*\1'
+  message: Insecure cipher (DES, DESede, RC4, Blowfish) or ECB mode selected via Cipher.getInstance
+  why: >-
+    Broken ciphers like DES, DESede, RC4, and Blowfish or ECB mode suffer from known cryptanalytic attacks and pattern leakage across identical plaintext blocks.
+  fix: >-
+    Use modern authenticated encryption (AEAD) such as AES in GCM mode (AES/GCM/NoPadding) with 256-bit keys and random nonces.
+
+- id: java/trust-all-certs
+  name: TLS certificate verification or hostname check disabled
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-295
+  owasp: A07:2021
+  files: ['**/*.java']
+  match:
+    regex: '^(?!\s*(?://|\*|/\*)).*?\b(?:(?:ALLOW_ALL_HOSTNAME_VERIFIER|(?:Noop|Null|AllowAll)HostnameVerifier|InsecureTrustManagerFactory\.INSTANCE|TrustAllStrategy\.INSTANCE)\b|check(?:Server|Client)Trusted\s*\([^)]*\)\s*(?:throws\s+[^{]+)?\{\s*(?:return\s*;)?\s*\}|boolean\s+verify\s*\([^)]*\b(?:hostname|session|host|sslSession|SSLSession)\b[^)]*\)\s*\{\s*return\s+true\s*;\s*\}|(?:\b(?:HostnameVerifier|set(?:Default)?(?:SSL)?HostnameVerifier)\b[^{};]*?|\([^)]*\b(?:hostname|session|host|sslSession)\b[^)]*\))\s*->\s*(?:true|Boolean\.TRUE)\b)'
+  message: TLS certificate validation is disabled via empty TrustManager or permissive HostnameVerifier
+  why: >-
+    Disabling TLS certificate verification or hostname verification allows man-in-the-middle attackers to intercept, inspect, or tamper with sensitive network traffic.
+  fix: >-
+    Use the platform default trust store and default HostnameVerifier, or configure a custom TrustManager that validates the certificate chain against a specific CA.

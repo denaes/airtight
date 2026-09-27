@@ -1,0 +1,10 @@
+target[key] = merge(target[key], source[key]);
+target[a][b] = val;
+target.constructor.prototype[key] = val;
+obj.__proto__[key] = val;
+target[prop] = deepMerge(target[prop], source[prop]);
+obj["__proto__"][prop] = payload;
+current[keys[i]][keys[i + 1]] = value;
+target["constructor"]["prototype"][key] = value;
+target.__proto__ = source;
+obj.constructor.prototype = payload;

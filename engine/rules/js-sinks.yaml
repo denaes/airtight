@@ -405,3 +405,116 @@
   fix: >-
     Take only path.basename of the input, resolve against a fixed root, and
     assert the resolved path still starts with that root before opening it.
+
+- id: js/nosql-injection
+  name: NoSQL query injection
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-943
+  owasp: A03:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
+  exclude: ['**/*.min.js', '**/*.d.ts']
+  match:
+    regex: '\b(?:find|findOne|update|updateOne|updateMany|deleteOne|deleteMany|countDocuments)\s*\(\s*req\.(?:body|query|params)\b|["'']?\$where["'']?\s*:\s*(?:req\.(?:body|query|params)|`[^`]*\$\{|(["''])(?:(?!\1).)*\1\s*\+)|["'']?\$regex["'']?\s*:\s*req\.(?:body|query|params)'
+  message: NoSQL query document or $where expression constructed with unvalidated input
+  why: >-
+    Passing raw request objects directly into NoSQL query filters allows attackers to inject query operators like $gt, $ne, or $where, bypassing authentication or executing arbitrary JavaScript on the database.
+  fix: >-
+    Sanitize query keys, cast input fields explicitly with String(), or validate schemas using Zod or Joi before querying.
+
+- id: js/steal-credential-file
+  name: Host credential file accessed by code
+  domain: secrets
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-552
+  owasp: A01:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
+  exclude: ['**/*.min.js', '**/*.d.ts']
+  match:
+    regex: '\b(?:readFile|readFileSync|createReadStream)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)'
+  message: Code accesses host credential store (.ssh, .aws, .kube, or .npmrc)
+  why: >-
+    Reading private keys or cloud credentials from standard host locations is the primary indicator of credential harvesting malware in dependencies or build scripts.
+  fix: >-
+    Never read host credentials directly in application code. Inject credentials via approved environment variables or secret vaults.
+
+- id: js/env-exfiltration
+  name: Process environment harvested to network
+  domain: secrets
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-200
+  owasp: A01:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
+  exclude: ['**/*.min.js', '**/*.d.ts']
+  match:
+    regex: '\b(?:fetch|axios\.(?:post|put)|https?\.(?:request|get))\b.*?(?:JSON\.stringify\s*\(\s*process\.env\b|URLSearchParams\s*\(\s*process\.env\b|,\s*process\.env\s*[),])'
+  message: Entire environment table is serialized into an outbound network request
+  why: >-
+    Serializing process.env into an outbound HTTP request exfiltrates API keys, database credentials, and session secrets held in the environment.
+  fix: >-
+    Transmit only explicit, required configuration fields rather than serializing the entire process.env table.
+
+- id: js/prototype-pollution
+  name: Unsafe object merge vulnerable to prototype pollution
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-1321
+  owasp: A03:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
+  exclude: ['**/*.min.js', '**/*.d.ts']
+  match:
+    regex: '\b[a-zA-Z_$][\w$]*(?:\.(?:__proto__|constructor\.prototype)|\[["''](?:__proto__|constructor)["'']\](?:\[["'']prototype["'']\])?)(?:\[[^\]\n]+\])?\s*=(?![=>])|\b[a-zA-Z_$][\w$]*(?:\[(?:\[[^\]\n]*\]|[^\]\n])+\]){2,}\s*=(?![=>])|\b[a-zA-Z_$][\w$]*\[[^\]\n]+\]\s*=(?![=>])\s*(?:merge|deepMerge|clone|deepClone|deepCopy|extend)\s*\('
+  message: Object properties merged recursively without prototype key filtering
+  why: >-
+    Modifying object prototypes via __proto__ or constructor.prototype injects properties into all objects across the JavaScript runtime, leading to denial of service, authentication bypass, or remote code execution.
+  fix: >-
+    Validate keys against __proto__, constructor, and prototype before assignment, or use Map or Object.create(null).
+
+- id: js/node-serialize
+  name: Arbitrary code execution via unsafe object deserialization
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-502
+  owasp: A08:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
+  exclude: ['**/*.min.js', '**/*.d.ts']
+  match:
+    regex: '(?:\b(?:\w*[Ss]erialize\w*|require\s*\(\s*(["''])node-serialize\1\s*\))\s*\??\.\s*|(?<![\w$.]))unserialize\s*\('
+  message: node-serialize unserialize() allows arbitrary JavaScript execution via IIFE payloads
+  why: >-
+    Untrusted data passed to node-serialize unserialize() allows arbitrary code execution when an object contains a function wrapper with an immediately invoked function expression (_$$ND_FUNC$$_).
+  fix: >-
+    Use JSON.parse() for data exchange or structuredClone() for deep object cloning instead of node-serialize.
+
+- id: js/xxe-libxml
+  name: XML parser configured to expand external entities
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-611
+  owasp: A05:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
+  exclude: ['**/*.min.js', '**/*.d.ts']
+  match:
+    regex: '\bparseXml(?:String)?\s*\(.*?(?:["'']noent["'']|\bnoent)\s*:\s*true\b'
+  message: 'XML parser enables entity replacement via noent: true, exposing the system to XXE'
+  why: >-
+    Setting noent: true in libxmljs causes the XML parser to expand external
+    entities. An attacker supplying crafted XML can read arbitrary local files,
+    access internal network endpoints via SSRF, or trigger memory exhaustion.
+  fix: >-
+    Do not set noent: true. Keep entity expansion disabled by defaulting noent
+    to false, or omit the option when parsing untrusted XML.
+
+

@@ -1,7 +1,7 @@
 {
   "name": "airtight-security",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "private": false,
   "type": "module",
   "description": "Security fluency for AI coding agents. One skill, deterministic rule packs, and an edit hook.",
   "homepage": "https://github.com/denaes/airtight",
@@ -25,6 +25,8 @@
     "demo": "node scripts/demo.mjs",
     "benchmark": "node scripts/benchmark.mjs",
     "gen:secrets": "node scripts/gen-secrets.mjs",
+    "audit:progress": "node scripts/progress-audit.mjs",
+    "audit:progress:fix": "node scripts/progress-audit.mjs --fix",
     "pretest": "npm run gen:secrets && npm run build:rules",
     "prepublishOnly": "npm run build && npm test"
   },

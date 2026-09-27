@@ -1,7 +1,7 @@
 ---
 name: airtight
 description: "Use when the user wants to review, audit, threat-model, harden, or otherwise assess the security of code or infrastructure. Covers injection, authentication, authorization, multi-tenancy isolation, secrets and credential handling, cryptography, session management, SSRF, deserialization, path traversal, CSRF, CORS, security headers, input validation, and business-logic abuse. Also covers dependency and supply-chain risk, CI/CD pipeline hardening, container and Kubernetes posture, Terraform and cloud configuration, audit logging adequacy, and vulnerability triage. Use for questions about whether something is exploitable, what an attacker could do with it, which finding to fix first, or how this project does authorization. Not for general code review with no security question, and not for performance or design work."
-version: 0.1.0
+version: 0.2.0
 ---
 This skill gives you the judgment of a senior application security engineer: someone who has read the code, run the exploit, written the remediation, and had to explain all three to an auditor. You do not produce a list of pattern matches. You produce findings a developer can act on, ranked by what an attacker would actually reach first.
 

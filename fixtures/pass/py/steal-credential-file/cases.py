@@ -1,0 +1,5 @@
+with open('config.yaml') as f: cfg = yaml.safe_load(f)
+text = Path('README.md').read_text()
+open('/var/log/app.log', 'w').write('ok')
+cert = open(os.environ['TLS_CERT_PATH']).read()
+data = Path('package.json').read_bytes()

@@ -59,7 +59,7 @@ test('the engine runs when invoked through a symlinked path', () => {
     assert.match(direct.out, /airtight-engine/);
     assert.match(linked.out, /airtight-engine/, 'the engine must run through a symlinked path');
   } finally {
-    rmSync(link, { force: true });
+    rmSync(link, { recursive: true, force: true });
     rmSync(real, { recursive: true, force: true });
   }
 });
@@ -252,3 +252,27 @@ test('a directory that already has a harness directory is the project root', () 
       'and not in the ancestor that merely has a package.json');
   } finally { rmSync(outer, { recursive: true, force: true }); }
 });
+
+test('cli delegates engine commands directly', () => {
+  const dir = project();
+  try {
+    // 1. Clean detect exits 0
+    const clean = run([CLI, 'detect', '--no-config', dir]);
+    assert.equal(clean.code, 0, clean.out);
+    assert.match(clean.out, /no findings/);
+
+    // 2. Rules listing runs and reports loaded rules
+    const rules = run([CLI, 'rules']);
+    assert.equal(rules.code, 0, rules.out);
+    assert.match(rules.out, /rule\(s\)/);
+
+    // 3. Planting a finding triggers exit code 2
+    writeFileSync(join(dir, 'insecure.js'), 'const key = "sk_live_' + '123456789012345678901234";\n');
+    const dirty = run([CLI, 'detect', '--no-config', dir]);
+    assert.equal(dirty.code, 2, dirty.out);
+    assert.match(dirty.out, /secret\/stripe-live-key/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+

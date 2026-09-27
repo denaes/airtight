@@ -1,0 +1,10 @@
+# False-positive / safe cases: safe HttpOnly flags, non-sensitive cookies, or CSRF cookies
+response.set_cookie("session", session_id, httponly=True)
+resp.set_cookie("theme", "dark", httponly=False)
+response.set_cookie("session", sid, secure=True, httponly=True)
+response.set_cookie("preferences", "compact")
+response.set_cookie("csrf_token", token, httponly=False)
+resp.set_cookie("sidebar_state", "collapsed", httponly=False)
+response.set_cookie(key="theme", value="light", httponly=False)
+res.set_cookie("tracking_consent", "yes", samesite="Lax")
+# response.set_cookie("session", session_id, httponly=False)

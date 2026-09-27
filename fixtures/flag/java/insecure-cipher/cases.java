@@ -1,0 +1,10 @@
+Cipher cipher1 = Cipher.getInstance("DES");
+Cipher cipher2 = Cipher.getInstance("DESede/CBC/PKCS5Padding");
+Cipher cipher3 = Cipher.getInstance("RC4");
+Cipher cipher4 = Cipher.getInstance("Blowfish");
+Cipher cipher5 = Cipher.getInstance("AES/ECB/PKCS5Padding");
+Cipher cipher6 = Cipher.getInstance("ARCFOUR");
+Cipher cipher7 = Cipher.getInstance("AES/ECB/NoPadding");
+Cipher cipher8 = javax.crypto.Cipher.getInstance("DES/CBC/PKCS5Padding");
+Cipher cipher9 = Cipher.getInstance("Blowfish/CBC/PKCS5Padding", "SunJCE");
+Cipher cipher10 = Cipher.getInstance("TripleDES");

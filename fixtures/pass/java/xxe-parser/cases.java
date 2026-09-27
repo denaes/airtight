@@ -1,0 +1,17 @@
+factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+factory.setExpandEntityReferences(false);
+spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+parser.setFeature("http://javax.xml.XMLConstants/feature/secure-processing", true);
+dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
+builder.setExpandEntityReferences(Boolean.FALSE);
+factory.setFeature("http://xml.org/sax/features/namespaces", true);
+factory.setFeature("http://xml.org/sax/features/validation", false);
+factory.setValidating(false);
+builder.setEntityResolver(new SafeEntityResolver());
+// factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false);
+// dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, false);
+// factory.setExpandEntityReferences(true);
+// spf.setFeature("http://xml.org/sax/features/external-general-entities", true);

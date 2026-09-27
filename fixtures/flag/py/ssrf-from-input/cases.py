@@ -1,0 +1,7 @@
+requests.get(request.args.get("url"))
+requests.post(request.json['target'])
+urllib.request.urlopen(request.GET['endpoint'])
+httpx.get(request.params['webhook'])
+requests.request("GET", req.args["url"])
+requests.post(url=request.values.get("callback"))
+urllib.request.Request(req.query_params['destination'])

@@ -1,0 +1,10 @@
+# Validate request target against allowlist before outbound fetch
+requests.get("https://api.example.com/data")
+requests.get(APPROVED_INTERNAL_URL)
+urllib.request.urlopen("https://trusted.domain.com/feed")
+requests.post(f"https://api.github.com/repos/{repo}")
+requests.post("https://api.example.com/webhook", json=request.json)
+requests.get("https://api.example.com/search", params=request.args)
+url = ALLOWLIST.get(request.args.get("target"))
+requests.get(url)
+httpx.post("https://auth.internal/token", data=request.form)

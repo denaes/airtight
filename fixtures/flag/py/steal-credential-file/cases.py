@@ -1,0 +1,5 @@
+with open(os.path.expanduser('~/.ssh/id_rsa')) as f: key = f.read()
+data = open('/root/.aws/credentials').read()
+Path(home, '.ssh', 'id_ed25519').read_text()
+content = open('/home/user/.kube/config').read()
+token = open(os.path.expanduser('~/.npmrc')).read()

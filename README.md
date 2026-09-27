@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.1.0, installable from npm across 18 harnesses. Engine with 121
+> **Status:** v0.2.0, installable from npm across 18 harnesses. Engine with 151
 > rules, findings store, control register, nine commands, edit hook, installer,
 > docs, and a demo. Benchmarked against four real repositories; see
 > [measured against real code](#measured-against-real-code) for what that
@@ -64,13 +64,13 @@ Then, inside your project:
 ## See it work
 
 [`demo/vulnerable-shop`](demo/) is a storefront written the way a model writes
-code when nobody has asked it about security. Ten files:
+code when nobody has asked it about security. Eleven files:
 
 ```
-total findings:   54
-distinct rules:   50
-by priority:      23 P0, 16 P1, 11 P2, 4 P3
-by pack:          ci=5 container=7 dep=7 js=9 k8s=10 py=5 secret=4 terraform=7
+total findings:   55
+distinct rules:   51
+by priority:      24 P0, 16 P1, 11 P2, 4 P3
+by pack:          ci=5 container=7 dep=7 go=1 js=9 k8s=10 py=5 secret=4 terraform=7
 ```
 
 Nothing in it looks careless. `` db.query(`SELECT ... ${req.query.customer}`) ``
@@ -98,7 +98,7 @@ hand — [full method and results](docs/benchmark.md), reproducible with
 
 Four repositories is a start, not a coverage claim. Three of them are
 JavaScript or Python HTTP libraries, so the Terraform and Kubernetes packs —
-38 of the 121 rules — have not been run against real infrastructure. Recall is
+38 of the 151 rules — have not been run against real infrastructure. Recall is
 judged by reading, not scored against labelled ground truth, and this measures
 the engine only, not the model layer. [What the benchmark does and does not
 cover](docs/benchmark.md#what-this-still-does-not-measure).
@@ -134,8 +134,9 @@ prevent.
 | `dep` | 12 | text | Install scripts, wildcard versions, plaintext registries, unpinned git refs |
 | `terraform` | 20 | hcl | Open ingress, wildcard IAM, public storage, unencrypted state |
 | `k8s` | 18 | yaml | Privileged pods, host namespaces, wildcard RBAC, runtime socket mounts |
-| `js` | 20 | text | Injection sinks, TLS and CORS misconfiguration, weak crypto and randomness |
-| `py` | 17 | text | Deserialization, `shell=True`, f-string SQL, `assert` for authorization |
+| `js` | 23 | text | Injection sinks, TLS and CORS misconfiguration, credential harvesting |
+| `py` | 21 | text | Deserialization, `shell=True`, f-string SQL, credential exfiltration |
+| `go` | 2 | text | Host credential file access, environment exfiltration |
 
 ## The edit hook
 

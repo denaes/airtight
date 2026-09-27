@@ -24,15 +24,15 @@ node scripts/demo.mjs
 <!-- numbers are kept current by scripts/demo.mjs --check in CI -->
 
 ```
-total findings:   54
-distinct rules:   50
-by priority:      23 P0, 16 P1, 11 P2, 4 P3
-by pack:          ci=5 container=7 dep=7 js=9 k8s=10 py=5 secret=4 terraform=7
+total findings:   57
+distinct rules:   53
+by priority:      26 P0, 16 P1, 11 P2, 4 P3
+by pack:          ci=5 container=7 dep=7 go=1 java=1 js=9 k8s=10 py=5 rust=1 secret=4 terraform=7
 
-immediate tier:   32 distinct rules would interrupt an edit
+immediate tier:   35 distinct rules would interrupt an edit
 ```
 
-Ten files, 51 distinct rules, every pack. The full list is in
+Thirteen files, 53 distinct rules, every pack. The full list is in
 [`expected-findings.txt`](expected-findings.txt), which CI diffs on every
 commit — so these numbers cannot quietly stop being true.
 

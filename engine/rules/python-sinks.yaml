@@ -329,3 +329,196 @@
     address configurable and default it to loopback. Inside a container with
     its own network namespace 0.0.0.0 is often correct; confirm which case
     this is.
+
+- id: py/csrf-exempt
+  name: CSRF protection disabled on view
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-352
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '^\s*@(?:csrf_exempt|method_decorator\s*\([^)]*\bcsrf_exempt)\b'
+  message: View disables CSRF protection
+  why: >-
+    Disabling CSRF protection allows attacker-controlled web pages to trigger state-changing actions on behalf of authenticated users via ambient credentials like session cookies.
+  fix: >-
+    Remove @csrf_exempt. For machine-to-machine APIs, use header-based authorization tokens (Bearer or API keys) rather than session cookies.
+
+- id: py/steal-credential-file
+  name: Host credential file accessed by code
+  domain: secrets
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-552
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?:\b(?:open|read_text|read_bytes)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)|(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc).*\b(?:read_text|read_bytes|open)\b)'
+  message: Python code accesses host credential store (.ssh, .aws, .kube, or .npmrc)
+  why: >-
+    Reading private keys or cloud credentials from user home directories is the primary sign of credential harvesting malware in dependencies or setup scripts.
+  fix: >-
+    Never read host credentials directly in application code. Pass needed values via environment variables or a secret manager.
+
+- id: py/env-exfiltration
+  name: Process environment harvested to network
+  domain: secrets
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-200
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '\b(?:requests\.(?:post|put|get)|urllib\.request\.urlopen|http\.client)\b.*?(?:json\.dumps\s*\(\s*(?:dict\s*\(\s*)?os\.environ\b|(?:data|json)\s*=\s*(?:dict\s*\(\s*)?os\.environ\b|dict\s*\(\s*os\.environ\b)'
+  message: Entire environment dictionary is passed to an outbound network request
+  why: >-
+    Serializing os.environ into an outbound HTTP request leaks all environment variables, including database passwords, cloud tokens, and API credentials.
+  fix: >-
+    Send only explicit, validated parameters instead of dumping the entire os.environ dictionary.
+
+- id: py/ssrf-from-input
+  name: Outbound request target taken from request input
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-918
+  owasp: A10:2021
+  files: ['**/*.py']
+  match:
+    regex: '\b(?:(?:requests|httpx)\.(?:get|post|put|delete|patch|head|options|request)|urllib\.request\.(?:urlopen|Request))\s*\(\s*(?:(?:method\s*=\s*)?(["''])(?:(?!\1).)+\1\s*,\s*)?(?:url\s*=\s*)?(?:req|request)\.(?:args|form|values|json|GET|POST|params|query_params|path_params|get_json\(\))(?:\[|\.(?:get|getlist|pop)\s*\()'
+  message: An outbound request uses a URL taken directly from incoming request parameters
+  why: >-
+    The server can be pointed at internal addresses or cloud metadata (such as
+    169.254.169.254) to leak credentials and access internal services.
+  fix: >-
+    Validate the destination URL against an allowlist of permitted hosts and IP
+    ranges, or map indirect keys to internal URLs.
+
+- id: py/open-redirect
+  name: Redirect destination taken from request input
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: immediate
+  cwe: CWE-601
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '\b(?:(?:flask\.)?redirect|HttpResponse(?:Permanent)?Redirect|RedirectResponse)\s*\(\s*(?:(?:to|url|location|redirect_to)\s*=\s*)?(?:(?:self\.)?(?:request|req))\.(?:args|GET|POST|values|form|query_params|params|json)(?:\.(?:get|pop)(?:list)?\s*\(|\[)'
+    not_regex: '(?i)^\s*#|is_safe_url|url_has_allowed_host_and_scheme'
+  message: Redirect destination comes directly from unvalidated request input
+  why: >-
+    Redirecting to an unvalidated, user-controlled destination allows attackers
+    to launch phishing campaigns using your trusted domain as the first hop,
+    and can leak sensitive tokens via the Referer header or redirect URLs.
+  fix: >-
+    Ensure redirect targets are relative paths, or validate the destination URL
+    against an allowlist of trusted domains using django.utils.http.url_has_allowed_host_and_scheme
+    or a similar validator.
+
+- id: py/jwt-algorithm-none
+  name: JWT signature verification disabled or accepts none algorithm
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-327
+  owasp: A02:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)jwt\.decode\s*\([^#\n]*\bverify(?:_signature)?\s*=\s*False|(?:''verify_signature''|"verify_signature")\s*:\s*False|\balgorithms?\s*[:=]\s*\[?[^\]\n]*?(?:''none''|"none")'
+    not_regex: '(?i)^\s*#'
+  message: 'JWT verification disabled via verify=False, verify_signature=False, or none algorithm'
+  why: >-
+    Disabling JWT signature verification or allowing the none algorithm permits
+    attackers to forge tokens with arbitrary claims and bypass authentication.
+  fix: >-
+    Require signature verification and specify explicit cryptographic algorithms such as HS256 or RS256 in the algorithms allowlist.
+
+- id: py/cookie-missing-httponly
+  name: Session cookie readable from client-side JavaScript
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: immediate
+  cwe: CWE-1004
+  owasp: A05:2021
+  files: ['**/*.py']
+  match:
+    regex: '(?i)^(?!\s*#).*?\bset_cookie\s*\(\s*(?:key\s*=\s*)?(["''])(?!(?:(?!\1).)*(?:csrf|xsrf))(?:(?!\1).)*(?:session|token|auth|jwt|(?<![a-z])sid(?![a-z]))(?:(?!\1).)*\1[^)]*?\bhttp_?only\s*=\s*False\b'
+  message: Cookie sets httponly=False allowing client-side scripts to access sensitive session state
+  why: >-
+    Cookies storing session or authentication tokens without the HttpOnly attribute
+    can be read by client-side JavaScript via document.cookie, exposing them to theft
+    via Cross-Site Scripting (XSS).
+  fix: >-
+    Set httponly=True for authentication and session cookies to ensure they cannot
+    be accessed by client-side scripts.
+
+- id: py/cookie-insecure
+  name: Cookie transmitted over unencrypted HTTP
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: immediate
+  cwe: CWE-614
+  owasp: A05:2021
+  files: ['**/*.py']
+  match:
+    regex: '^(?!\s*#)[^#\n]*\bset_cookie\s*\([^#\n]*\bsecure\s*=\s*False\b'
+    not_regex: '(?i)^\s*#'
+  message: Cookie sets secure=False allowing plaintext transmission over HTTP
+  why: >-
+    Cookies set without the Secure attribute are transmitted in cleartext over
+    unencrypted HTTP connections, allowing attackers on the network path to
+    intercept sensitive credentials or session tokens.
+  fix: >-
+    Set secure=True to ensure transmission only occurs over HTTPS connections.
+
+- id: py/cors-wildcard
+  name: Wildcard CORS origin configuration
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-942
+  owasp: A01:2021
+  files: ['**/*.py']
+  match:
+    regex: '\bCORS_(?:ALLOW_ALL_ORIGINS|ORIGIN_ALLOW_ALL)\s*=\s*True\b|(?:\b(?:allow_)?origins?\s*=|(["''])(?:allow_)?origins?\1\s*:)\s*[\[({]?\s*(?:"\*"|''\*'')'
+  message: 'Cross-Origin Resource Sharing (CORS) configured with wildcard ''*'' origin'
+  why: >-
+    Allowing wildcard origins (*) permits any untrusted website to make cross-origin
+    requests to the application and access sensitive API responses, undermining the
+    same-origin policy and leading to data exfiltration.
+  fix: >-
+    Restrict allowed origins to an explicit list of trusted domain names rather than wildcard '*'.
+
+- id: py/insecure-cipher
+  name: Weak or deprecated cryptographic cipher or mode
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-327
+  owasp: A02:2021
+  files: ['**/*.py']
+  match:
+    regex: '\b(?:(?:DES|DES3|TripleDES|ARC4|RC4|Blowfish)\.new|algorithms\.(?:ARC4|Blowfish|DES|TripleDES)|modes\.ECB)\s*\(|\bMODE_ECB\b'
+  message: Deprecated or broken cipher (DES, 3DES, RC4, Blowfish) or ECB mode used
+  why: >-
+    Ciphers like DES, 3DES, RC4, and Blowfish have small block sizes or known
+    cryptanalytic weaknesses allowing plaintext recovery. ECB mode lacks semantic
+    security, leaking structural patterns because identical plaintext blocks produce
+    identical ciphertext blocks.
+  fix: >-
+    Use modern authenticated encryption (AEAD) such as AES-GCM (AES.MODE_GCM)
+    or ChaCha20-Poly1305 with unique nonces.
+
+

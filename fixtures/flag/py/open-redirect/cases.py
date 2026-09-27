@@ -1,0 +1,8 @@
+redirect(request.args.get("next"))
+redirect(request.GET['url'])
+HttpResponseRedirect(request.POST['return_to'])
+flask.redirect(request.values.get("target"))
+redirect(request.query_params.get("goto"))
+RedirectResponse(url=request.query_params.get("destination"))
+HttpResponsePermanentRedirect(request.GET.get("redirect_to"))
+redirect(request.form.get("target"))

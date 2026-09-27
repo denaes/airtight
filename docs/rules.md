@@ -2,7 +2,7 @@
 
 # Rule reference
 
-121 rules across 8 packs. 69 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+151 rules across 11 packs. 99 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -13,9 +13,12 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
 | [`container`](#container) | 10 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
-| [`js`](#js) | 20 | 11 | JavaScript and TypeScript |
+| [`go`](#go) | 6 | 6 | go |
+| [`java`](#java) | 7 | 7 | java |
+| [`js`](#js) | 26 | 17 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 18 | 8 | Kubernetes |
-| [`py`](#py) | 18 | 13 | Python |
+| [`py`](#py) | 28 | 23 | Python |
+| [`rust`](#rust) | 1 | 1 | rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 20 | 7 | Terraform |
 
@@ -394,9 +397,175 @@ Any publish by the maintainer, or by anyone who compromises their account, is in
 <sub>Waive: `airtight hooks ignore-value dep/wildcard-version "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line dep/wildcard-version -- <reason>`</sub>
 
 
+## go
+
+go. 6 rules.
+
+### `go/command-exec-shell`
+
+Operating system command executed via shell interpreter
+
+**critical** / firm · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Passing dynamic strings to a shell interpreter via -c allows command injection through shell metacharacters. Any unvalidated input can execute arbitrary commands with the privileges of the process.
+
+**Fix.** Invoke the target executable directly with arguments passed as separate slice elements instead of routing through a shell interpreter.
+
+<sub>Waive: `airtight hooks ignore-value go/command-exec-shell "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/command-exec-shell -- <reason>`</sub>
+
+### `go/env-exfiltration`
+
+Process environment harvested to network
+
+**critical** / firm · `P0` · CWE-200 · A01:2021 · fires on edit
+
+Dumping and serializing os.Environ() into an outbound network payload leaks all environment variables, including secrets and tokens.
+
+**Fix.** Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice.
+
+<sub>Waive: `airtight hooks ignore-value go/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/env-exfiltration -- <reason>`</sub>
+
+### `go/sql-string-concat`
+
+SQL query built by string formatting or concatenation
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+Formatting or concatenating variables directly into a SQL statement allows untrusted input to break out of data literals and alter query logic, leading to arbitrary database access or data loss.
+
+**Fix.** Use parameterized queries with placeholder arguments (''?'' or ''$1'') and pass variables as separate arguments to the database driver.
+
+<sub>Waive: `airtight hooks ignore-value go/sql-string-concat "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/sql-string-concat -- <reason>`</sub>
+
+### `go/steal-credential-file`
+
+Host credential file accessed by code
+
+**critical** / firm · `P0` · CWE-552 · A01:2021 · fires on edit
+
+Reading private keys or cloud credentials from standard user home locations is a primary signature of credential harvesting malware.
+
+**Fix.** Never access host credentials directly in Go application code. Supply credentials via environment variables or cloud metadata services.
+
+<sub>Waive: `airtight hooks ignore-value go/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/steal-credential-file -- <reason>`</sub>
+
+### `go/tls-insecure-skip-verify`
+
+TLS certificate verification disabled
+
+**high** / firm · `P1` · CWE-295 · A07:2021 · fires on edit
+
+Disabling TLS certificate verification allows attackers with network access to perform man-in-the-middle (MITM) attacks, intercepting or altering plaintext traffic.
+
+**Fix.** Remove InsecureSkipVerify or set it to false. To trust private certificates, configure RootCAs with a custom cert pool.
+
+<sub>Waive: `airtight hooks ignore-value go/tls-insecure-skip-verify "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/tls-insecure-skip-verify -- <reason>`</sub>
+
+### `go/weak-password-hash`
+
+Weak hash algorithm used for password or credential
+
+**high** / firm · `P1` · CWE-328 · A02:2021 · fires on edit
+
+MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive rainbow table lookup tables, and extreme vulnerability to high-speed offline GPU brute-force attacks.
+
+**Fix.** Use a salted, work-factor tuned password hashing algorithm such as bcrypt, argon2id, or scrypt.
+
+<sub>Waive: `airtight hooks ignore-value go/weak-password-hash "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/weak-password-hash -- <reason>`</sub>
+
+
+## java
+
+java. 7 rules.
+
+### `java/command-exec`
+
+Operating system command executed via shell interpreter
+
+**critical** / firm · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Executing commands through a shell interpreter like sh, bash, or cmd.exe with dynamic arguments allows command injection via shell metacharacters.
+
+**Fix.** Pass the executable and arguments as separate array elements or List items to ProcessBuilder without invoking a shell.
+
+<sub>Waive: `airtight hooks ignore-value java/command-exec "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/command-exec -- <reason>`</sub>
+
+### `java/insecure-cipher`
+
+Weak cipher or insecure ECB mode used
+
+**high** / firm · `P1` · CWE-327 · A02:2021 · fires on edit
+
+Broken ciphers like DES, DESede, RC4, and Blowfish or ECB mode suffer from known cryptanalytic attacks and pattern leakage across identical plaintext blocks.
+
+**Fix.** Use modern authenticated encryption (AEAD) such as AES in GCM mode (AES/GCM/NoPadding) with 256-bit keys and random nonces.
+
+<sub>Waive: `airtight hooks ignore-value java/insecure-cipher "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/insecure-cipher -- <reason>`</sub>
+
+### `java/insecure-deserialization`
+
+Arbitrary object deserialization from untrusted input
+
+**critical** / firm · `P0` · CWE-502 · A08:2021 · fires on edit
+
+Java deserialization invokes readObject() callbacks automatically on instantiated classes during deserialization, enabling remote code execution through classpath gadget chains.
+
+**Fix.** Use safe structured serialization formats like JSON or Protocol Buffers, or enforce a strict ObjectInputFilter allowlist on ObjectInputStream.
+
+<sub>Waive: `airtight hooks ignore-value java/insecure-deserialization "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/insecure-deserialization -- <reason>`</sub>
+
+### `java/sql-concatenation`
+
+SQL query built by string formatting or concatenation
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+Interpolating or concatenating dynamic user variables into SQL queries allows attackers to alter query logic and structure, leading to unauthorized database access, data tampering, or data loss.
+
+**Fix.** Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting.
+
+<sub>Waive: `airtight hooks ignore-value java/sql-concatenation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/sql-concatenation -- <reason>`</sub>
+
+### `java/trust-all-certs`
+
+TLS certificate verification or hostname check disabled
+
+**high** / firm · `P1` · CWE-295 · A07:2021 · fires on edit
+
+Disabling TLS certificate verification or hostname verification allows man-in-the-middle attackers to intercept, inspect, or tamper with sensitive network traffic.
+
+**Fix.** Use the platform default trust store and default HostnameVerifier, or configure a custom TrustManager that validates the certificate chain against a specific CA.
+
+<sub>Waive: `airtight hooks ignore-value java/trust-all-certs "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/trust-all-certs -- <reason>`</sub>
+
+### `java/weak-hash`
+
+Weak hash algorithm MD5 or SHA-1 used
+
+**high** / firm · `P1` · CWE-328 · A02:2021 · fires on edit
+
+MD5 and SHA-1 suffer from collision and preimage vulnerabilities and are unsuitable for cryptographic security or data integrity verification.
+
+**Fix.** Use SHA-256 or SHA-512 for integrity checksums, or a slow salted algorithm like BCrypt or Argon2id for passwords.
+
+<sub>Waive: `airtight hooks ignore-value java/weak-hash "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/weak-hash -- <reason>`</sub>
+
+### `java/xxe-parser`
+
+XML parser configured to allow external entity resolution
+
+**high** / firm · `P1` · CWE-611 · A05:2021 · fires on edit
+
+Allowing external entity resolution or disabling secure processing enables XML External Entity (XXE) attacks. Attackers can read arbitrary local files, forge server-side requests (SSRF), or cause DoS via billion laughs.
+
+**Fix.** Enable XMLConstants.FEATURE_SECURE_PROCESSING and set "http://apache.org/xml/features/disallow-doctype-decl" to true. Disable external entity resolution.
+
+<sub>Waive: `airtight hooks ignore-value java/xxe-parser "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/xxe-parser -- <reason>`</sub>
+
+
 ## js
 
-JavaScript and TypeScript. 20 rules.
+JavaScript and TypeScript. 26 rules.
 
 ### `js/child-process-interpolation`
 
@@ -470,6 +639,18 @@ The removed createCipher API uses MD5-based key derivation and a constant IV, so
 
 <sub>Waive: `airtight hooks ignore-value js/deprecated-cipher-api "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/deprecated-cipher-api -- <reason>`</sub>
 
+### `js/env-exfiltration`
+
+Process environment harvested to network
+
+**critical** / firm · `P0` · CWE-200 · A01:2021 · fires on edit
+
+Serializing process.env into an outbound HTTP request exfiltrates API keys, database credentials, and session secrets held in the environment.
+
+**Fix.** Transmit only explicit, required configuration fields rather than serializing the entire process.env table.
+
+<sub>Waive: `airtight hooks ignore-value js/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/env-exfiltration -- <reason>`</sub>
+
 ### `js/eval-dynamic`
 
 Dynamic code execution
@@ -530,6 +711,30 @@ Math.random is a fast non-cryptographic PRNG with observable internal state. Giv
 
 <sub>Waive: `airtight hooks ignore-value js/math-random-for-secret "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/math-random-for-secret -- <reason>`</sub>
 
+### `js/node-serialize`
+
+Arbitrary code execution via unsafe object deserialization
+
+**critical** / firm · `P0` · CWE-502 · A08:2021 · fires on edit
+
+Untrusted data passed to node-serialize unserialize() allows arbitrary code execution when an object contains a function wrapper with an immediately invoked function expression (_$$ND_FUNC$$_).
+
+**Fix.** Use JSON.parse() for data exchange or structuredClone() for deep object cloning instead of node-serialize.
+
+<sub>Waive: `airtight hooks ignore-value js/node-serialize "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/node-serialize -- <reason>`</sub>
+
+### `js/nosql-injection`
+
+NoSQL query injection
+
+**critical** / firm · `P0` · CWE-943 · A03:2021 · fires on edit
+
+Passing raw request objects directly into NoSQL query filters allows attackers to inject query operators like $gt, $ne, or $where, bypassing authentication or executing arbitrary JavaScript on the database.
+
+**Fix.** Sanitize query keys, cast input fields explicitly with String(), or validate schemas using Zod or Joi before querying.
+
+<sub>Waive: `airtight hooks ignore-value js/nosql-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nosql-injection -- <reason>`</sub>
+
 ### `js/open-redirect`
 
 Redirect target taken from request input
@@ -553,6 +758,18 @@ path.join happily resolves `../`, so a parameter of `../../etc/passwd` escapes t
 **Fix.** Take only path.basename of the input, resolve against a fixed root, and assert the resolved path still starts with that root before opening it.
 
 <sub>Waive: `airtight hooks ignore-value js/path-join-from-input "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/path-join-from-input -- <reason>`</sub>
+
+### `js/prototype-pollution`
+
+Unsafe object merge vulnerable to prototype pollution
+
+**high** / firm · `P1` · CWE-1321 · A03:2021 · fires on edit
+
+Modifying object prototypes via __proto__ or constructor.prototype injects properties into all objects across the JavaScript runtime, leading to denial of service, authentication bypass, or remote code execution.
+
+**Fix.** Validate keys against __proto__, constructor, and prototype before assignment, or use Map or Object.create(null).
+
+<sub>Waive: `airtight hooks ignore-value js/prototype-pollution "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/prototype-pollution -- <reason>`</sub>
 
 ### `js/regexp-from-input`
 
@@ -614,6 +831,18 @@ The server can be pointed at internal addresses the caller cannot reach, includi
 
 <sub>Waive: `airtight hooks ignore-value js/ssrf-request-from-input "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/ssrf-request-from-input -- <reason>`</sub>
 
+### `js/steal-credential-file`
+
+Host credential file accessed by code
+
+**critical** / firm · `P0` · CWE-552 · A01:2021 · fires on edit
+
+Reading private keys or cloud credentials from standard host locations is the primary indicator of credential harvesting malware in dependencies or build scripts.
+
+**Fix.** Never read host credentials directly in application code. Inject credentials via approved environment variables or secret vaults.
+
+<sub>Waive: `airtight hooks ignore-value js/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/steal-credential-file -- <reason>`</sub>
+
 ### `js/tls-verification-disabled`
 
 TLS certificate verification disabled
@@ -637,6 +866,18 @@ MD5, SHA-1 and the SHA-2 family are designed to be fast, which is the opposite o
 **Fix.** Use argon2id, scrypt, or bcrypt with a per-password salt and a work factor tuned to about 250ms on your hardware.
 
 <sub>Waive: `airtight hooks ignore-value js/weak-password-hash "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/weak-password-hash -- <reason>`</sub>
+
+### `js/xxe-libxml`
+
+XML parser configured to expand external entities
+
+**high** / firm · `P1` · CWE-611 · A05:2021 · fires on edit
+
+Setting noent: true in libxmljs causes the XML parser to expand external entities. An attacker supplying crafted XML can read arbitrary local files, access internal network endpoints via SSRF, or trigger memory exhaustion.
+
+**Fix.** Do not set noent: true. Keep entity expansion disabled by defaulting noent to false, or omit the option when parsing untrusted XML.
+
+<sub>Waive: `airtight hooks ignore-value js/xxe-libxml "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/xxe-libxml -- <reason>`</sub>
 
 
 ## k8s
@@ -862,7 +1103,7 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 
 ## py
 
-Python. 18 rules.
+Python. 28 rules.
 
 ### `py/assert-for-authorization`
 
@@ -900,6 +1141,66 @@ The connection is encrypted to whoever answered, which is no defence against an 
 
 <sub>Waive: `airtight hooks ignore-value py/cert-reqs-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/cert-reqs-none -- <reason>`</sub>
 
+### `py/cookie-insecure`
+
+Cookie transmitted over unencrypted HTTP
+
+**medium** / firm · `P2` · CWE-614 · A05:2021 · fires on edit
+
+Cookies set without the Secure attribute are transmitted in cleartext over unencrypted HTTP connections, allowing attackers on the network path to intercept sensitive credentials or session tokens.
+
+**Fix.** Set secure=True to ensure transmission only occurs over HTTPS connections.
+
+<sub>Waive: `airtight hooks ignore-value py/cookie-insecure "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/cookie-insecure -- <reason>`</sub>
+
+### `py/cookie-missing-httponly`
+
+Session cookie readable from client-side JavaScript
+
+**medium** / firm · `P2` · CWE-1004 · A05:2021 · fires on edit
+
+Cookies storing session or authentication tokens without the HttpOnly attribute can be read by client-side JavaScript via document.cookie, exposing them to theft via Cross-Site Scripting (XSS).
+
+**Fix.** Set httponly=True for authentication and session cookies to ensure they cannot be accessed by client-side scripts.
+
+<sub>Waive: `airtight hooks ignore-value py/cookie-missing-httponly "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/cookie-missing-httponly -- <reason>`</sub>
+
+### `py/cors-wildcard`
+
+Wildcard CORS origin configuration
+
+**high** / firm · `P1` · CWE-942 · A01:2021 · fires on edit
+
+Allowing wildcard origins (*) permits any untrusted website to make cross-origin requests to the application and access sensitive API responses, undermining the same-origin policy and leading to data exfiltration.
+
+**Fix.** Restrict allowed origins to an explicit list of trusted domain names rather than wildcard '*'.
+
+<sub>Waive: `airtight hooks ignore-value py/cors-wildcard "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/cors-wildcard -- <reason>`</sub>
+
+### `py/csrf-exempt`
+
+CSRF protection disabled on view
+
+**high** / firm · `P1` · CWE-352 · A01:2021 · fires on edit
+
+Disabling CSRF protection allows attacker-controlled web pages to trigger state-changing actions on behalf of authenticated users via ambient credentials like session cookies.
+
+**Fix.** Remove @csrf_exempt. For machine-to-machine APIs, use header-based authorization tokens (Bearer or API keys) rather than session cookies.
+
+<sub>Waive: `airtight hooks ignore-value py/csrf-exempt "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/csrf-exempt -- <reason>`</sub>
+
+### `py/env-exfiltration`
+
+Process environment harvested to network
+
+**critical** / firm · `P0` · CWE-200 · A01:2021 · fires on edit
+
+Serializing os.environ into an outbound HTTP request leaks all environment variables, including database passwords, cloud tokens, and API credentials.
+
+**Fix.** Send only explicit, validated parameters instead of dumping the entire os.environ dictionary.
+
+<sub>Waive: `airtight hooks ignore-value py/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/env-exfiltration -- <reason>`</sub>
+
 ### `py/eval-exec`
 
 Dynamic code execution
@@ -924,6 +1225,18 @@ The Werkzeug debugger exposes an interactive Python console on any traceback. Re
 
 <sub>Waive: `airtight hooks ignore-value py/flask-debug-enabled "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/flask-debug-enabled -- <reason>`</sub>
 
+### `py/insecure-cipher`
+
+Weak or deprecated cryptographic cipher or mode
+
+**high** / firm · `P1` · CWE-327 · A02:2021 · fires on edit
+
+Ciphers like DES, 3DES, RC4, and Blowfish have small block sizes or known cryptanalytic weaknesses allowing plaintext recovery. ECB mode lacks semantic security, leaking structural patterns because identical plaintext blocks produce identical ciphertext blocks.
+
+**Fix.** Use modern authenticated encryption (AEAD) such as AES-GCM (AES.MODE_GCM) or ChaCha20-Poly1305 with unique nonces.
+
+<sub>Waive: `airtight hooks ignore-value py/insecure-cipher "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/insecure-cipher -- <reason>`</sub>
+
 ### `py/jinja-autoescape-off`
 
 Template autoescaping disabled
@@ -935,6 +1248,30 @@ Every variable rendered into a template becomes raw HTML, so one stored value wi
 **Fix.** Leave autoescape on and mark the specific trusted values with Markup, rather than disabling it globally.
 
 <sub>Waive: `airtight hooks ignore-value py/jinja-autoescape-off "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/jinja-autoescape-off -- <reason>`</sub>
+
+### `py/jwt-algorithm-none`
+
+JWT signature verification disabled or accepts none algorithm
+
+**critical** / firm · `P0` · CWE-327 · A02:2021 · fires on edit
+
+Disabling JWT signature verification or allowing the none algorithm permits attackers to forge tokens with arbitrary claims and bypass authentication.
+
+**Fix.** Require signature verification and specify explicit cryptographic algorithms such as HS256 or RS256 in the algorithms allowlist.
+
+<sub>Waive: `airtight hooks ignore-value py/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/jwt-algorithm-none -- <reason>`</sub>
+
+### `py/open-redirect`
+
+Redirect destination taken from request input
+
+**medium** / firm · `P2` · CWE-601 · A01:2021 · fires on edit
+
+Redirecting to an unvalidated, user-controlled destination allows attackers to launch phishing campaigns using your trusted domain as the first hop, and can leak sensitive tokens via the Referer header or redirect URLs.
+
+**Fix.** Ensure redirect targets are relative paths, or validate the destination URL against an allowlist of trusted domains using django.utils.http.url_has_allowed_host_and_scheme or a similar validator.
+
+<sub>Waive: `airtight hooks ignore-value py/open-redirect "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/open-redirect -- <reason>`</sub>
 
 ### `py/os-system-interpolation`
 
@@ -1008,6 +1345,30 @@ Formatting with `%` happens in Python, so the driver receives an already assembl
 
 <sub>Waive: `airtight hooks ignore-value py/sql-percent-format "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/sql-percent-format -- <reason>`</sub>
 
+### `py/ssrf-from-input`
+
+Outbound request target taken from request input
+
+**high** / firm · `P1` · CWE-918 · A10:2021 · fires on edit
+
+The server can be pointed at internal addresses or cloud metadata (such as 169.254.169.254) to leak credentials and access internal services.
+
+**Fix.** Validate the destination URL against an allowlist of permitted hosts and IP ranges, or map indirect keys to internal URLs.
+
+<sub>Waive: `airtight hooks ignore-value py/ssrf-from-input "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/ssrf-from-input -- <reason>`</sub>
+
+### `py/steal-credential-file`
+
+Host credential file accessed by code
+
+**critical** / firm · `P0` · CWE-552 · A01:2021 · fires on edit
+
+Reading private keys or cloud credentials from user home directories is the primary sign of credential harvesting malware in dependencies or setup scripts.
+
+**Fix.** Never read host credentials directly in application code. Pass needed values via environment variables or a secret manager.
+
+<sub>Waive: `airtight hooks ignore-value py/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/steal-credential-file -- <reason>`</sub>
+
 ### `py/subprocess-shell-true`
 
 Subprocess invoked with a shell
@@ -1079,6 +1440,23 @@ The default loader honours tags like !!python/object/apply, which constructs arb
 **Fix.** Use yaml.safe_load, or pass Loader=yaml.SafeLoader explicitly.
 
 <sub>Waive: `airtight hooks ignore-value py/yaml-unsafe-load "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/yaml-unsafe-load -- <reason>`</sub>
+
+
+## rust
+
+rust. 1 rules.
+
+### `rust/command-injection`
+
+Operating system command executed via shell interpreter
+
+**critical** / firm · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Executing commands through a shell interpreter with dynamic or formatted arguments allows arbitrary command injection via shell metacharacters.
+
+**Fix.** Pass arguments directly to the executable using .arg() or .args() instead of invoking a shell with -c.
+
+<sub>Waive: `airtight hooks ignore-value rust/command-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/command-injection -- <reason>`</sub>
 
 
 ## secret

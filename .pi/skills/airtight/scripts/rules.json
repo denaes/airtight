@@ -814,6 +814,254 @@
     "fix": "Pin to a caret or exact range, and let a bot propose upgrades so they pass through review."
   },
   {
+    "id": "go/command-exec-shell",
+    "name": "Operating system command executed via shell interpreter",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "\\bexec\\.(?:Command\\s*\\(\\s*|CommandContext\\s*\\([^,]+,\\s*)([\"`])(?:[A-Za-z0-9_.\\/-]*\\/)?(?:ba|z|da|k)?sh\\1\\s*,\\s*([\"`])-c\\2,(?:(?!\\s*[\"`])\\s*|\\s*([\"`])(?:(?!\\3).)*\\3\\s*\\+)",
+      "not_regex": "^\\s*//"
+    },
+    "message": "Shell interpreter invoked to execute system command with dynamic input",
+    "why": "Passing dynamic strings to a shell interpreter via -c allows command injection through shell metacharacters. Any unvalidated input can execute arbitrary commands with the privileges of the process.",
+    "fix": "Invoke the target executable directly with arguments passed as separate slice elements instead of routing through a shell interpreter."
+  },
+  {
+    "id": "go/env-exfiltration",
+    "name": "Process environment harvested to network",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-200",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "\\b(?:http\\.(?:Post|Get|PostForm|NewRequest)\\b.*?\\bos\\.Environ\\s*\\(|json\\.Marshal\\s*\\(\\s*os\\.Environ\\s*\\(\\s*\\)|strings\\.Join\\s*\\(\\s*os\\.Environ\\s*\\(\\s*\\))"
+    },
+    "message": "Complete environment variable table is prepared for transmission or sent over HTTP",
+    "why": "Dumping and serializing os.Environ() into an outbound network payload leaks all environment variables, including secrets and tokens.",
+    "fix": "Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice."
+  },
+  {
+    "id": "go/sql-string-concat",
+    "name": "SQL query built by string formatting or concatenation",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "\\bfmt\\.Sprintf\\s*\\(\\s*([\"'`])(?:(?!\\1).)*(?i:\\bSELECT\\b(?:(?!\\1).)*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b(?:(?!\\1).)*\\bSET\\b|\\bDELETE\\s+FROM\\b)(?:(?!\\1).)*\\1\\s*,|([\"'`])(?:(?!\\2).)*(?i:\\bSELECT\\b(?:(?!\\2).)*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b(?:(?!\\2).)*\\bSET\\b|\\bDELETE\\s+FROM\\b)(?:(?!\\2).)*\\2\\s*\\+\\s*[A-Za-z_]"
+    },
+    "message": "SQL query executed with formatted or concatenated string instead of parameter bindings",
+    "why": "Formatting or concatenating variables directly into a SQL statement allows untrusted input to break out of data literals and alter query logic, leading to arbitrary database access or data loss.",
+    "fix": "Use parameterized queries with placeholder arguments (''?'' or ''$1'') and pass variables as separate arguments to the database driver."
+  },
+  {
+    "id": "go/steal-credential-file",
+    "name": "Host credential file accessed by code",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-552",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "\\b(?:os\\.(?:ReadFile|Open)|ioutil\\.ReadFile)\\b.*(?:\\.ssh[\\/\\\\](?:id_rsa|id_ed25519|id_ecdsa)|[\"']\\.ssh[\"']\\s*,\\s*[\"']id_|\\.aws[\\/\\\\]credentials|\\.kube[\\/\\\\]config|\\.docker[\\/\\\\]config\\.json|\\.netrc|\\.npmrc)"
+    },
+    "message": "Go code accesses host credential store (.ssh, .aws, .kube, or .npmrc)",
+    "why": "Reading private keys or cloud credentials from standard user home locations is a primary signature of credential harvesting malware.",
+    "fix": "Never access host credentials directly in Go application code. Supply credentials via environment variables or cloud metadata services."
+  },
+  {
+    "id": "go/tls-insecure-skip-verify",
+    "name": "TLS certificate verification disabled",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-295",
+    "owasp": "A07:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "\\bInsecureSkipVerify\\s*[:=]\\s*true\\b"
+    },
+    "message": "TLS certificate validation is disabled via InsecureSkipVerify: true",
+    "why": "Disabling TLS certificate verification allows attackers with network access to perform man-in-the-middle (MITM) attacks, intercepting or altering plaintext traffic.",
+    "fix": "Remove InsecureSkipVerify or set it to false. To trust private certificates, configure RootCAs with a custom cert pool."
+  },
+  {
+    "id": "go/weak-password-hash",
+    "name": "Weak hash algorithm used for password or credential",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-328",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)(?:\\b(?:md5|sha1)\\.(?:New|Sum)\\b[^\\n]*\\b\\w*(?:password|passwd|passphrase|pwd)\\w*\\b|\\b\\w*(?:password|passwd|passphrase|pwd)\\w*\\b[^\\n]*\\b(?:md5|sha1)\\.(?:New|Sum)\\b)"
+    },
+    "message": "MD5 or SHA1 used to hash passwords or authentication secrets",
+    "why": "MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive rainbow table lookup tables, and extreme vulnerability to high-speed offline GPU brute-force attacks.",
+    "fix": "Use a salted, work-factor tuned password hashing algorithm such as bcrypt, argon2id, or scrypt."
+  },
+  {
+    "id": "java/command-exec",
+    "name": "Operating system command executed via shell interpreter",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*)).*?\\b(?:Runtime\\.getRuntime\\s*\\(\\s*\\)\\.exec|new\\s+ProcessBuilder)\\b.*?(?:([\"'])(?:(?!\\1).)*?\\b(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\\.exe)?|powershell(?:\\.exe)?)\\s+(?:-(?:c|Command)|/[cC])\\b(?:(?!\\1).)*\\1\\s*\\+|(?:([\"'])(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\\.exe)?|powershell(?:\\.exe)?)\\2\\s*,\\s*([\"'])(?:-(?:c|Command)|/[cC])\\3(?:\\s*\\+|\\s*,\\s*(?:[a-zA-Z_$(]|([\"'])(?:(?!\\4).)*\\4\\s*\\+))))"
+    },
+    "message": "Java command execution invokes shell interpreter with dynamic command string",
+    "why": "Executing commands through a shell interpreter like sh, bash, or cmd.exe with dynamic arguments allows command injection via shell metacharacters.",
+    "fix": "Pass the executable and arguments as separate array elements or List items to ProcessBuilder without invoking a shell."
+  },
+  {
+    "id": "java/insecure-cipher",
+    "name": "Weak cipher or insecure ECB mode used",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-327",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|/\\*|\\*))(?:(?!//|/\\*).)*?\\bCipher\\s*\\.\\s*getInstance\\s*\\(\\s*([\"'])(?:(?:DES(?:ede)?|TripleDES|Blowfish|RC4|ARCFOUR|ARC4)\\b|(?:(?!RSA/)[A-Za-z0-9_/-])+/ECB\\b)(?:(?!\\1).)*\\1"
+    },
+    "message": "Insecure cipher (DES, DESede, RC4, Blowfish) or ECB mode selected via Cipher.getInstance",
+    "why": "Broken ciphers like DES, DESede, RC4, and Blowfish or ECB mode suffer from known cryptanalytic attacks and pattern leakage across identical plaintext blocks.",
+    "fix": "Use modern authenticated encryption (AEAD) such as AES in GCM mode (AES/GCM/NoPadding) with 256-bit keys and random nonces."
+  },
+  {
+    "id": "java/insecure-deserialization",
+    "name": "Arbitrary object deserialization from untrusted input",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*)).*?(?:\\b(?:ObjectInputStream|XMLDecoder)\\b.*?\\.\\s*read(?:Object|Unshared)|\\b(?!(?:super|vois|validating\\w*)\\b)[a-zA-Z0-9_$]+\\s*\\.\\s*read(?:Object|Unshared))\\s*\\(\\s*\\)"
+    },
+    "message": "ObjectInputStream or XMLDecoder deserializes untrusted streams, allowing remote code execution via gadget chains",
+    "why": "Java deserialization invokes readObject() callbacks automatically on instantiated classes during deserialization, enabling remote code execution through classpath gadget chains.",
+    "fix": "Use safe structured serialization formats like JSON or Protocol Buffers, or enforce a strict ObjectInputFilter allowlist on ObjectInputStream."
+  },
+  {
+    "id": "java/sql-concatenation",
+    "name": "SQL query built by string formatting or concatenation",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*)).*?(?:\\bString\\.format\\s*\\(\\s*(?:[A-Za-z_.]+\\s*,\\s*)?([\"'])(?:(?!\\1).)*(?i:\\bSELECT\\b(?:(?!\\1).)*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b(?:(?!\\1).)*\\bSET\\b|\\bDELETE\\s+FROM\\b)(?:(?!\\1).)*\\1\\s*,|([\"'])(?:(?!\\2).)*(?i:\\bSELECT\\b(?:(?!\\2).)*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b(?:(?!\\2).)*\\bSET\\b|\\bDELETE\\s+FROM\\b)(?:(?!\\2).)*\\2\\s*\\+\\s*[A-Za-z_$(])"
+    },
+    "message": "SQL statement executed with dynamic string concatenation instead of PreparedStatement parameters",
+    "why": "Interpolating or concatenating dynamic user variables into SQL queries allows attackers to alter query logic and structure, leading to unauthorized database access, data tampering, or data loss.",
+    "fix": "Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting."
+  },
+  {
+    "id": "java/trust-all-certs",
+    "name": "TLS certificate verification or hostname check disabled",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-295",
+    "owasp": "A07:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*)).*?\\b(?:(?:ALLOW_ALL_HOSTNAME_VERIFIER|(?:Noop|Null|AllowAll)HostnameVerifier|InsecureTrustManagerFactory\\.INSTANCE|TrustAllStrategy\\.INSTANCE)\\b|check(?:Server|Client)Trusted\\s*\\([^)]*\\)\\s*(?:throws\\s+[^{]+)?\\{\\s*(?:return\\s*;)?\\s*\\}|boolean\\s+verify\\s*\\([^)]*\\b(?:hostname|session|host|sslSession|SSLSession)\\b[^)]*\\)\\s*\\{\\s*return\\s+true\\s*;\\s*\\}|(?:\\b(?:HostnameVerifier|set(?:Default)?(?:SSL)?HostnameVerifier)\\b[^{};]*?|\\([^)]*\\b(?:hostname|session|host|sslSession)\\b[^)]*\\))\\s*->\\s*(?:true|Boolean\\.TRUE)\\b)"
+    },
+    "message": "TLS certificate validation is disabled via empty TrustManager or permissive HostnameVerifier",
+    "why": "Disabling TLS certificate verification or hostname verification allows man-in-the-middle attackers to intercept, inspect, or tamper with sensitive network traffic.",
+    "fix": "Use the platform default trust store and default HostnameVerifier, or configure a custom TrustManager that validates the certificate chain against a specific CA."
+  },
+  {
+    "id": "java/weak-hash",
+    "name": "Weak hash algorithm MD5 or SHA-1 used",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-328",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|\\*|/\\*))(?:(?!//).)*?\\b(?:MessageDigest\\.getInstance\\s*\\(\\s*([\"'])(?:md5|sha-?1)\\1|DigestUtils\\.(?:md5|sha1?|getMd5Digest|getSha1Digest)(?:Hex)?\\s*\\()"
+    },
+    "message": "MD5 or SHA-1 hash algorithm selected via MessageDigest or DigestUtils",
+    "why": "MD5 and SHA-1 suffer from collision and preimage vulnerabilities and are unsuitable for cryptographic security or data integrity verification.",
+    "fix": "Use SHA-256 or SHA-512 for integrity checksums, or a slow salted algorithm like BCrypt or Argon2id for passwords."
+  },
+  {
+    "id": "java/xxe-parser",
+    "name": "XML parser configured to allow external entity resolution",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-611",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*)).*?\\b(?:setFeature\\s*\\(\\s*(?:(?:(?:XMLConstants\\.)?FEATURE_SECURE_PROCESSING|([\"'])(?:(?!\\1).)*?(?:disallow-doctype-decl|feature/secure-processing)\\1)\\s*,\\s*(?:false\\b|Boolean\\.FALSE\\b)|([\"'])(?:(?!\\2).)*?(?:external-general-entities|external-parameter-entities|load-external-dtd)\\2\\s*,\\s*(?:true\\b|Boolean\\.TRUE\\b))|setExpandEntityReferences\\s*\\(\\s*(?:true\\b|Boolean\\.TRUE\\b))"
+    },
+    "message": "XML parser explicitly enables external entity expansion or disables secure processing features",
+    "why": "Allowing external entity resolution or disabling secure processing enables XML External Entity (XXE) attacks. Attackers can read arbitrary local files, forge server-side requests (SSRF), or cause DoS via billion laughs.",
+    "fix": "Enable XMLConstants.FEATURE_SECURE_PROCESSING and set \"http://apache.org/xml/features/disallow-doctype-decl\" to true. Disable external entity resolution."
+  },
+  {
     "id": "js/child-process-interpolation",
     "name": "Shell command built from an interpolated value",
     "domain": "appsec",
@@ -974,6 +1222,33 @@
     "fix": "Use createCipheriv with a random IV per message and an AEAD mode such as aes-256-gcm."
   },
   {
+    "id": "js/env-exfiltration",
+    "name": "Process environment harvested to network",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-200",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b(?:fetch|axios\\.(?:post|put)|https?\\.(?:request|get))\\b.*?(?:JSON\\.stringify\\s*\\(\\s*process\\.env\\b|URLSearchParams\\s*\\(\\s*process\\.env\\b|,\\s*process\\.env\\s*[),])"
+    },
+    "message": "Entire environment table is serialized into an outbound network request",
+    "why": "Serializing process.env into an outbound HTTP request exfiltrates API keys, database credentials, and session secrets held in the environment.",
+    "fix": "Transmit only explicit, required configuration fields rather than serializing the entire process.env table."
+  },
+  {
     "id": "js/eval-dynamic",
     "name": "Dynamic code execution",
     "domain": "appsec",
@@ -1114,6 +1389,60 @@
     "fix": "Use crypto.randomUUID() or crypto.randomBytes(32).toString('base64url')."
   },
   {
+    "id": "js/node-serialize",
+    "name": "Arbitrary code execution via unsafe object deserialization",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?:\\b(?:\\w*[Ss]erialize\\w*|require\\s*\\(\\s*([\"'])node-serialize\\1\\s*\\))\\s*\\??\\.\\s*|(?<![\\w$.]))unserialize\\s*\\("
+    },
+    "message": "node-serialize unserialize() allows arbitrary JavaScript execution via IIFE payloads",
+    "why": "Untrusted data passed to node-serialize unserialize() allows arbitrary code execution when an object contains a function wrapper with an immediately invoked function expression (_$$ND_FUNC$$_).",
+    "fix": "Use JSON.parse() for data exchange or structuredClone() for deep object cloning instead of node-serialize."
+  },
+  {
+    "id": "js/nosql-injection",
+    "name": "NoSQL query injection",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-943",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b(?:find|findOne|update|updateOne|updateMany|deleteOne|deleteMany|countDocuments)\\s*\\(\\s*req\\.(?:body|query|params)\\b|[\"']?\\$where[\"']?\\s*:\\s*(?:req\\.(?:body|query|params)|`[^`]*\\$\\{|([\"'])(?:(?!\\1).)*\\1\\s*\\+)|[\"']?\\$regex[\"']?\\s*:\\s*req\\.(?:body|query|params)"
+    },
+    "message": "NoSQL query document or $where expression constructed with unvalidated input",
+    "why": "Passing raw request objects directly into NoSQL query filters allows attackers to inject query operators like $gt, $ne, or $where, bypassing authentication or executing arbitrary JavaScript on the database.",
+    "fix": "Sanitize query keys, cast input fields explicitly with String(), or validate schemas using Zod or Joi before querying."
+  },
+  {
     "id": "js/open-redirect",
     "name": "Redirect target taken from request input",
     "domain": "appsec",
@@ -1166,6 +1495,33 @@
     "message": "A filesystem path is built from request input",
     "why": "path.join happily resolves `../`, so a parameter of `../../etc/passwd` escapes the intended directory. Encoded traversal sequences survive most naive filters.",
     "fix": "Take only path.basename of the input, resolve against a fixed root, and assert the resolved path still starts with that root before opening it."
+  },
+  {
+    "id": "js/prototype-pollution",
+    "name": "Unsafe object merge vulnerable to prototype pollution",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-1321",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b[a-zA-Z_$][\\w$]*(?:\\.(?:__proto__|constructor\\.prototype)|\\[[\"'](?:__proto__|constructor)[\"']\\](?:\\[[\"']prototype[\"']\\])?)(?:\\[[^\\]\\n]+\\])?\\s*=(?![=>])|\\b[a-zA-Z_$][\\w$]*(?:\\[(?:\\[[^\\]\\n]*\\]|[^\\]\\n])+\\]){2,}\\s*=(?![=>])|\\b[a-zA-Z_$][\\w$]*\\[[^\\]\\n]+\\]\\s*=(?![=>])\\s*(?:merge|deepMerge|clone|deepClone|deepCopy|extend)\\s*\\("
+    },
+    "message": "Object properties merged recursively without prototype key filtering",
+    "why": "Modifying object prototypes via __proto__ or constructor.prototype injects properties into all objects across the JavaScript runtime, leading to denial of service, authentication bypass, or remote code execution.",
+    "fix": "Validate keys against __proto__, constructor, and prototype before assignment, or use Map or Object.create(null)."
   },
   {
     "id": "js/regexp-from-input",
@@ -1301,6 +1657,33 @@
     "fix": "Resolve the URL and validate the resulting IP against a denylist of private ranges, or accept an identifier and map it to a URL you control."
   },
   {
+    "id": "js/steal-credential-file",
+    "name": "Host credential file accessed by code",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-552",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b(?:readFile|readFileSync|createReadStream)\\b.*(?:\\.ssh[\\/\\\\](?:id_rsa|id_ed25519|id_ecdsa)|[\"']\\.ssh[\"']\\s*,\\s*[\"']id_|\\.aws[\\/\\\\]credentials|\\.kube[\\/\\\\]config|\\.docker[\\/\\\\]config\\.json|\\.netrc|\\.npmrc)"
+    },
+    "message": "Code accesses host credential store (.ssh, .aws, .kube, or .npmrc)",
+    "why": "Reading private keys or cloud credentials from standard host locations is the primary indicator of credential harvesting malware in dependencies or build scripts.",
+    "fix": "Never read host credentials directly in application code. Inject credentials via approved environment variables or secret vaults."
+  },
+  {
     "id": "js/tls-verification-disabled",
     "name": "TLS certificate verification disabled",
     "domain": "appsec",
@@ -1354,6 +1737,33 @@
     "message": "A general-purpose digest is used where a password hash belongs",
     "why": "MD5, SHA-1 and the SHA-2 family are designed to be fast, which is the opposite of what password storage needs. Commodity hardware tries billions of candidates per second against them.",
     "fix": "Use argon2id, scrypt, or bcrypt with a per-password salt and a work factor tuned to about 250ms on your hardware."
+  },
+  {
+    "id": "js/xxe-libxml",
+    "name": "XML parser configured to expand external entities",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-611",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\bparseXml(?:String)?\\s*\\(.*?(?:[\"']noent[\"']|\\bnoent)\\s*:\\s*true\\b"
+    },
+    "message": "XML parser enables entity replacement via noent: true, exposing the system to XXE",
+    "why": "Setting noent: true in libxmljs causes the XML parser to expand external entities. An attacker supplying crafted XML can read arbitrary local files, access internal network endpoints via SSRF, or trigger memory exhaustion.",
+    "fix": "Do not set noent: true. Keep entity expansion disabled by defaulting noent to false, or omit the option when parsing untrusted XML."
   },
   {
     "id": "k8s/allow-privilege-escalation",
@@ -2060,6 +2470,102 @@
     "fix": "Set cert_reqs to CERT_REQUIRED and supply the CA bundle the peer should be validated against."
   },
   {
+    "id": "py/cookie-insecure",
+    "name": "Cookie transmitted over unencrypted HTTP",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-614",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "^(?!\\s*#)[^#\\n]*\\bset_cookie\\s*\\([^#\\n]*\\bsecure\\s*=\\s*False\\b",
+      "not_regex": "(?i)^\\s*#"
+    },
+    "message": "Cookie sets secure=False allowing plaintext transmission over HTTP",
+    "why": "Cookies set without the Secure attribute are transmitted in cleartext over unencrypted HTTP connections, allowing attackers on the network path to intercept sensitive credentials or session tokens.",
+    "fix": "Set secure=True to ensure transmission only occurs over HTTPS connections."
+  },
+  {
+    "id": "py/cookie-missing-httponly",
+    "name": "Session cookie readable from client-side JavaScript",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-1004",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*#).*?\\bset_cookie\\s*\\(\\s*(?:key\\s*=\\s*)?([\"'])(?!(?:(?!\\1).)*(?:csrf|xsrf))(?:(?!\\1).)*(?:session|token|auth|jwt|(?<![a-z])sid(?![a-z]))(?:(?!\\1).)*\\1[^)]*?\\bhttp_?only\\s*=\\s*False\\b"
+    },
+    "message": "Cookie sets httponly=False allowing client-side scripts to access sensitive session state",
+    "why": "Cookies storing session or authentication tokens without the HttpOnly attribute can be read by client-side JavaScript via document.cookie, exposing them to theft via Cross-Site Scripting (XSS).",
+    "fix": "Set httponly=True for authentication and session cookies to ensure they cannot be accessed by client-side scripts."
+  },
+  {
+    "id": "py/cors-wildcard",
+    "name": "Wildcard CORS origin configuration",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-942",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "\\bCORS_(?:ALLOW_ALL_ORIGINS|ORIGIN_ALLOW_ALL)\\s*=\\s*True\\b|(?:\\b(?:allow_)?origins?\\s*=|([\"'])(?:allow_)?origins?\\1\\s*:)\\s*[\\[({]?\\s*(?:\"\\*\"|'\\*')"
+    },
+    "message": "Cross-Origin Resource Sharing (CORS) configured with wildcard '*' origin",
+    "why": "Allowing wildcard origins (*) permits any untrusted website to make cross-origin requests to the application and access sensitive API responses, undermining the same-origin policy and leading to data exfiltration.",
+    "fix": "Restrict allowed origins to an explicit list of trusted domain names rather than wildcard '*'."
+  },
+  {
+    "id": "py/csrf-exempt",
+    "name": "CSRF protection disabled on view",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-352",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "^\\s*@(?:csrf_exempt|method_decorator\\s*\\([^)]*\\bcsrf_exempt)\\b"
+    },
+    "message": "View disables CSRF protection",
+    "why": "Disabling CSRF protection allows attacker-controlled web pages to trigger state-changing actions on behalf of authenticated users via ambient credentials like session cookies.",
+    "fix": "Remove @csrf_exempt. For machine-to-machine APIs, use header-based authorization tokens (Bearer or API keys) rather than session cookies."
+  },
+  {
+    "id": "py/env-exfiltration",
+    "name": "Process environment harvested to network",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-200",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "\\b(?:requests\\.(?:post|put|get)|urllib\\.request\\.urlopen|http\\.client)\\b.*?(?:json\\.dumps\\s*\\(\\s*(?:dict\\s*\\(\\s*)?os\\.environ\\b|(?:data|json)\\s*=\\s*(?:dict\\s*\\(\\s*)?os\\.environ\\b|dict\\s*\\(\\s*os\\.environ\\b)"
+    },
+    "message": "Entire environment dictionary is passed to an outbound network request",
+    "why": "Serializing os.environ into an outbound HTTP request leaks all environment variables, including database passwords, cloud tokens, and API credentials.",
+    "fix": "Send only explicit, validated parameters instead of dumping the entire os.environ dictionary."
+  },
+  {
     "id": "py/eval-exec",
     "name": "Dynamic code execution",
     "domain": "appsec",
@@ -2100,6 +2606,25 @@
     "fix": "Read the flag from the environment and default it to False."
   },
   {
+    "id": "py/insecure-cipher",
+    "name": "Weak or deprecated cryptographic cipher or mode",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-327",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "\\b(?:(?:DES|DES3|TripleDES|ARC4|RC4|Blowfish)\\.new|algorithms\\.(?:ARC4|Blowfish|DES|TripleDES)|modes\\.ECB)\\s*\\(|\\bMODE_ECB\\b"
+    },
+    "message": "Deprecated or broken cipher (DES, 3DES, RC4, Blowfish) or ECB mode used",
+    "why": "Ciphers like DES, 3DES, RC4, and Blowfish have small block sizes or known cryptanalytic weaknesses allowing plaintext recovery. ECB mode lacks semantic security, leaking structural patterns because identical plaintext blocks produce identical ciphertext blocks.",
+    "fix": "Use modern authenticated encryption (AEAD) such as AES-GCM (AES.MODE_GCM) or ChaCha20-Poly1305 with unique nonces."
+  },
+  {
     "id": "py/jinja-autoescape-off",
     "name": "Template autoescaping disabled",
     "domain": "appsec",
@@ -2117,6 +2642,46 @@
     "message": "Jinja autoescaping is turned off",
     "why": "Every variable rendered into a template becomes raw HTML, so one stored value with a script tag becomes cross-site scripting on every page that renders it.",
     "fix": "Leave autoescape on and mark the specific trusted values with Markup, rather than disabling it globally."
+  },
+  {
+    "id": "py/jwt-algorithm-none",
+    "name": "JWT signature verification disabled or accepts none algorithm",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-327",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?i)jwt\\.decode\\s*\\([^#\\n]*\\bverify(?:_signature)?\\s*=\\s*False|(?:'verify_signature'|\"verify_signature\")\\s*:\\s*False|\\balgorithms?\\s*[:=]\\s*\\[?[^\\]\\n]*?(?:'none'|\"none\")",
+      "not_regex": "(?i)^\\s*#"
+    },
+    "message": "JWT verification disabled via verify=False, verify_signature=False, or none algorithm",
+    "why": "Disabling JWT signature verification or allowing the none algorithm permits attackers to forge tokens with arbitrary claims and bypass authentication.",
+    "fix": "Require signature verification and specify explicit cryptographic algorithms such as HS256 or RS256 in the algorithms allowlist."
+  },
+  {
+    "id": "py/open-redirect",
+    "name": "Redirect destination taken from request input",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-601",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "\\b(?:(?:flask\\.)?redirect|HttpResponse(?:Permanent)?Redirect|RedirectResponse)\\s*\\(\\s*(?:(?:to|url|location|redirect_to)\\s*=\\s*)?(?:(?:self\\.)?(?:request|req))\\.(?:args|GET|POST|values|form|query_params|params|json)(?:\\.(?:get|pop)(?:list)?\\s*\\(|\\[)",
+      "not_regex": "(?i)^\\s*#|is_safe_url|url_has_allowed_host_and_scheme"
+    },
+    "message": "Redirect destination comes directly from unvalidated request input",
+    "why": "Redirecting to an unvalidated, user-controlled destination allows attackers to launch phishing campaigns using your trusted domain as the first hop, and can leak sensitive tokens via the Referer header or redirect URLs.",
+    "fix": "Ensure redirect targets are relative paths, or validate the destination URL against an allowlist of trusted domains using django.utils.http.url_has_allowed_host_and_scheme or a similar validator."
   },
   {
     "id": "py/os-system-interpolation",
@@ -2237,6 +2802,44 @@
     "fix": "Change `cur.execute(q % vals)` to `cur.execute(q, vals)`."
   },
   {
+    "id": "py/ssrf-from-input",
+    "name": "Outbound request target taken from request input",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "\\b(?:(?:requests|httpx)\\.(?:get|post|put|delete|patch|head|options|request)|urllib\\.request\\.(?:urlopen|Request))\\s*\\(\\s*(?:(?:method\\s*=\\s*)?([\"'])(?:(?!\\1).)+\\1\\s*,\\s*)?(?:url\\s*=\\s*)?(?:req|request)\\.(?:args|form|values|json|GET|POST|params|query_params|path_params|get_json\\(\\))(?:\\[|\\.(?:get|getlist|pop)\\s*\\()"
+    },
+    "message": "An outbound request uses a URL taken directly from incoming request parameters",
+    "why": "The server can be pointed at internal addresses or cloud metadata (such as 169.254.169.254) to leak credentials and access internal services.",
+    "fix": "Validate the destination URL against an allowlist of permitted hosts and IP ranges, or map indirect keys to internal URLs."
+  },
+  {
+    "id": "py/steal-credential-file",
+    "name": "Host credential file accessed by code",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-552",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?:\\b(?:open|read_text|read_bytes)\\b.*(?:\\.ssh[\\/\\\\](?:id_rsa|id_ed25519|id_ecdsa)|[\"']\\.ssh[\"']\\s*,\\s*[\"']id_|\\.aws[\\/\\\\]credentials|\\.kube[\\/\\\\]config|\\.docker[\\/\\\\]config\\.json|\\.netrc|\\.npmrc)|(?:\\.ssh[\\/\\\\](?:id_rsa|id_ed25519|id_ecdsa)|[\"']\\.ssh[\"']\\s*,\\s*[\"']id_|\\.aws[\\/\\\\]credentials|\\.kube[\\/\\\\]config|\\.docker[\\/\\\\]config\\.json|\\.netrc|\\.npmrc).*\\b(?:read_text|read_bytes|open)\\b)"
+    },
+    "message": "Python code accesses host credential store (.ssh, .aws, .kube, or .npmrc)",
+    "why": "Reading private keys or cloud credentials from user home directories is the primary sign of credential harvesting malware in dependencies or setup scripts.",
+    "fix": "Never read host credentials directly in application code. Pass needed values via environment variables or a secret manager."
+  },
+  {
     "id": "py/subprocess-shell-true",
     "name": "Subprocess invoked with a shell",
     "domain": "appsec",
@@ -2349,6 +2952,25 @@
     "message": "YAML is parsed with a loader that can instantiate arbitrary objects",
     "why": "The default loader honours tags like !!python/object/apply, which constructs arbitrary Python objects and can call arbitrary functions. Loading untrusted YAML is loading untrusted code.",
     "fix": "Use yaml.safe_load, or pass Loader=yaml.SafeLoader explicitly."
+  },
+  {
+    "id": "rust/command-injection",
+    "name": "Operating system command executed via shell interpreter",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.rs"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|/\\*|\\*)).*?\\b(?:[a-zA-Z0-9_]+::)*Command::new\\s*\\(\\s*([\"'])(?:(?:/(?:usr/)?bin/)?(?:ba|z|da)?sh|cmd(?:\\.exe)?|powershell(?:\\.exe)?|pwsh(?:\\.exe)?)\\1\\s*\\)(?:\\s*\\.[a-zA-Z0-9_]+\\s*\\([^)]*\\))*?\\s*\\.(?:arg\\s*\\(\\s*[\"'](?:-c|/[cC])[\"']\\s*\\)\\s*\\.arg\\((?!\\s*r?#*[\"'])\\s*|args\\s*\\(\\s*&?\\[\\s*[\"'](?:-c|/[cC])[\"']\\s*,(?!\\s*r?#*[\"'])\\s*)"
+    },
+    "message": "Rust Command invokes shell interpreter with formatted or variable command string",
+    "why": "Executing commands through a shell interpreter with dynamic or formatted arguments allows arbitrary command injection via shell metacharacters.",
+    "fix": "Pass arguments directly to the executable using .arg() or .args() instead of invoking a shell with -c."
   },
   {
     "id": "secret/anthropic-key",

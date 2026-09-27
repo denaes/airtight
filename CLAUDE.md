@@ -35,6 +35,7 @@ specific to working here with Claude Code.
 ## Running things
 
 ```bash
+npm run audit:progress        # pre-commit scan on docs, README, demo golden & harnesses
 npm run build && npm test
 
 node engine/src/cli.mjs detect .

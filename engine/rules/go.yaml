@@ -1,0 +1,104 @@
+# Go sinks and credential protection rules.
+
+- id: go/steal-credential-file
+  name: Host credential file accessed by code
+  domain: secrets
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-552
+  owasp: A01:2021
+  files: ['**/*.go']
+  match:
+    regex: '\b(?:os\.(?:ReadFile|Open)|ioutil\.ReadFile)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)'
+  message: Go code accesses host credential store (.ssh, .aws, .kube, or .npmrc)
+  why: >-
+    Reading private keys or cloud credentials from standard user home locations is a primary signature of credential harvesting malware.
+  fix: >-
+    Never access host credentials directly in Go application code. Supply credentials via environment variables or cloud metadata services.
+
+- id: go/env-exfiltration
+  name: Process environment harvested to network
+  domain: secrets
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-200
+  owasp: A01:2021
+  files: ['**/*.go']
+  match:
+    regex: '\b(?:http\.(?:Post|Get|PostForm|NewRequest)\b.*?\bos\.Environ\s*\(|json\.Marshal\s*\(\s*os\.Environ\s*\(\s*\)|strings\.Join\s*\(\s*os\.Environ\s*\(\s*\))'
+  message: Complete environment variable table is prepared for transmission or sent over HTTP
+  why: >-
+    Dumping and serializing os.Environ() into an outbound network payload leaks all environment variables, including secrets and tokens.
+  fix: >-
+    Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice.
+
+- id: go/sql-string-concat
+  name: SQL query built by string formatting or concatenation
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-89
+  owasp: A03:2021
+  files: ['**/*.go']
+  match:
+    regex: '\bfmt\.Sprintf\s*\(\s*(["''`])(?:(?!\1).)*(?i:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*,|(["''`])(?:(?!\2).)*(?i:\bSELECT\b(?:(?!\2).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\2).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\2).)*\2\s*\+\s*[A-Za-z_]'
+  message: SQL query executed with formatted or concatenated string instead of parameter bindings
+  why: >-
+    Formatting or concatenating variables directly into a SQL statement allows untrusted input to break out of data literals and alter query logic, leading to arbitrary database access or data loss.
+  fix: >-
+    Use parameterized queries with placeholder arguments (''?'' or ''$1'') and pass variables as separate arguments to the database driver.
+
+- id: go/command-exec-shell
+  name: Operating system command executed via shell interpreter
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/*.go']
+  match:
+    regex: '\bexec\.(?:Command\s*\(\s*|CommandContext\s*\([^,]+,\s*)(["`])(?:[A-Za-z0-9_.\/-]*\/)?(?:ba|z|da|k)?sh\1\s*,\s*(["`])-c\2,(?:(?!\s*["`])\s*|\s*(["`])(?:(?!\3).)*\3\s*\+)'
+    not_regex: '^\s*//'
+  message: Shell interpreter invoked to execute system command with dynamic input
+  why: >-
+    Passing dynamic strings to a shell interpreter via -c allows command injection through shell metacharacters. Any unvalidated input can execute arbitrary commands with the privileges of the process.
+  fix: >-
+    Invoke the target executable directly with arguments passed as separate slice elements instead of routing through a shell interpreter.
+
+- id: go/tls-insecure-skip-verify
+  name: TLS certificate verification disabled
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-295
+  owasp: A07:2021
+  files: ['**/*.go']
+  match:
+    regex: '\bInsecureSkipVerify\s*[:=]\s*true\b'
+  message: 'TLS certificate validation is disabled via InsecureSkipVerify: true'
+  why: >-
+    Disabling TLS certificate verification allows attackers with network access to perform man-in-the-middle (MITM) attacks, intercepting or altering plaintext traffic.
+  fix: >-
+    Remove InsecureSkipVerify or set it to false. To trust private certificates, configure RootCAs with a custom cert pool.
+
+- id: go/weak-password-hash
+  name: Weak hash algorithm used for password or credential
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-328
+  owasp: A02:2021
+  files: ['**/*.go']
+  match:
+    regex: '(?i)(?:\b(?:md5|sha1)\.(?:New|Sum)\b[^\n]*\b\w*(?:password|passwd|passphrase|pwd)\w*\b|\b\w*(?:password|passwd|passphrase|pwd)\w*\b[^\n]*\b(?:md5|sha1)\.(?:New|Sum)\b)'
+  message: MD5 or SHA1 used to hash passwords or authentication secrets
+  why: >-
+    MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive rainbow table lookup tables, and extreme vulnerability to high-speed offline GPU brute-force attacks.
+  fix: >-
+    Use a salted, work-factor tuned password hashing algorithm such as bcrypt, argon2id, or scrypt.

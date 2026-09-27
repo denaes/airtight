@@ -1,0 +1,6 @@
+response.set_cookie("session", session_id, secure=False)
+resp.set_cookie("auth_token", token, httponly=True, secure=False)
+response.set_cookie(key="sid", value=sid, secure=False)
+res.set_cookie("session", val, secure=False)
+self.set_cookie("user_session", user_id, secure = False)
+response.set_cookie("jwt", token, max_age=3600, secure=False, httponly=True)

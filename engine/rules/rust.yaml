@@ -1,0 +1,19 @@
+# Rust dangerous sinks and vulnerability rules.
+
+- id: rust/command-injection
+  name: Operating system command executed via shell interpreter
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/*.rs']
+  match:
+    regex: >-
+      ^(?!\s*(?://|/\*|\*)).*?\b(?:[a-zA-Z0-9_]+::)*Command::new\s*\(\s*(["'])(?:(?:/(?:usr/)?bin/)?(?:ba|z|da)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?|pwsh(?:\.exe)?)\1\s*\)(?:\s*\.[a-zA-Z0-9_]+\s*\([^)]*\))*?\s*\.(?:arg\s*\(\s*["'](?:-c|/[cC])["']\s*\)\s*\.arg\((?!\s*r?#*["'])\s*|args\s*\(\s*&?\[\s*["'](?:-c|/[cC])["']\s*,(?!\s*r?#*["'])\s*)
+  message: Rust Command invokes shell interpreter with formatted or variable command string
+  why: >-
+    Executing commands through a shell interpreter with dynamic or formatted arguments allows arbitrary command injection via shell metacharacters.
+  fix: >-
+    Pass arguments directly to the executable using .arg() or .args() instead of invoking a shell with -c.

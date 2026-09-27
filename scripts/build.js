@@ -261,10 +261,16 @@ function main() {
         // Only our own subtrees are replaced. A harness directory can contain
         // the user's own files, and .github in particular holds workflows.
         for (const sub of readdirSync(from)) {
-          rmSync(join(to, sub), { recursive: true, force: true });
+          if (sub === 'skills') {
+            rmSync(join(to, sub, 'airtight'), { recursive: true, force: true });
+            mkdirSync(join(to, sub), { recursive: true });
+            cpSync(join(from, sub, 'airtight'), join(to, sub, 'airtight'), { recursive: true });
+          } else {
+            rmSync(join(to, sub), { recursive: true, force: true });
+            mkdirSync(to, { recursive: true });
+            cpSync(from, to, { recursive: true });
+          }
         }
-        mkdirSync(to, { recursive: true });
-        cpSync(from, to, { recursive: true });
       }
     }
   }
