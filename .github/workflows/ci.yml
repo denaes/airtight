@@ -66,6 +66,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci
+      - run: npm run gen:secrets
       - run: npm run build:rules
 
       # Airtight scans itself. Exit 2 means findings, which fails the job.

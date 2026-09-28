@@ -1,5 +1,3 @@
-# Java dangerous sinks and vulnerability rules.
-
 - id: java/command-exec
   name: Operating system command executed via shell interpreter
   domain: appsec
@@ -8,15 +6,15 @@
   tier: immediate
   cwe: CWE-78
   owasp: A03:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '^(?!\s*(?://|\*|/\*)).*?\b(?:Runtime\.getRuntime\s*\(\s*\)\.exec|new\s+ProcessBuilder)\b.*?(?:(["''])(?:(?!\1).)*?\b(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?)\s+(?:-(?:c|Command)|/[cC])\b(?:(?!\1).)*\1\s*\+|(?:(["''])(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?)\2\s*,\s*(["''])(?:-(?:c|Command)|/[cC])\3(?:\s*\+|\s*,\s*(?:[a-zA-Z_$(]|(["''])(?:(?!\4).)*\4\s*\+))))'
+    regex: ^(?!\s*(?://|\*|/\*)).*?\b(?:Runtime\.getRuntime\s*\(\s*\)\.exec|new\s+ProcessBuilder)\b.*?(?:(["'])(?:(?!\1).)*?\b(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?)\s+(?:-(?:c|Command)|/[cC])\b(?:(?!\1).)*\1\s*\+|(?:(["'])(?:(?:/(?:usr/)?bin/)?(?:ba|z)?sh|cmd(?:\.exe)?|powershell(?:\.exe)?)\2\s*,\s*(["'])(?:-(?:c|Command)|/[cC])\3(?:\s*\+|\s*,\s*(?:[a-zA-Z_$(]|(["'])(?:(?!\4).)*\4\s*\+))))
   message: Java command execution invokes shell interpreter with dynamic command string
-  why: >-
-    Executing commands through a shell interpreter like sh, bash, or cmd.exe with dynamic arguments allows command injection via shell metacharacters.
-  fix: >-
-    Pass the executable and arguments as separate array elements or List items to ProcessBuilder without invoking a shell.
-
+  why: Executing commands through a shell interpreter like sh, bash, or cmd.exe
+    with dynamic arguments allows command injection via shell metacharacters.
+  fix: Pass the executable and arguments as separate array elements or List items
+    to ProcessBuilder without invoking a shell.
 - id: java/sql-concatenation
   name: SQL query built by string formatting or concatenation
   domain: appsec
@@ -25,15 +23,17 @@
   tier: immediate
   cwe: CWE-89
   owasp: A03:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '^(?!\s*(?://|\*|/\*)).*?(?:\bString\.format\s*\(\s*(?:[A-Za-z_.]+\s*,\s*)?(["''])(?:(?!\1).)*(?i:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*,|(["''])(?:(?!\2).)*(?i:\bSELECT\b(?:(?!\2).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\2).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\2).)*\2\s*\+\s*[A-Za-z_$(])'
-  message: SQL statement executed with dynamic string concatenation instead of PreparedStatement parameters
-  why: >-
-    Interpolating or concatenating dynamic user variables into SQL queries allows attackers to alter query logic and structure, leading to unauthorized database access, data tampering, or data loss.
-  fix: >-
-    Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting.
-
+    regex: (?i)^(?!\s*(?://|\*|/\*)).*?(?:\bString\.format\s*\(\s*(?:[A-Za-z_.]+\s*,\s*)?(["'])(?:(?!\1).)*(?:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*,|(["'])(?:(?!\2).)*(?:\bSELECT\b(?:(?!\2).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\2).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\2).)*\2\s*\+\s*[A-Za-z_$(])
+  message: SQL statement executed with dynamic string concatenation instead of
+    PreparedStatement parameters
+  why: Interpolating or concatenating dynamic user variables into SQL queries
+    allows attackers to alter query logic and structure, leading to unauthorized
+    database access, data tampering, or data loss.
+  fix: Use parameterized queries with PreparedStatement and placeholder markers
+    (?) instead of string concatenation or formatting.
 - id: java/insecure-deserialization
   name: Arbitrary object deserialization from untrusted input
   domain: appsec
@@ -42,15 +42,17 @@
   tier: immediate
   cwe: CWE-502
   owasp: A08:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '^(?!\s*(?://|\*|/\*)).*?(?:\b(?:ObjectInputStream|XMLDecoder)\b.*?\.\s*read(?:Object|Unshared)|\b(?!(?:super|vois|validating\w*)\b)[a-zA-Z0-9_$]+\s*\.\s*read(?:Object|Unshared))\s*\(\s*\)'
-  message: ObjectInputStream or XMLDecoder deserializes untrusted streams, allowing remote code execution via gadget chains
-  why: >-
-    Java deserialization invokes readObject() callbacks automatically on instantiated classes during deserialization, enabling remote code execution through classpath gadget chains.
-  fix: >-
-    Use safe structured serialization formats like JSON or Protocol Buffers, or enforce a strict ObjectInputFilter allowlist on ObjectInputStream.
-
+    regex: ^(?!\s*(?://|\*|/\*)).*?(?:\b(?:ObjectInputStream|XMLDecoder)\b.*?\.\s*read(?:Object|Unshared)|\b(?!(?:super|vois|validating\w*)\b)[a-zA-Z0-9_$]+\s*\.\s*read(?:Object|Unshared))\s*\(\s*\)
+  message: ObjectInputStream or XMLDecoder deserializes untrusted streams,
+    allowing remote code execution via gadget chains
+  why: Java deserialization invokes readObject() callbacks automatically on
+    instantiated classes during deserialization, enabling remote code execution
+    through classpath gadget chains.
+  fix: Use safe structured serialization formats like JSON or Protocol Buffers, or
+    enforce a strict ObjectInputFilter allowlist on ObjectInputStream.
 - id: java/xxe-parser
   name: XML parser configured to allow external entity resolution
   domain: appsec
@@ -59,15 +61,18 @@
   tier: immediate
   cwe: CWE-611
   owasp: A05:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '^(?!\s*(?://|\*|/\*)).*?\b(?:setFeature\s*\(\s*(?:(?:(?:XMLConstants\.)?FEATURE_SECURE_PROCESSING|(["''])(?:(?!\1).)*?(?:disallow-doctype-decl|feature/secure-processing)\1)\s*,\s*(?:false\b|Boolean\.FALSE\b)|(["''])(?:(?!\2).)*?(?:external-general-entities|external-parameter-entities|load-external-dtd)\2\s*,\s*(?:true\b|Boolean\.TRUE\b))|setExpandEntityReferences\s*\(\s*(?:true\b|Boolean\.TRUE\b))'
-  message: XML parser explicitly enables external entity expansion or disables secure processing features
-  why: >-
-    Allowing external entity resolution or disabling secure processing enables XML External Entity (XXE) attacks. Attackers can read arbitrary local files, forge server-side requests (SSRF), or cause DoS via billion laughs.
-  fix: >-
-    Enable XMLConstants.FEATURE_SECURE_PROCESSING and set "http://apache.org/xml/features/disallow-doctype-decl" to true. Disable external entity resolution.
-
+    regex: ^(?!\s*(?://|\*|/\*)).*?\b(?:setFeature\s*\(\s*(?:(?:(?:XMLConstants\.)?FEATURE_SECURE_PROCESSING|(["'])(?:(?!\1).)*?(?:disallow-doctype-decl|feature/secure-processing)\1)\s*,\s*(?:false\b|Boolean\.FALSE\b)|(["'])(?:(?!\2).)*?(?:external-general-entities|external-parameter-entities|load-external-dtd)\2\s*,\s*(?:true\b|Boolean\.TRUE\b))|setExpandEntityReferences\s*\(\s*(?:true\b|Boolean\.TRUE\b))
+  message: XML parser explicitly enables external entity expansion or disables
+    secure processing features
+  why: Allowing external entity resolution or disabling secure processing enables
+    XML External Entity (XXE) attacks. Attackers can read arbitrary local files,
+    forge server-side requests (SSRF), or cause DoS via billion laughs.
+  fix: Enable XMLConstants.FEATURE_SECURE_PROCESSING and set
+    "http://apache.org/xml/features/disallow-doctype-decl" to true. Disable
+    external entity resolution.
 - id: java/weak-hash
   name: Weak hash algorithm MD5 or SHA-1 used
   domain: appsec
@@ -76,15 +81,15 @@
   tier: immediate
   cwe: CWE-328
   owasp: A02:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '(?i)^(?!\s*(?://|\*|/\*))(?:(?!//).)*?\b(?:MessageDigest\.getInstance\s*\(\s*(["''])(?:md5|sha-?1)\1|DigestUtils\.(?:md5|sha1?|getMd5Digest|getSha1Digest)(?:Hex)?\s*\()'
+    regex: (?i)^(?!\s*(?://|\*|/\*))(?:(?!//).)*?\b(?:MessageDigest\.getInstance\s*\(\s*(["'])(?:md5|sha-?1)\1|DigestUtils\.(?:md5|sha1?|getMd5Digest|getSha1Digest)(?:Hex)?\s*\()
   message: MD5 or SHA-1 hash algorithm selected via MessageDigest or DigestUtils
-  why: >-
-    MD5 and SHA-1 suffer from collision and preimage vulnerabilities and are unsuitable for cryptographic security or data integrity verification.
-  fix: >-
-    Use SHA-256 or SHA-512 for integrity checksums, or a slow salted algorithm like BCrypt or Argon2id for passwords.
-
+  why: MD5 and SHA-1 suffer from collision and preimage vulnerabilities and are
+    unsuitable for cryptographic security or data integrity verification.
+  fix: Use SHA-256 or SHA-512 for integrity checksums, or a slow salted algorithm
+    like BCrypt or Argon2id for passwords.
 - id: java/insecure-cipher
   name: Weak cipher or insecure ECB mode used
   domain: appsec
@@ -93,15 +98,17 @@
   tier: immediate
   cwe: CWE-327
   owasp: A02:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '(?i)^(?!\s*(?://|/\*|\*))(?:(?!//|/\*).)*?\bCipher\s*\.\s*getInstance\s*\(\s*(["''])(?:(?:DES(?:ede)?|TripleDES|Blowfish|RC4|ARCFOUR|ARC4)\b|(?:(?!RSA/)[A-Za-z0-9_/-])+/ECB\b)(?:(?!\1).)*\1'
-  message: Insecure cipher (DES, DESede, RC4, Blowfish) or ECB mode selected via Cipher.getInstance
-  why: >-
-    Broken ciphers like DES, DESede, RC4, and Blowfish or ECB mode suffer from known cryptanalytic attacks and pattern leakage across identical plaintext blocks.
-  fix: >-
-    Use modern authenticated encryption (AEAD) such as AES in GCM mode (AES/GCM/NoPadding) with 256-bit keys and random nonces.
-
+    regex: (?i)^(?!\s*(?://|/\*|\*))(?:(?!//|/\*).)*?\bCipher\s*\.\s*getInstance\s*\(\s*(["'])(?:(?:DES(?:ede)?|TripleDES|Blowfish|RC4|ARCFOUR|ARC4)\b|(?:(?!RSA/)[A-Za-z0-9_/-])+/ECB\b)(?:(?!\1).)*\1
+  message: Insecure cipher (DES, DESede, RC4, Blowfish) or ECB mode selected via
+    Cipher.getInstance
+  why: Broken ciphers like DES, DESede, RC4, and Blowfish or ECB mode suffer from
+    known cryptanalytic attacks and pattern leakage across identical plaintext
+    blocks.
+  fix: Use modern authenticated encryption (AEAD) such as AES in GCM mode
+    (AES/GCM/NoPadding) with 256-bit keys and random nonces.
 - id: java/trust-all-certs
   name: TLS certificate verification or hostname check disabled
   domain: appsec
@@ -110,11 +117,129 @@
   tier: immediate
   cwe: CWE-295
   owasp: A07:2021
-  files: ['**/*.java']
+  files:
+    - "**/*.java"
   match:
-    regex: '^(?!\s*(?://|\*|/\*)).*?\b(?:(?:ALLOW_ALL_HOSTNAME_VERIFIER|(?:Noop|Null|AllowAll)HostnameVerifier|InsecureTrustManagerFactory\.INSTANCE|TrustAllStrategy\.INSTANCE)\b|check(?:Server|Client)Trusted\s*\([^)]*\)\s*(?:throws\s+[^{]+)?\{\s*(?:return\s*;)?\s*\}|boolean\s+verify\s*\([^)]*\b(?:hostname|session|host|sslSession|SSLSession)\b[^)]*\)\s*\{\s*return\s+true\s*;\s*\}|(?:\b(?:HostnameVerifier|set(?:Default)?(?:SSL)?HostnameVerifier)\b[^{};]*?|\([^)]*\b(?:hostname|session|host|sslSession)\b[^)]*\))\s*->\s*(?:true|Boolean\.TRUE)\b)'
-  message: TLS certificate validation is disabled via empty TrustManager or permissive HostnameVerifier
-  why: >-
-    Disabling TLS certificate verification or hostname verification allows man-in-the-middle attackers to intercept, inspect, or tamper with sensitive network traffic.
-  fix: >-
-    Use the platform default trust store and default HostnameVerifier, or configure a custom TrustManager that validates the certificate chain against a specific CA.
+    regex: ^(?!\s*(?://|\*|/\*)).*?\b(?:(?:ALLOW_ALL_HOSTNAME_VERIFIER|(?:Noop|Null|AllowAll)HostnameVerifier|InsecureTrustManagerFactory\.INSTANCE|TrustAllStrategy\.INSTANCE)\b|check(?:Server|Client)Trusted\s*\([^)]*\)\s*(?:throws\s+[^{]+)?\{\s*(?:return\s*;)?\s*\}|boolean\s+verify\s*\([^)]*\b(?:hostname|session|host|sslSession|SSLSession)\b[^)]*\)\s*\{\s*return\s+true\s*;\s*\}|(?:\b(?:HostnameVerifier|set(?:Default)?(?:SSL)?HostnameVerifier)\b[^{};]*?|\([^)]*\b(?:hostname|session|host|sslSession)\b[^)]*\))\s*->\s*(?:true|Boolean\.TRUE)\b)
+  message: TLS certificate validation is disabled via empty TrustManager or
+    permissive HostnameVerifier
+  why: Disabling TLS certificate verification or hostname verification allows
+    man-in-the-middle attackers to intercept, inspect, or tamper with sensitive
+    network traffic.
+  fix: Use the platform default trust store and default HostnameVerifier, or
+    configure a custom TrustManager that validates the certificate chain against
+    a specific CA.
+- id: java/steal-credential-file
+  name: Access to sensitive credential file
+  domain: secrets
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-200
+  owasp: A01:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: (?i)(?:FileInputStream|FileReader|Files\.read(?:String|AllBytes|AllLines)|Paths\.get|Path\.of)\s*\([^)]*["'].*?(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json)
+    not_regex: (?i)^\s*//
+  message: Sensitive credential file path is accessed directly
+  why: Accessing private SSH keys, AWS credentials, Kubernetes configs, or Docker
+    auth tokens directly from disk is characteristic of credential harvesting
+    malware. Legitimate applications should use standard identity SDKs or
+    environment injection.
+  fix: Use standard credential provider chains (such as AWS SDK
+    DefaultCredentialsProvider) or pass credentials via environment variables
+    rather than reading local user credential directories directly.
+- id: java/open-redirect
+  name: Unvalidated HTTP redirect from request parameter
+  domain: appsec
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-601
+  owasp: A01:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: \w+\.sendRedirect\s*\(\s*(?:\w+\.)?getParameter\s*\(\s*["'](?:url|redirect|next|dest|target|return_to|forward)["']\s*\)\s*\)
+    not_regex: (?i)^\s*//
+  message: HttpServletResponse.sendRedirect target is taken directly from an
+    unvalidated request parameter
+  why: Redirecting users to an unvalidated URL provided in query parameters allows
+    attackers to construct trusted-looking links that redirect victims to
+    phishing or malicious sites.
+  fix: Validate the redirect target against an allowlist of permitted destinations
+    or ensure it is a relative path starting with a single forward slash.
+- id: java/env-exfiltration
+  name: Bulk environment variable harvesting
+  domain: secrets
+  severity: high
+  confidence: confirmed
+  tier: deep
+  cwe: CWE-200
+  owasp: A01:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: System\.getenv\s*\(\s*\)\.(?:entrySet|keySet|values|forEach)\s*\(
+    not_regex: (?i)^\s*//
+  message: All environment variables are enumerated in bulk
+  why: Iterating System.getenv() dumps the entire process environment, which
+    typically holds API tokens, database passwords, and cloud keys. This is
+    characteristic of supply-chain telemetry or exfiltration payloads.
+  fix: Access only specific environment variables needed by the application via
+    System.getenv("NAME").
+- id: java/cookie-missing-httponly
+  name: Cookie configured with HttpOnly disabled
+  domain: appsec
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-1004
+  owasp: A05:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: \b(?:cookie|ck|sessionCookie|authCookie)\.setHttpOnly\s*\(\s*false\s*\)
+    not_regex: (?i)^\s*//
+  message: Cookie has HttpOnly flag explicitly set to false
+  why: Disabling the HttpOnly flag allows client-side scripts to access sensitive
+    session identifiers via document.cookie, facilitating XSS token theft.
+  fix: Call setHttpOnly(true) on all session and authentication cookies.
+- id: java/insecure-random
+  name: Insecure pseudo-random number generator used for sensitive token
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-338
+  owasp: A02:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: (?i)(?:token|secret|password|passwd|apiKey|session|nonce|salt)\s*[:=][^\n]*\b(?:new\s+(?:java\.util\.)?Random\s*\(|Math\.random\s*\()|\b(?:new\s+(?:java\.util\.)?Random\s*\(|Math\.random\s*\()[^\n]*(?:token|secret|password|passwd|apiKey|session|nonce|salt)
+    not_regex: (?i)^\s*//|SecureRandom
+  message: Pseudo-random generator java.util.Random or Math.random is used for
+    security-sensitive token or secret
+  why: java.util.Random and Math.random produce predictable sequences that an
+    attacker can reverse-engineer to predict future tokens or reset links.
+  fix: Use java.security.SecureRandom for generating cryptographically secure
+    secrets and tokens.
+- id: java/jwt-algorithm-none
+  name: Insecure JWT parser allows 'none' algorithm
+  domain: appsec
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-327
+  owasp: A02:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: (?i)\bAlgorithm\.none\s*\(\)|\bparseClaimsJwt\s*\([^)]*\)
+    not_regex: (?i)^\s*//
+  message: JWT verification permits unsigned tokens via Algorithm.none or parseClaimsJwt
+  why: Permitting unsigned tokens allows attackers to forge tokens with spoofed
+    user identifiers without possessing the cryptographic signing key.
+  fix: Enforce signed tokens using strong cryptographic algorithms (such as
+    HMAC256 or RSA256) and use parseClaimsJws().

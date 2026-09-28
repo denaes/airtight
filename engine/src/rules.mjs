@@ -28,10 +28,23 @@ function fail(id, msg) {
 function compileRegex(id, field, source) {
   let body = source;
   let flags = 'g';
+  // V8 12.8 / Node 23.6+ added regex modifier groups (?i:...), but Node 20 and
+  // 22 reject them with SyntaxError: Invalid group. Normalize (?i:...) to (?:...)
+  // and ensure the flags are set on the compiled RegExp.
+  if (/\(\?[ims]+:/.test(body)) {
+    for (const [, mod] of body.matchAll(/\(\?([ims]+):/g)) {
+      for (const ch of mod) {
+        if (!flags.includes(ch)) flags += ch;
+      }
+    }
+    body = body.replace(/\(\?([ims]+):/g, '(?:');
+  }
   const inline = /^\(\?([ims]+)\)/.exec(body);
   if (inline) {
     body = body.slice(inline[0].length);
-    flags += inline[1];
+    for (const ch of inline[1]) {
+      if (!flags.includes(ch)) flags += ch;
+    }
   }
   try {
     return new RegExp(body, flags);

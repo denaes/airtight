@@ -1,8 +1,3 @@
-# Python dangerous sinks.
-#
-# Same split as the JavaScript pack: rules that can see the taint in the same
-# expression are firm, rules that can only see the sink are tentative.
-
 - id: py/eval-exec
   name: Dynamic code execution
   domain: appsec
@@ -11,17 +6,17 @@
   tier: immediate
   cwe: CWE-95
   owasp: A03:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?<![\w.])(eval|exec)\s*\('
-    not_regex: '(?i)^\s*#|\bast\.literal_eval\b'
+    regex: (?<![\w.])(eval|exec)\s*\(
+    not_regex: (?i)^\s*#|\bast\.literal_eval\b
   message: Code is compiled and executed at runtime
-  why: >-
-    Any input reaching eval or exec is arbitrary code with the process's
-    privileges. Python has no sandbox for this: restricted-mode escapes are
-    well documented and short.
-  fix: Use ast.literal_eval for data, a dict for dispatch, or a purpose-built expression parser.
-
+  why: "Any input reaching eval or exec is arbitrary code with the process's
+    privileges. Python has no sandbox for this: restricted-mode escapes are well
+    documented and short."
+  fix: Use ast.literal_eval for data, a dict for dispatch, or a purpose-built
+    expression parser.
 - id: py/yaml-unsafe-load
   name: YAML parsed with the unsafe loader
   domain: appsec
@@ -30,17 +25,16 @@
   tier: immediate
   cwe: CWE-502
   owasp: A08:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\byaml\.(load|unsafe_load|full_load)\s*\('
-    not_regex: 'Loader\s*=\s*(yaml\.)?(Safe|CSafe)Loader|\byaml\.safe_load\b'
+    regex: \byaml\.(load|unsafe_load|full_load)\s*\(
+    not_regex: Loader\s*=\s*(yaml\.)?(Safe|CSafe)Loader|\byaml\.safe_load\b
   message: YAML is parsed with a loader that can instantiate arbitrary objects
-  why: >-
-    The default loader honours tags like !!python/object/apply, which
+  why: The default loader honours tags like !!python/object/apply, which
     constructs arbitrary Python objects and can call arbitrary functions.
     Loading untrusted YAML is loading untrusted code.
   fix: Use yaml.safe_load, or pass Loader=yaml.SafeLoader explicitly.
-
 - id: py/pickle-loads
   name: Pickle deserialization
   domain: appsec
@@ -50,19 +44,17 @@
   tier: immediate
   cwe: CWE-502
   owasp: A08:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\b(pickle|cPickle|dill|shelve)\.(loads?|Unpickler)\s*\('
-    not_regex: '(?i)^\s*#'
+    regex: \b(pickle|cPickle|dill|shelve)\.(loads?|Unpickler)\s*\(
+    not_regex: (?i)^\s*#
   message: Data is deserialized with pickle
-  why: >-
-    Unpickling executes the __reduce__ method of whatever the stream says the
-    object is, so a crafted payload runs code during load. This is the
-    intended behaviour of the format, not a bug in it.
-  fix: >-
-    Use JSON for data interchange. If you must accept pickled data, sign it
+  why: Unpickling executes the __reduce__ method of whatever the stream says the
+    object is, so a crafted payload runs code during load. This is the intended
+    behaviour of the format, not a bug in it.
+  fix: Use JSON for data interchange. If you must accept pickled data, sign it
     with HMAC and verify before unpickling, and treat the key as a credential.
-
 - id: py/subprocess-shell-true
   name: Subprocess invoked with a shell
   domain: appsec
@@ -71,17 +63,17 @@
   tier: immediate
   cwe: CWE-78
   owasp: A03:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\bshell\s*=\s*True'
-    not_regex: '(?i)^\s*#'
+    regex: \bshell\s*=\s*True
+    not_regex: (?i)^\s*#
   message: Subprocess is invoked with shell=True
-  why: >-
-    The command string is interpreted by a shell, so any interpolated value
-    can introduce `;`, `|`, or `$()`. With a list argument and no shell there
-    is nothing to escape in the first place.
-  fix: Pass the command as a list and drop shell=True. Use shlex.quote only if a shell is genuinely unavoidable.
-
+  why: The command string is interpreted by a shell, so any interpolated value can
+    introduce `;`, `|`, or `$()`. With a list argument and no shell there is
+    nothing to escape in the first place.
+  fix: Pass the command as a list and drop shell=True. Use shlex.quote only if a
+    shell is genuinely unavoidable.
 - id: py/os-system-interpolation
   name: os.system with an interpolated command
   domain: appsec
@@ -90,13 +82,14 @@
   tier: immediate
   cwe: CWE-78
   owasp: A03:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\bos\.(system|popen)\s*\(\s*(f["'']|["''][^"'']*["'']\s*%|["''][^"'']*["'']\s*\+|.*\.format\s*\()'
+    regex: \bos\.(system|popen)\s*\(\s*(f["']|["'][^"']*["']\s*%|["'][^"']*["']\s*\+|.*\.format\s*\()
   message: os.system builds its command from an interpolated value
-  why: os.system always goes through a shell, so an interpolated value is a command injection candidate with no escaping in the way.
+  why: os.system always goes through a shell, so an interpolated value is a
+    command injection candidate with no escaping in the way.
   fix: Use subprocess.run with an argument list and shell defaulting to False.
-
 - id: py/sql-fstring
   name: SQL built with an f-string
   domain: appsec
@@ -105,16 +98,16 @@
   tier: immediate
   cwe: CWE-89
   owasp: A03:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)f(["''])(?:(?!\1).)*(?:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\{'
+    regex: (?i)f(["'])(?:(?!\1).)*(?:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\{
   message: SQL statement built with an f-string
-  why: >-
-    The value is substituted before the driver sees the statement, so it
+  why: The value is substituted before the driver sees the statement, so it
     becomes SQL syntax rather than a parameter. DB-API placeholders exist
     precisely to avoid this and are no harder to write.
-  fix: Use %s or :name placeholders and pass the values as the execute call's second argument.
-
+  fix: Use %s or :name placeholders and pass the values as the execute call's
+    second argument.
 - id: py/sql-percent-format
   name: SQL built with percent formatting
   domain: appsec
@@ -123,16 +116,15 @@
   tier: immediate
   cwe: CWE-89
   owasp: A03:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)\.execute\s*\(\s*(["''])(?:(?!\1).)*(?:\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b)(?:(?!\1).)*\1\s*%[^,)]'
+    regex: (?i)\.execute\s*\(\s*(["'])(?:(?!\1).)*(?:\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b)(?:(?!\1).)*\1\s*%[^,)]
   message: SQL statement built with percent formatting before execute
-  why: >-
-    Formatting with `%` happens in Python, so the driver receives an already
+  why: Formatting with `%` happens in Python, so the driver receives an already
     assembled string. Passing the values as execute's second argument looks
     almost identical and is parameterized.
   fix: Change `cur.execute(q % vals)` to `cur.execute(q, vals)`.
-
 - id: py/requests-verify-false
   name: TLS certificate verification disabled
   domain: appsec
@@ -142,16 +134,16 @@
   tier: immediate
   cwe: CWE-295
   owasp: A02:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\bverify\s*=\s*False|ssl\._create_unverified_context\s*\('
+    regex: \bverify\s*=\s*False|ssl\._create_unverified_context\s*\(
   message: TLS certificate verification is turned off
-  why: >-
-    The connection is encrypted to whoever answered, which is no defence
+  why: The connection is encrypted to whoever answered, which is no defence
     against an active network attacker. This is usually added to silence a
     certificate error and then never removed.
-  fix: Pass verify with the path to your internal CA bundle, or install the CA into the system trust store.
-
+  fix: Pass verify with the path to your internal CA bundle, or install the CA
+    into the system trust store.
 - id: py/cert-reqs-none
   name: TLS verification mode set to CERT_NONE
   domain: appsec
@@ -159,17 +151,17 @@
   confidence: firm
   cwe: CWE-295
   owasp: A02:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(cert_reqs|verify_mode)\s*=\s*[^\n]*CERT_NONE'
+    regex: (cert_reqs|verify_mode)\s*=\s*[^\n]*CERT_NONE
   message: TLS verification mode is set to CERT_NONE
-  why: >-
-    The connection is encrypted to whoever answered, which is no defence
+  why: The connection is encrypted to whoever answered, which is no defence
     against an active network attacker. Reported at firm rather than confirmed
-    because a library implementing an opt-out looks identical to a caller
-    taking it.
-  fix: Set cert_reqs to CERT_REQUIRED and supply the CA bundle the peer should be validated against.
-
+    because a library implementing an opt-out looks identical to a caller taking
+    it.
+  fix: Set cert_reqs to CERT_REQUIRED and supply the CA bundle the peer should be
+    validated against.
 - id: py/assert-for-authorization
   name: Authorization enforced with assert
   domain: appsec
@@ -179,16 +171,15 @@
   tier: immediate
   cwe: CWE-617
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)^\s*assert\s+.*\b(is_admin|is_staff|is_superuser|has_perm|has_permission|can_[a-z_]+|is_authenticated|is_owner|current_user)\b'
+    regex: (?i)^\s*assert\s+.*\b(is_admin|is_staff|is_superuser|has_perm|has_permission|can_[a-z_]+|is_authenticated|is_owner|current_user)\b
   message: An authorization check is written as an assert
-  why: >-
-    Python removes assert statements entirely under -O, which production
-    deployments and many container images enable. The check silently
-    disappears and every request is authorized.
+  why: Python removes assert statements entirely under -O, which production
+    deployments and many container images enable. The check silently disappears
+    and every request is authorized.
   fix: Raise an explicit exception, such as PermissionDenied or HTTPException(403).
-
 - id: py/flask-debug-enabled
   name: Debug mode enabled
   domain: appsec
@@ -198,16 +189,15 @@
   tier: immediate
   cwe: CWE-489
   owasp: A05:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)\.run\s*\([^)]*\bdebug\s*=\s*True|^\s*DEBUG\s*=\s*True'
+    regex: (?i)\.run\s*\([^)]*\bdebug\s*=\s*True|^\s*DEBUG\s*=\s*True
   message: Debug mode is enabled
-  why: >-
-    The Werkzeug debugger exposes an interactive Python console on any
+  why: The Werkzeug debugger exposes an interactive Python console on any
     traceback. Reachable from the network it is unauthenticated remote code
     execution, and Django's DEBUG leaks settings and query contents.
   fix: Read the flag from the environment and default it to False.
-
 - id: py/weak-password-hash
   name: Password hashed with a fast digest
   domain: appsec
@@ -216,15 +206,15 @@
   tier: immediate
   cwe: CWE-916
   owasp: A02:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)hashlib\.(md5|sha1|sha256|sha512)\s*\([^\n]*\b(password|passwd|passphrase|pwd)\b'
+    regex: (?i)hashlib\.(md5|sha1|sha256|sha512)\s*\([^\n]*\b(password|passwd|passphrase|pwd)\b
   message: A general-purpose digest is used where a password hash belongs
-  why: >-
-    These digests are built to be fast, which is exactly wrong for password
+  why: These digests are built to be fast, which is exactly wrong for password
     storage. A commodity GPU tries billions of candidates per second.
-  fix: Use argon2-cffi, or hashlib.scrypt with a per-password salt and a tuned work factor.
-
+  fix: Use argon2-cffi, or hashlib.scrypt with a per-password salt and a tuned
+    work factor.
 - id: py/random-for-secret
   name: Non-cryptographic randomness for a security value
   domain: appsec
@@ -233,16 +223,16 @@
   tier: immediate
   cwe: CWE-338
   owasp: A02:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?<![\w.])random\.(random|randint|choice|choices|randrange|sample|shuffle|getrandbits)\s*\('
-    require_regex: '(?i)(token|secret|password|nonce|salt|otp|session|api_?key|reset|verif|csrf)'
+    regex: (?<![\w.])random\.(random|randint|choice|choices|randrange|sample|shuffle|getrandbits)\s*\(
+    require_regex: (?i)(token|secret|password|nonce|salt|otp|session|api_?key|reset|verif|csrf)
   message: The random module is used in a file that generates security values
-  why: >-
-    random is a Mersenne Twister with observable state: 624 outputs are enough
-    to reconstruct it and predict everything that follows.
-  fix: Use the secrets module, such as secrets.token_urlsafe(32) or secrets.randbelow.
-
+  why: "random is a Mersenne Twister with observable state: 624 outputs are enough
+    to reconstruct it and predict everything that follows."
+  fix: Use the secrets module, such as secrets.token_urlsafe(32) or
+    secrets.randbelow.
 - id: py/jinja-autoescape-off
   name: Template autoescaping disabled
   domain: appsec
@@ -251,13 +241,16 @@
   tier: immediate
   cwe: CWE-79
   owasp: A03:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: 'autoescape\s*=\s*False'
+    regex: autoescape\s*=\s*False
   message: Jinja autoescaping is turned off
-  why: Every variable rendered into a template becomes raw HTML, so one stored value with a script tag becomes cross-site scripting on every page that renders it.
-  fix: Leave autoescape on and mark the specific trusted values with Markup, rather than disabling it globally.
-
+  why: Every variable rendered into a template becomes raw HTML, so one stored
+    value with a script tag becomes cross-site scripting on every page that
+    renders it.
+  fix: Leave autoescape on and mark the specific trusted values with Markup,
+    rather than disabling it globally.
 - id: py/xxe-unsafe-parser
   name: XML parsed with an entity-expanding parser
   domain: appsec
@@ -265,17 +258,17 @@
   confidence: tentative
   cwe: CWE-611
   owasp: A05:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\b(xml\.etree\.ElementTree|etree|minidom|sax|pulldom)\.(parse|fromstring|parseString)\s*\('
-    not_regex: 'defusedxml'
+    regex: \b(xml\.etree\.ElementTree|etree|minidom|sax|pulldom)\.(parse|fromstring|parseString)\s*\(
+    not_regex: defusedxml
   message: XML is parsed with a parser that may expand external entities
-  why: >-
-    A document declaring an external entity can read local files or make the
-    server issue requests on the attacker's behalf, and billion-laughs
-    expansion can exhaust memory.
-  fix: Use defusedxml, which provides drop-in replacements with entity expansion disabled.
-
+  why: A document declaring an external entity can read local files or make the
+    server issue requests on the attacker's behalf, and billion-laughs expansion
+    can exhaust memory.
+  fix: Use defusedxml, which provides drop-in replacements with entity expansion
+    disabled.
 - id: py/tarfile-extractall
   name: Archive extracted without path validation
   domain: appsec
@@ -283,32 +276,31 @@
   confidence: firm
   cwe: CWE-22
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\.extractall\s*\('
-    not_regex: 'filter\s*=|is_within_directory|_safe_extract|data_filter'
+    regex: \.extractall\s*\(
+    not_regex: filter\s*=|is_within_directory|_safe_extract|data_filter
   message: Archive is extracted without validating member paths
-  why: >-
-    A member named ../../etc/cron.d/x writes outside the destination
-    directory. This is Zip Slip, and it is a write primitive that frequently
-    becomes code execution.
-  fix: Pass filter="data" on Python 3.12 or later, or validate each member's resolved path stays under the destination.
-
+  why: A member named ../../etc/cron.d/x writes outside the destination directory.
+    This is Zip Slip, and it is a write primitive that frequently becomes code
+    execution.
+  fix: Pass filter="data" on Python 3.12 or later, or validate each member's
+    resolved path stays under the destination.
 - id: py/tempfile-mktemp
   name: Insecure temporary file creation
   domain: appsec
   severity: medium
   confidence: confirmed
   cwe: CWE-377
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\btempfile\.mktemp\s*\('
+    regex: \btempfile\.mktemp\s*\(
   message: tempfile.mktemp is used to choose a path
-  why: >-
-    mktemp returns a name without creating the file, so anything can create a
+  why: mktemp returns a name without creating the file, so anything can create a
     symlink at that path before you open it and redirect your write.
   fix: Use tempfile.NamedTemporaryFile or mkstemp, which create the file atomically.
-
 - id: py/bind-all-interfaces
   name: Service binds to all interfaces
   domain: appsec
@@ -316,20 +308,17 @@
   confidence: tentative
   tests: ignore
   cwe: CWE-1327
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)(host\s*=\s*["'']0\.0\.0\.0["'']|\.bind\s*\(\s*\(\s*["'']0\.0\.0\.0["''])'
+    regex: (?i)(host\s*=\s*["']0\.0\.0\.0["']|\.bind\s*\(\s*\(\s*["']0\.0\.0\.0["'])
   message: Service binds to 0.0.0.0
-  why: >-
-    Binding to all interfaces exposes the service on every network the host is
-    attached to, which in a container with host networking or a VM with a
-    public interface means the internet.
-  fix: >-
-    Bind to 127.0.0.1 and put a reverse proxy in front, or make the bind
-    address configurable and default it to loopback. Inside a container with
-    its own network namespace 0.0.0.0 is often correct; confirm which case
-    this is.
-
+  why: Binding to all interfaces exposes the service on every network the host is
+    attached to, which in a container with host networking or a VM with a public
+    interface means the internet.
+  fix: Bind to 127.0.0.1 and put a reverse proxy in front, or make the bind
+    address configurable and default it to loopback. Inside a container with its
+    own network namespace 0.0.0.0 is often correct; confirm which case this is.
 - id: py/csrf-exempt
   name: CSRF protection disabled on view
   domain: appsec
@@ -338,15 +327,16 @@
   tier: immediate
   cwe: CWE-352
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '^\s*@(?:csrf_exempt|method_decorator\s*\([^)]*\bcsrf_exempt)\b'
+    regex: ^\s*@(?:csrf_exempt|method_decorator\s*\([^)]*\bcsrf_exempt)\b
   message: View disables CSRF protection
-  why: >-
-    Disabling CSRF protection allows attacker-controlled web pages to trigger state-changing actions on behalf of authenticated users via ambient credentials like session cookies.
-  fix: >-
-    Remove @csrf_exempt. For machine-to-machine APIs, use header-based authorization tokens (Bearer or API keys) rather than session cookies.
-
+  why: Disabling CSRF protection allows attacker-controlled web pages to trigger
+    state-changing actions on behalf of authenticated users via ambient
+    credentials like session cookies.
+  fix: Remove @csrf_exempt. For machine-to-machine APIs, use header-based
+    authorization tokens (Bearer or API keys) rather than session cookies.
 - id: py/steal-credential-file
   name: Host credential file accessed by code
   domain: secrets
@@ -355,15 +345,16 @@
   tier: immediate
   cwe: CWE-552
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?:\b(?:open|read_text|read_bytes)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)|(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc).*\b(?:read_text|read_bytes|open)\b)'
+    regex: (?:\b(?:open|read_text|read_bytes)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["']\.ssh["']\s*,\s*["']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)|(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["']\.ssh["']\s*,\s*["']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc).*\b(?:read_text|read_bytes|open)\b)
   message: Python code accesses host credential store (.ssh, .aws, .kube, or .npmrc)
-  why: >-
-    Reading private keys or cloud credentials from user home directories is the primary sign of credential harvesting malware in dependencies or setup scripts.
-  fix: >-
-    Never read host credentials directly in application code. Pass needed values via environment variables or a secret manager.
-
+  why: Reading private keys or cloud credentials from user home directories is the
+    primary sign of credential harvesting malware in dependencies or setup
+    scripts.
+  fix: Never read host credentials directly in application code. Pass needed
+    values via environment variables or a secret manager.
 - id: py/env-exfiltration
   name: Process environment harvested to network
   domain: secrets
@@ -372,15 +363,15 @@
   tier: immediate
   cwe: CWE-200
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\b(?:requests\.(?:post|put|get)|urllib\.request\.urlopen|http\.client)\b.*?(?:json\.dumps\s*\(\s*(?:dict\s*\(\s*)?os\.environ\b|(?:data|json)\s*=\s*(?:dict\s*\(\s*)?os\.environ\b|dict\s*\(\s*os\.environ\b)'
+    regex: \b(?:requests\.(?:post|put|get)|urllib\.request\.urlopen|http\.client)\b.*?(?:json\.dumps\s*\(\s*(?:dict\s*\(\s*)?os\.environ\b|(?:data|json)\s*=\s*(?:dict\s*\(\s*)?os\.environ\b|dict\s*\(\s*os\.environ\b)
   message: Entire environment dictionary is passed to an outbound network request
-  why: >-
-    Serializing os.environ into an outbound HTTP request leaks all environment variables, including database passwords, cloud tokens, and API credentials.
-  fix: >-
-    Send only explicit, validated parameters instead of dumping the entire os.environ dictionary.
-
+  why: Serializing os.environ into an outbound HTTP request leaks all environment
+    variables, including database passwords, cloud tokens, and API credentials.
+  fix: Send only explicit, validated parameters instead of dumping the entire
+    os.environ dictionary.
 - id: py/ssrf-from-input
   name: Outbound request target taken from request input
   domain: appsec
@@ -389,17 +380,16 @@
   tier: immediate
   cwe: CWE-918
   owasp: A10:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\b(?:(?:requests|httpx)\.(?:get|post|put|delete|patch|head|options|request)|urllib\.request\.(?:urlopen|Request))\s*\(\s*(?:(?:method\s*=\s*)?(["''])(?:(?!\1).)+\1\s*,\s*)?(?:url\s*=\s*)?(?:req|request)\.(?:args|form|values|json|GET|POST|params|query_params|path_params|get_json\(\))(?:\[|\.(?:get|getlist|pop)\s*\()'
-  message: An outbound request uses a URL taken directly from incoming request parameters
-  why: >-
-    The server can be pointed at internal addresses or cloud metadata (such as
+    regex: \b(?:(?:requests|httpx)\.(?:get|post|put|delete|patch|head|options|request)|urllib\.request\.(?:urlopen|Request))\s*\(\s*(?:(?:method\s*=\s*)?(["'])(?:(?!\1).)+\1\s*,\s*)?(?:url\s*=\s*)?(?:req|request)\.(?:args|form|values|json|GET|POST|params|query_params|path_params|get_json\(\))(?:\[|\.(?:get|getlist|pop)\s*\()
+  message: An outbound request uses a URL taken directly from incoming request
+    parameters
+  why: The server can be pointed at internal addresses or cloud metadata (such as
     169.254.169.254) to leak credentials and access internal services.
-  fix: >-
-    Validate the destination URL against an allowlist of permitted hosts and IP
+  fix: Validate the destination URL against an allowlist of permitted hosts and IP
     ranges, or map indirect keys to internal URLs.
-
 - id: py/open-redirect
   name: Redirect destination taken from request input
   domain: appsec
@@ -408,20 +398,18 @@
   tier: immediate
   cwe: CWE-601
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\b(?:(?:flask\.)?redirect|HttpResponse(?:Permanent)?Redirect|RedirectResponse)\s*\(\s*(?:(?:to|url|location|redirect_to)\s*=\s*)?(?:(?:self\.)?(?:request|req))\.(?:args|GET|POST|values|form|query_params|params|json)(?:\.(?:get|pop)(?:list)?\s*\(|\[)'
-    not_regex: '(?i)^\s*#|is_safe_url|url_has_allowed_host_and_scheme'
+    regex: \b(?:(?:flask\.)?redirect|HttpResponse(?:Permanent)?Redirect|RedirectResponse)\s*\(\s*(?:(?:to|url|location|redirect_to)\s*=\s*)?(?:(?:self\.)?(?:request|req))\.(?:args|GET|POST|values|form|query_params|params|json)(?:\.(?:get|pop)(?:list)?\s*\(|\[)
+    not_regex: (?i)^\s*#|is_safe_url|url_has_allowed_host_and_scheme
   message: Redirect destination comes directly from unvalidated request input
-  why: >-
-    Redirecting to an unvalidated, user-controlled destination allows attackers
-    to launch phishing campaigns using your trusted domain as the first hop,
-    and can leak sensitive tokens via the Referer header or redirect URLs.
-  fix: >-
-    Ensure redirect targets are relative paths, or validate the destination URL
-    against an allowlist of trusted domains using django.utils.http.url_has_allowed_host_and_scheme
-    or a similar validator.
-
+  why: Redirecting to an unvalidated, user-controlled destination allows attackers
+    to launch phishing campaigns using your trusted domain as the first hop, and
+    can leak sensitive tokens via the Referer header or redirect URLs.
+  fix: Ensure redirect targets are relative paths, or validate the destination URL
+    against an allowlist of trusted domains using
+    django.utils.http.url_has_allowed_host_and_scheme or a similar validator.
 - id: py/jwt-algorithm-none
   name: JWT signature verification disabled or accepts none algorithm
   domain: appsec
@@ -430,17 +418,17 @@
   tier: immediate
   cwe: CWE-327
   owasp: A02:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)jwt\.decode\s*\([^#\n]*\bverify(?:_signature)?\s*=\s*False|(?:''verify_signature''|"verify_signature")\s*:\s*False|\balgorithms?\s*[:=]\s*\[?[^\]\n]*?(?:''none''|"none")'
-    not_regex: '(?i)^\s*#'
-  message: 'JWT verification disabled via verify=False, verify_signature=False, or none algorithm'
-  why: >-
-    Disabling JWT signature verification or allowing the none algorithm permits
+    regex: (?i)jwt\.decode\s*\([^#\n]*\bverify(?:_signature)?\s*=\s*False|(?:'verify_signature'|"verify_signature")\s*:\s*False|\balgorithms?\s*[:=]\s*\[?[^\]\n]*?(?:'none'|"none")
+    not_regex: (?i)^\s*#
+  message: JWT verification disabled via verify=False, verify_signature=False, or
+    none algorithm
+  why: Disabling JWT signature verification or allowing the none algorithm permits
     attackers to forge tokens with arbitrary claims and bypass authentication.
-  fix: >-
-    Require signature verification and specify explicit cryptographic algorithms such as HS256 or RS256 in the algorithms allowlist.
-
+  fix: Require signature verification and specify explicit cryptographic
+    algorithms such as HS256 or RS256 in the algorithms allowlist.
 - id: py/cookie-missing-httponly
   name: Session cookie readable from client-side JavaScript
   domain: appsec
@@ -449,18 +437,17 @@
   tier: immediate
   cwe: CWE-1004
   owasp: A05:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '(?i)^(?!\s*#).*?\bset_cookie\s*\(\s*(?:key\s*=\s*)?(["''])(?!(?:(?!\1).)*(?:csrf|xsrf))(?:(?!\1).)*(?:session|token|auth|jwt|(?<![a-z])sid(?![a-z]))(?:(?!\1).)*\1[^)]*?\bhttp_?only\s*=\s*False\b'
-  message: Cookie sets httponly=False allowing client-side scripts to access sensitive session state
-  why: >-
-    Cookies storing session or authentication tokens without the HttpOnly attribute
-    can be read by client-side JavaScript via document.cookie, exposing them to theft
-    via Cross-Site Scripting (XSS).
-  fix: >-
-    Set httponly=True for authentication and session cookies to ensure they cannot
-    be accessed by client-side scripts.
-
+    regex: (?i)^(?!\s*#).*?\bset_cookie\s*\(\s*(?:key\s*=\s*)?(["'])(?!(?:(?!\1).)*(?:csrf|xsrf))(?:(?!\1).)*(?:session|token|auth|jwt|(?<![a-z])sid(?![a-z]))(?:(?!\1).)*\1[^)]*?\bhttp_?only\s*=\s*False\b
+  message: Cookie sets httponly=False allowing client-side scripts to access
+    sensitive session state
+  why: Cookies storing session or authentication tokens without the HttpOnly
+    attribute can be read by client-side JavaScript via document.cookie,
+    exposing them to theft via Cross-Site Scripting (XSS).
+  fix: Set httponly=True for authentication and session cookies to ensure they
+    cannot be accessed by client-side scripts.
 - id: py/cookie-insecure
   name: Cookie transmitted over unencrypted HTTP
   domain: appsec
@@ -469,18 +456,16 @@
   tier: immediate
   cwe: CWE-614
   owasp: A05:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '^(?!\s*#)[^#\n]*\bset_cookie\s*\([^#\n]*\bsecure\s*=\s*False\b'
-    not_regex: '(?i)^\s*#'
+    regex: ^(?!\s*#)[^#\n]*\bset_cookie\s*\([^#\n]*\bsecure\s*=\s*False\b
+    not_regex: (?i)^\s*#
   message: Cookie sets secure=False allowing plaintext transmission over HTTP
-  why: >-
-    Cookies set without the Secure attribute are transmitted in cleartext over
+  why: Cookies set without the Secure attribute are transmitted in cleartext over
     unencrypted HTTP connections, allowing attackers on the network path to
     intercept sensitive credentials or session tokens.
-  fix: >-
-    Set secure=True to ensure transmission only occurs over HTTPS connections.
-
+  fix: Set secure=True to ensure transmission only occurs over HTTPS connections.
 - id: py/cors-wildcard
   name: Wildcard CORS origin configuration
   domain: appsec
@@ -489,17 +474,16 @@
   tier: immediate
   cwe: CWE-942
   owasp: A01:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\bCORS_(?:ALLOW_ALL_ORIGINS|ORIGIN_ALLOW_ALL)\s*=\s*True\b|(?:\b(?:allow_)?origins?\s*=|(["''])(?:allow_)?origins?\1\s*:)\s*[\[({]?\s*(?:"\*"|''\*'')'
-  message: 'Cross-Origin Resource Sharing (CORS) configured with wildcard ''*'' origin'
-  why: >-
-    Allowing wildcard origins (*) permits any untrusted website to make cross-origin
-    requests to the application and access sensitive API responses, undermining the
-    same-origin policy and leading to data exfiltration.
-  fix: >-
-    Restrict allowed origins to an explicit list of trusted domain names rather than wildcard '*'.
-
+    regex: \bCORS_(?:ALLOW_ALL_ORIGINS|ORIGIN_ALLOW_ALL)\s*=\s*True\b|(?:\b(?:allow_)?origins?\s*=|(["'])(?:allow_)?origins?\1\s*:)\s*[\[({]?\s*(?:"\*"|'\*')
+  message: Cross-Origin Resource Sharing (CORS) configured with wildcard '*' origin
+  why: Allowing wildcard origins (*) permits any untrusted website to make
+    cross-origin requests to the application and access sensitive API responses,
+    undermining the same-origin policy and leading to data exfiltration.
+  fix: Restrict allowed origins to an explicit list of trusted domain names rather
+    than wildcard '*'.
 - id: py/insecure-cipher
   name: Weak or deprecated cryptographic cipher or mode
   domain: appsec
@@ -508,17 +492,54 @@
   tier: immediate
   cwe: CWE-327
   owasp: A02:2021
-  files: ['**/*.py']
+  files:
+    - "**/*.py"
   match:
-    regex: '\b(?:(?:DES|DES3|TripleDES|ARC4|RC4|Blowfish)\.new|algorithms\.(?:ARC4|Blowfish|DES|TripleDES)|modes\.ECB)\s*\(|\bMODE_ECB\b'
+    regex: \b(?:(?:DES|DES3|TripleDES|ARC4|RC4|Blowfish)\.new|algorithms\.(?:ARC4|Blowfish|DES|TripleDES)|modes\.ECB)\s*\(|\bMODE_ECB\b
   message: Deprecated or broken cipher (DES, 3DES, RC4, Blowfish) or ECB mode used
-  why: >-
-    Ciphers like DES, 3DES, RC4, and Blowfish have small block sizes or known
-    cryptanalytic weaknesses allowing plaintext recovery. ECB mode lacks semantic
-    security, leaking structural patterns because identical plaintext blocks produce
-    identical ciphertext blocks.
-  fix: >-
-    Use modern authenticated encryption (AEAD) such as AES-GCM (AES.MODE_GCM)
+  why: Ciphers like DES, 3DES, RC4, and Blowfish have small block sizes or known
+    cryptanalytic weaknesses allowing plaintext recovery. ECB mode lacks
+    semantic security, leaking structural patterns because identical plaintext
+    blocks produce identical ciphertext blocks.
+  fix: Use modern authenticated encryption (AEAD) such as AES-GCM (AES.MODE_GCM)
     or ChaCha20-Poly1305 with unique nonces.
-
-
+- id: py/paramiko-missing-host-key-policy
+  name: Insecure SSH AutoAddPolicy accepts untrusted host keys
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-295
+  owasp: A02:2021
+  files:
+    - "**/*.py"
+  match:
+    regex: set_missing_host_key_policy\s*\(\s*(?:paramiko\.(?:client\.)?)?AutoAddPolicy\s*\(
+    not_regex: (?i)^\s*#
+  message: Paramiko SSH client is configured with AutoAddPolicy which blindly
+    trusts any server host key
+  why: Using AutoAddPolicy() automatically adds and trusts unknown SSH host keys
+    without verification, leaving connections vulnerable to Man-in-the-Middle
+    (MitM) attacks.
+  fix: Use RejectPolicy() or WarningPolicy() and ensure trusted host keys are
+    verified from known_hosts.
+- id: py/nosql-injection
+  name: MongoDB query uses $where operator
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-943
+  owasp: A03:2021
+  files:
+    - "**/*.py"
+  match:
+    regex: "(?i)\\.(?:find|find_one|count_documents|delete_many|update_many)\\s*\\(\
+      \\s*\\{[^}]*[\"']\\$where[\"']\\s*:"
+    not_regex: (?i)^\s*#
+  message: MongoDB query uses $where JavaScript evaluation operator
+  why: The $where operator executes arbitrary JavaScript on the database server,
+    allowing code injection and data exfiltration when evaluated with untrusted
+    input.
+  fix: Use standard query operators (such as $eq, $in, $gt) instead of JavaScript
+    evaluation via $where.

@@ -1,0 +1,5 @@
+db.users.find({"$where": user_js})
+collection.find_one({"$where": code})
+db.items.count_documents({"$where": func})
+collection.delete_many({"$where": expr})
+collection.update_many({"$where": check_func}, {"$set": {"status": "archived"}})

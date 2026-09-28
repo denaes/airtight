@@ -1,11 +1,3 @@
-# JavaScript and TypeScript dangerous sinks.
-#
-# This is the pack where the deterministic engine reaches its limit and says
-# so. A sink is mechanically detectable; whether it is reachable with
-# attacker-controlled input is not. Rules that can see the taint in the same
-# expression are `firm`; rules that can only see the sink are `tentative`, and
-# the model layer is what promotes them.
-
 - id: js/eval-dynamic
   name: Dynamic code execution
   domain: appsec
@@ -14,23 +6,27 @@
   tier: immediate
   cwe: CWE-95
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx', '**/*.jsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.jsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '(?<![\w$])(eval|new\s+Function)\s*\('
-    not_regex: '(?i)^\s*(//|\*|/\*)|\bsafeEval\b'
-    # A dangerous construct quoted as data is data.
+    regex: (?<![\w$])(eval|new\s+Function)\s*\(
+    not_regex: (?i)^\s*(//|\*|/\*)|\bsafeEval\b
     in_string: false
   message: Code is compiled and executed at runtime
-  why: >-
-    If any part of the evaluated string derives from input, this is remote code
+  why: If any part of the evaluated string derives from input, this is remote code
     execution with the privileges of the process. Even where it does not, it
     defeats CSP and makes the code unanalysable by every other tool.
-  fix: >-
-    Use a lookup table or a switch for dynamic dispatch, JSON.parse for data,
+  fix: Use a lookup table or a switch for dynamic dispatch, JSON.parse for data,
     and a purpose-built expression library if you genuinely need user
     expressions.
-
 - id: js/sql-template-interpolation
   name: SQL built by template interpolation
   domain: appsec
@@ -39,23 +35,25 @@
   tier: immediate
   cwe: CWE-89
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '`[^`]*(?i:\bSELECT\b[^`]*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b[^`]*\bSET\b|\bDELETE\s+FROM\b|\bDROP\s+TABLE\b)[^`]*\$\{'
-    # A tagged template (sql`...`, db.sql`...`) parameterizes for you, and is
-    # identified by an identifier sitting immediately before the backtick.
-    not_regex: '[A-Za-z0-9_$]\s*`'
+    regex: "(?i)`[^`]*(?:\\bSELECT\\b[^`]*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b[^`]*\\bSET\\b|\\bDELETE\\s+FROM\\b|\\bDROP\\s+TABLE\\b)[^`]*\\$\\{"
+    not_regex: "[A-Za-z0-9_$]\\s*`"
   message: SQL statement built by interpolating into a template literal
-  why: >-
-    Interpolation happens before the driver sees the string, so the value
+  why: Interpolation happens before the driver sees the string, so the value
     becomes SQL syntax rather than data. This is the original injection and it
     is still the most damaging one.
-  fix: >-
-    Use parameter placeholders and pass values as the query's second argument,
+  fix: Use parameter placeholders and pass values as the query's second argument,
     or use a tagged template from a driver that parameterizes, such as
     postgres.js.
-
 - id: js/sql-string-concat
   name: SQL built by string concatenation
   domain: appsec
@@ -64,21 +62,21 @@
   tier: immediate
   cwe: CWE-89
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    # Two things matter here. A single keyword is prose -- "Update your
-    # profile" is not a statement -- so the rule requires the second half of
-    # the pair. And the delimiter is backreferenced rather than a character
-    # class, because SQL routinely quotes with the *other* quote character:
-    # "SELECT ... WHERE name = '" ends a naive [^"']* run in the wrong place.
-    regex: '(["''])(?:(?!\1).)*(?i:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*\+\s*[A-Za-z_$]'
+    regex: '(?i)(["''])(?:(?!\1).)*(?:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*\+\s*[A-Za-z_$]'
   message: SQL statement built by concatenating a variable
-  why: >-
-    The concatenated value becomes part of the statement's syntax. A value of
+  why: The concatenated value becomes part of the statement's syntax. A value of
     `1 OR 1=1--` changes what the query means rather than what it matches.
   fix: Use parameter placeholders and pass the values separately.
-
 - id: js/child-process-interpolation
   name: Shell command built from an interpolated value
   domain: appsec
@@ -87,19 +85,23 @@
   tier: immediate
   cwe: CWE-78
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\b(exec|execSync)\s*\(\s*(`[^`]*\$\{|["''][^"'']*["'']\s*\+)'
+    regex: \b(exec|execSync)\s*\(\s*(`[^`]*\$\{|["'][^"']*["']\s*\+)
   message: exec builds its command line from an interpolated value
-  why: >-
-    exec runs the string through a shell, so `;`, `|`, backticks and `$()` in
+  why: exec runs the string through a shell, so `;`, `|`, backticks and `$()` in
     the interpolated value are all command separators. A filename is enough to
     take the process.
-  fix: >-
-    Use execFile or spawn with an argument array, which never invokes a shell.
+  fix: Use execFile or spawn with an argument array, which never invokes a shell.
     If you must use a shell, validate against an allowlist rather than escaping.
-
 - id: js/spawn-shell-true
   name: spawn invoked with a shell
   domain: appsec
@@ -107,17 +109,23 @@
   confidence: tentative
   cwe: CWE-78
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\bshell\s*:\s*true'
+    regex: \bshell\s*:\s*true
   message: Child process is spawned with shell true
-  why: >-
-    shell:true reintroduces the metacharacter problem that spawn's argument
+  why: shell:true reintroduces the metacharacter problem that spawn's argument
     array exists to avoid, so any argument derived from input becomes a command
     injection candidate.
-  fix: Drop shell:true and pass arguments as an array. Where you need a pipeline, build it with multiple spawns.
-
+  fix: Drop shell:true and pass arguments as an array. Where you need a pipeline,
+    build it with multiple spawns.
 - id: js/dangerously-set-inner-html
   name: React dangerouslySetInnerHTML
   domain: appsec
@@ -125,18 +133,23 @@
   confidence: tentative
   cwe: CWE-79
   owasp: A03:2021
-  files: ['**/*.jsx', '**/*.tsx', '**/*.js', '**/*.ts']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.jsx"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.ts"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: 'dangerouslySetInnerHTML'
-    not_regex: '(?i)^\s*(//|\*|/\*)|DOMPurify|sanitize(Html)?\s*\('
+    regex: dangerouslySetInnerHTML
+    not_regex: (?i)^\s*(//|\*|/\*)|DOMPurify|sanitize(Html)?\s*\(
   message: Raw HTML is injected into the DOM without visible sanitization
-  why: >-
-    React escapes everything else, which is exactly why this call is worth
+  why: "React escapes everything else, which is exactly why this call is worth
     attention: it is the one place where a stored value becomes markup and
-    script.
-  fix: Sanitize with DOMPurify immediately before setting, or render the content as structured data rather than HTML.
-
+    script."
+  fix: Sanitize with DOMPurify immediately before setting, or render the content
+    as structured data rather than HTML.
 - id: js/inner-html-assignment
   name: innerHTML assigned a dynamic value
   domain: appsec
@@ -144,16 +157,25 @@
   confidence: tentative
   cwe: CWE-79
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx', '**/*.jsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.jsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\.(innerHTML|outerHTML)\s*=(?!\s*["''`][^"''`]*["''`]\s*;?\s*$)\s*\S'
+    regex: \.(innerHTML|outerHTML)\s*=(?!\s*["'`][^"'`]*["'`]\s*;?\s*$)\s*\S
     in_string: false
-    not_regex: '(?i)^\s*(//|\*|/\*)|DOMPurify|sanitize(Html)?\s*\('
+    not_regex: (?i)^\s*(//|\*|/\*)|DOMPurify|sanitize(Html)?\s*\(
   message: innerHTML is assigned a value that is not a constant string
-  why: A value containing markup becomes markup, and an img onerror attribute is enough to run script in the user's session.
-  fix: Use textContent for text, or sanitize with DOMPurify when the content is genuinely HTML.
-
+  why: A value containing markup becomes markup, and an img onerror attribute is
+    enough to run script in the user's session.
+  fix: Use textContent for text, or sanitize with DOMPurify when the content is
+    genuinely HTML.
 - id: js/tls-verification-disabled
   name: TLS certificate verification disabled
   domain: appsec
@@ -163,18 +185,24 @@
   tier: immediate
   cwe: CWE-295
   owasp: A02:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: 'rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*["'']?0'
+    regex: rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*["']?0
   message: TLS certificate verification is turned off
-  why: >-
-    Without verification, TLS gives you encryption to whoever answered, which
-    is no protection at all against an active network attacker. This is
-    usually added to silence a self-signed certificate error in development
-    and then shipped.
-  fix: Add the internal CA to the trust store, or pass it as `ca` on the request. Never disable verification in code that can reach production.
-
+  why: Without verification, TLS gives you encryption to whoever answered, which
+    is no protection at all against an active network attacker. This is usually
+    added to silence a self-signed certificate error in development and then
+    shipped.
+  fix: Add the internal CA to the trust store, or pass it as `ca` on the request.
+    Never disable verification in code that can reach production.
 - id: js/cors-wildcard-with-credentials
   name: CORS allows any origin with credentials
   domain: appsec
@@ -183,18 +211,24 @@
   tier: immediate
   cwe: CWE-942
   owasp: A05:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '(?i)(origin\s*:\s*["'']\*["'']|Access-Control-Allow-Origin["''\]\s,=)]+["'']?\*)'
-    require_regex: '(?i)credentials\s*:\s*true|Access-Control-Allow-Credentials'
+    regex: (?i)(origin\s*:\s*["']\*["']|Access-Control-Allow-Origin["'\]\s,=)]+["']?\*)
+    require_regex: (?i)credentials\s*:\s*true|Access-Control-Allow-Credentials
   message: CORS policy combines a wildcard origin with credentials
-  why: >-
-    Any site the victim visits can then make authenticated requests to your
-    API and read the responses, which is cross-site request forgery with the
+  why: Any site the victim visits can then make authenticated requests to your API
+    and read the responses, which is cross-site request forgery with the
     response body included.
-  fix: Reflect only origins from an allowlist, and never pair a wildcard with credentials.
-
+  fix: Reflect only origins from an allowlist, and never pair a wildcard with
+    credentials.
 - id: js/cookie-missing-httponly
   name: Session cookie readable from JavaScript
   domain: appsec
@@ -202,17 +236,23 @@
   confidence: firm
   cwe: CWE-1004
   owasp: A05:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: 'httpOnly\s*:\s*false'
+    regex: httpOnly\s*:\s*false
   message: Cookie sets httpOnly false
-  why: >-
-    Any cross-site scripting anywhere on the origin can then read the cookie
+  why: Any cross-site scripting anywhere on the origin can then read the cookie
     and exfiltrate the session, turning a contained XSS into full account
     takeover.
-  fix: Set httpOnly true. If client code needs state, put non-sensitive state in a separate cookie.
-
+  fix: Set httpOnly true. If client code needs state, put non-sensitive state in a
+    separate cookie.
 - id: js/cookie-insecure
   name: Cookie sent over plaintext
   domain: appsec
@@ -220,15 +260,23 @@
   confidence: firm
   cwe: CWE-614
   owasp: A05:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: 'secure\s*:\s*false'
-    not_regex: '(?i)isSecure|secure\s*:\s*false\s*[,}]?\s*//.*(dev|local|test)'
+    regex: secure\s*:\s*false
+    not_regex: (?i)isSecure|secure\s*:\s*false\s*[,}]?\s*//.*(dev|local|test)
   message: Cookie sets secure false
-  why: A cookie without the Secure attribute is sent over plain HTTP, where any network position can read it.
-  fix: Set secure true in every environment that is not a local development server, and gate it on the environment rather than hardcoding false.
-
+  why: A cookie without the Secure attribute is sent over plain HTTP, where any
+    network position can read it.
+  fix: Set secure true in every environment that is not a local development
+    server, and gate it on the environment rather than hardcoding false.
 - id: js/weak-password-hash
   name: Password hashed with a fast digest
   domain: appsec
@@ -237,17 +285,23 @@
   tier: immediate
   cwe: CWE-916
   owasp: A02:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '(?i)createHash\s*\(\s*["''](md5|sha1|sha256|sha512)["''][^\n]*\b(password|passwd|passphrase|pwd)\b'
+    regex: (?i)createHash\s*\(\s*["'](md5|sha1|sha256|sha512)["'][^\n]*\b(password|passwd|passphrase|pwd)\b
   message: A general-purpose digest is used where a password hash belongs
-  why: >-
-    MD5, SHA-1 and the SHA-2 family are designed to be fast, which is the
+  why: MD5, SHA-1 and the SHA-2 family are designed to be fast, which is the
     opposite of what password storage needs. Commodity hardware tries billions
     of candidates per second against them.
-  fix: Use argon2id, scrypt, or bcrypt with a per-password salt and a work factor tuned to about 250ms on your hardware.
-
+  fix: Use argon2id, scrypt, or bcrypt with a per-password salt and a work factor
+    tuned to about 250ms on your hardware.
 - id: js/math-random-for-secret
   name: Math.random used for a security value
   domain: appsec
@@ -256,20 +310,22 @@
   tier: immediate
   cwe: CWE-338
   owasp: A02:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    # A file-scoped requirement flagged `Math.random()` used for fake stock
-    # numbers, dates and route paths, because the word "session" appeared
-    # somewhere else in the file. The security name has to be on the line.
-    regex: '(?i)\b(token|secret|passwo?rd|nonce|salt|otp|session[_a-z]*id|api_?key|reset_?code|verif\w*|csrf|uuid)\w*\s*[:=][^;\n]{0,80}Math\.random\s*\('
+    regex: (?i)\b(token|secret|passwo?rd|nonce|salt|otp|session[_a-z]*id|api_?key|reset_?code|verif\w*|csrf|uuid)\w*\s*[:=][^;\n]{0,80}Math\.random\s*\(
   message: Math.random is used to build a security value
-  why: >-
-    Math.random is a fast non-cryptographic PRNG with observable internal
-    state. Given a few outputs an attacker can predict the rest, which makes
-    any token built from it guessable.
+  why: Math.random is a fast non-cryptographic PRNG with observable internal
+    state. Given a few outputs an attacker can predict the rest, which makes any
+    token built from it guessable.
   fix: Use crypto.randomUUID() or crypto.randomBytes(32).toString('base64url').
-
 - id: js/jwt-algorithm-none
   name: JWT verification accepts the none algorithm
   domain: appsec
@@ -278,16 +334,22 @@
   tier: immediate
   cwe: CWE-347
   owasp: A02:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '(?i)algorithms?\s*:\s*\[?\s*["'']none["'']'
+    regex: (?i)algorithms?\s*:\s*\[?\s*["']none["']
   message: JWT configuration permits the "none" algorithm
-  why: >-
-    With "none" accepted, anyone can mint a token by base64-encoding a payload
+  why: With "none" accepted, anyone can mint a token by base64-encoding a payload
     and omitting the signature. Authentication becomes a formality.
-  fix: Pass an explicit algorithms allowlist containing only the algorithm you issue with, such as ["RS256"].
-
+  fix: Pass an explicit algorithms allowlist containing only the algorithm you
+    issue with, such as ["RS256"].
 - id: js/jwt-verify-without-algorithms
   name: JWT verified without an algorithm allowlist
   domain: appsec
@@ -295,20 +357,24 @@
   confidence: tentative
   cwe: CWE-347
   owasp: A02:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\bjwt\.verify\s*\('
-    not_regex: '(?i)algorithms'
+    regex: \bjwt\.verify\s*\(
+    not_regex: (?i)algorithms
   message: jwt.verify is called without an algorithms allowlist
-  why: >-
-    Without an allowlist the library trusts the token's own alg header, which
-    enables the classic RS256-to-HS256 confusion where the public key is used
-    as an HMAC secret.
-  fix: >-
-    Always pass an explicit algorithms option naming exactly the algorithm you
+  why: Without an allowlist the library trusts the token's own alg header, which
+    enables the classic RS256-to-HS256 confusion where the public key is used as
+    an HMAC secret.
+  fix: Always pass an explicit algorithms option naming exactly the algorithm you
     issue, for example algorithms set to RS256 only.
-
 - id: js/deprecated-cipher-api
   name: Deprecated cipher API with no explicit IV
   domain: appsec
@@ -316,17 +382,23 @@
   confidence: confirmed
   cwe: CWE-329
   owasp: A02:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\bcrypto\.(createCipher|createDecipher)\s*\('
+    regex: \bcrypto\.(createCipher|createDecipher)\s*\(
   message: createCipher derives a key and IV from a password with no salt
-  why: >-
-    The removed createCipher API uses MD5-based key derivation and a constant
+  why: The removed createCipher API uses MD5-based key derivation and a constant
     IV, so identical plaintexts produce identical ciphertexts and the key
     stretching is negligible.
-  fix: Use createCipheriv with a random IV per message and an AEAD mode such as aes-256-gcm.
-
+  fix: Use createCipheriv with a random IV per message and an AEAD mode such as
+    aes-256-gcm.
 - id: js/ssrf-request-from-input
   name: Outbound request target taken from request input
   domain: appsec
@@ -335,19 +407,23 @@
   tier: immediate
   cwe: CWE-918
   owasp: A10:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\b(fetch|axios(?:\.(get|post|put|delete|request))?|got|superagent\.get|https?\.get|request)\s*\(\s*\{?\s*(url\s*:\s*)?req\.(query|params|body|headers)[.\[]'
+    regex: \b(fetch|axios(?:\.(get|post|put|delete|request))?|got|superagent\.get|https?\.get|request)\s*\(\s*\{?\s*(url\s*:\s*)?req\.(query|params|body|headers)[.\[]
   message: An outbound request uses a URL taken directly from the incoming request
-  why: >-
-    The server can be pointed at internal addresses the caller cannot reach,
+  why: The server can be pointed at internal addresses the caller cannot reach,
     including cloud instance metadata at 169.254.169.254, which commonly yields
     credentials.
-  fix: >-
-    Resolve the URL and validate the resulting IP against a denylist of private
+  fix: Resolve the URL and validate the resulting IP against a denylist of private
     ranges, or accept an identifier and map it to a URL you control.
-
 - id: js/open-redirect
   name: Redirect target taken from request input
   domain: appsec
@@ -355,33 +431,45 @@
   confidence: firm
   cwe: CWE-601
   owasp: A01:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\.redirect\s*\(\s*(\d{3}\s*,\s*)?req\.(query|params|body)[.\[]'
+    regex: \.redirect\s*\(\s*(\d{3}\s*,\s*)?req\.(query|params|body)[.\[]
   message: Redirect destination comes from request input
-  why: >-
-    An attacker-supplied destination makes your domain the credible first hop
+  why: An attacker-supplied destination makes your domain the credible first hop
     of a phishing chain, and can leak tokens held in the referrer or the URL.
-  fix: Accept a relative path only, or map an identifier to an allowlisted destination.
-
+  fix: Accept a relative path only, or map an identifier to an allowlisted
+    destination.
 - id: js/regexp-from-input
   name: Regular expression compiled from request input
   domain: appsec
   severity: medium
   confidence: firm
   cwe: CWE-1333
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: 'new\s+RegExp\s*\(\s*req\.(query|params|body|headers)[.\[]'
+    regex: new\s+RegExp\s*\(\s*req\.(query|params|body|headers)[.\[]
   message: A regular expression is built from request input
-  why: >-
-    A crafted pattern with nested quantifiers makes matching take exponential
+  why: A crafted pattern with nested quantifiers makes matching take exponential
     time, so a single request can pin a CPU core and take the event loop with
     it.
-  fix: Do not compile user patterns. If you must, use a linear-time engine such as RE2 and impose a length limit.
-
+  fix: Do not compile user patterns. If you must, use a linear-time engine such as
+    RE2 and impose a length limit.
 - id: js/path-join-from-input
   name: Filesystem path built from request input
   domain: appsec
@@ -390,22 +478,24 @@
   tier: immediate
   cwe: CWE-22
   owasp: A01:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    # `req.` must be an argument in its own right. Inside lookup[req.params.id]
-    # the request value is a key, and the path came from code.
-    regex: '\b(path\.(join|resolve)|readFileSync|readFile|createReadStream|sendFile)\s*\([^)]*(^|[(,]\s*)req\.(query|params|body)[.\[]'
-    not_regex: '(?i)\bbasename\s*\(|sanitizePath|path\.normalize\s*\([^)]*\)\s*\.startsWith'
+    regex: \b(path\.(join|resolve)|readFileSync|readFile|createReadStream|sendFile)\s*\([^)]*(^|[(,]\s*)req\.(query|params|body)[.\[]
+    not_regex: (?i)\bbasename\s*\(|sanitizePath|path\.normalize\s*\([^)]*\)\s*\.startsWith
   message: A filesystem path is built from request input
-  why: >-
-    path.join happily resolves `../`, so a parameter of `../../etc/passwd`
+  why: path.join happily resolves `../`, so a parameter of `../../etc/passwd`
     escapes the intended directory. Encoded traversal sequences survive most
     naive filters.
-  fix: >-
-    Take only path.basename of the input, resolve against a fixed root, and
+  fix: Take only path.basename of the input, resolve against a fixed root, and
     assert the resolved path still starts with that root before opening it.
-
 - id: js/nosql-injection
   name: NoSQL query injection
   domain: appsec
@@ -414,16 +504,23 @@
   tier: immediate
   cwe: CWE-943
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\b(?:find|findOne|update|updateOne|updateMany|deleteOne|deleteMany|countDocuments)\s*\(\s*req\.(?:body|query|params)\b|["'']?\$where["'']?\s*:\s*(?:req\.(?:body|query|params)|`[^`]*\$\{|(["''])(?:(?!\1).)*\1\s*\+)|["'']?\$regex["'']?\s*:\s*req\.(?:body|query|params)'
+    regex: \b(?:find|findOne|update|updateOne|updateMany|deleteOne|deleteMany|countDocuments)\s*\(\s*req\.(?:body|query|params)\b|["']?\$where["']?\s*:\s*(?:req\.(?:body|query|params)|`[^`]*\$\{|(["'])(?:(?!\1).)*\1\s*\+)|["']?\$regex["']?\s*:\s*req\.(?:body|query|params)
   message: NoSQL query document or $where expression constructed with unvalidated input
-  why: >-
-    Passing raw request objects directly into NoSQL query filters allows attackers to inject query operators like $gt, $ne, or $where, bypassing authentication or executing arbitrary JavaScript on the database.
-  fix: >-
-    Sanitize query keys, cast input fields explicitly with String(), or validate schemas using Zod or Joi before querying.
-
+  why: Passing raw request objects directly into NoSQL query filters allows
+    attackers to inject query operators like $gt, $ne, or $where, bypassing
+    authentication or executing arbitrary JavaScript on the database.
+  fix: Sanitize query keys, cast input fields explicitly with String(), or
+    validate schemas using Zod or Joi before querying.
 - id: js/steal-credential-file
   name: Host credential file accessed by code
   domain: secrets
@@ -432,16 +529,23 @@
   tier: immediate
   cwe: CWE-552
   owasp: A01:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\b(?:readFile|readFileSync|createReadStream)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)'
+    regex: \b(?:readFile|readFileSync|createReadStream)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["']\.ssh["']\s*,\s*["']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)
   message: Code accesses host credential store (.ssh, .aws, .kube, or .npmrc)
-  why: >-
-    Reading private keys or cloud credentials from standard host locations is the primary indicator of credential harvesting malware in dependencies or build scripts.
-  fix: >-
-    Never read host credentials directly in application code. Inject credentials via approved environment variables or secret vaults.
-
+  why: Reading private keys or cloud credentials from standard host locations is
+    the primary indicator of credential harvesting malware in dependencies or
+    build scripts.
+  fix: Never read host credentials directly in application code. Inject
+    credentials via approved environment variables or secret vaults.
 - id: js/env-exfiltration
   name: Process environment harvested to network
   domain: secrets
@@ -450,16 +554,22 @@
   tier: immediate
   cwe: CWE-200
   owasp: A01:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\b(?:fetch|axios\.(?:post|put)|https?\.(?:request|get))\b.*?(?:JSON\.stringify\s*\(\s*process\.env\b|URLSearchParams\s*\(\s*process\.env\b|,\s*process\.env\s*[),])'
+    regex: \b(?:fetch|axios\.(?:post|put)|https?\.(?:request|get))\b.*?(?:JSON\.stringify\s*\(\s*process\.env\b|URLSearchParams\s*\(\s*process\.env\b|,\s*process\.env\s*[),])
   message: Entire environment table is serialized into an outbound network request
-  why: >-
-    Serializing process.env into an outbound HTTP request exfiltrates API keys, database credentials, and session secrets held in the environment.
-  fix: >-
-    Transmit only explicit, required configuration fields rather than serializing the entire process.env table.
-
+  why: Serializing process.env into an outbound HTTP request exfiltrates API keys,
+    database credentials, and session secrets held in the environment.
+  fix: Transmit only explicit, required configuration fields rather than
+    serializing the entire process.env table.
 - id: js/prototype-pollution
   name: Unsafe object merge vulnerable to prototype pollution
   domain: appsec
@@ -468,16 +578,23 @@
   tier: immediate
   cwe: CWE-1321
   owasp: A03:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\b[a-zA-Z_$][\w$]*(?:\.(?:__proto__|constructor\.prototype)|\[["''](?:__proto__|constructor)["'']\](?:\[["'']prototype["'']\])?)(?:\[[^\]\n]+\])?\s*=(?![=>])|\b[a-zA-Z_$][\w$]*(?:\[(?:\[[^\]\n]*\]|[^\]\n])+\]){2,}\s*=(?![=>])|\b[a-zA-Z_$][\w$]*\[[^\]\n]+\]\s*=(?![=>])\s*(?:merge|deepMerge|clone|deepClone|deepCopy|extend)\s*\('
+    regex: \b[a-zA-Z_$][\w$]*(?:\.(?:__proto__|constructor\.prototype)|\[["'](?:__proto__|constructor)["']\](?:\[["']prototype["']\])?)(?:\[[^\]\n]+\])?\s*=(?![=>])|\b[a-zA-Z_$][\w$]*(?:\[(?:\[[^\]\n]*\]|[^\]\n])+\]){2,}\s*=(?![=>])|\b[a-zA-Z_$][\w$]*\[[^\]\n]+\]\s*=(?![=>])\s*(?:merge|deepMerge|clone|deepClone|deepCopy|extend)\s*\(
   message: Object properties merged recursively without prototype key filtering
-  why: >-
-    Modifying object prototypes via __proto__ or constructor.prototype injects properties into all objects across the JavaScript runtime, leading to denial of service, authentication bypass, or remote code execution.
-  fix: >-
-    Validate keys against __proto__, constructor, and prototype before assignment, or use Map or Object.create(null).
-
+  why: Modifying object prototypes via __proto__ or constructor.prototype injects
+    properties into all objects across the JavaScript runtime, leading to denial
+    of service, authentication bypass, or remote code execution.
+  fix: Validate keys against __proto__, constructor, and prototype before
+    assignment, or use Map or Object.create(null).
 - id: js/node-serialize
   name: Arbitrary code execution via unsafe object deserialization
   domain: appsec
@@ -486,16 +603,24 @@
   tier: immediate
   cwe: CWE-502
   owasp: A08:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '(?:\b(?:\w*[Ss]erialize\w*|require\s*\(\s*(["''])node-serialize\1\s*\))\s*\??\.\s*|(?<![\w$.]))unserialize\s*\('
-  message: node-serialize unserialize() allows arbitrary JavaScript execution via IIFE payloads
-  why: >-
-    Untrusted data passed to node-serialize unserialize() allows arbitrary code execution when an object contains a function wrapper with an immediately invoked function expression (_$$ND_FUNC$$_).
-  fix: >-
-    Use JSON.parse() for data exchange or structuredClone() for deep object cloning instead of node-serialize.
-
+    regex: (?:\b(?:\w*[Ss]erialize\w*|require\s*\(\s*(["'])node-serialize\1\s*\))\s*\??\.\s*|(?<![\w$.]))unserialize\s*\(
+  message: node-serialize unserialize() allows arbitrary JavaScript execution via
+    IIFE payloads
+  why: Untrusted data passed to node-serialize unserialize() allows arbitrary code
+    execution when an object contains a function wrapper with an immediately
+    invoked function expression (_$$ND_FUNC$$_).
+  fix: Use JSON.parse() for data exchange or structuredClone() for deep object
+    cloning instead of node-serialize.
 - id: js/xxe-libxml
   name: XML parser configured to expand external entities
   domain: appsec
@@ -504,17 +629,44 @@
   tier: immediate
   cwe: CWE-611
   owasp: A05:2021
-  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx']
-  exclude: ['**/*.min.js', '**/*.d.ts']
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
   match:
-    regex: '\bparseXml(?:String)?\s*\(.*?(?:["'']noent["'']|\bnoent)\s*:\s*true\b'
-  message: 'XML parser enables entity replacement via noent: true, exposing the system to XXE'
-  why: >-
-    Setting noent: true in libxmljs causes the XML parser to expand external
+    regex: \bparseXml(?:String)?\s*\(.*?(?:["']noent["']|\bnoent)\s*:\s*true\b
+  message: "XML parser enables entity replacement via noent: true, exposing the
+    system to XXE"
+  why: "Setting noent: true in libxmljs causes the XML parser to expand external
     entities. An attacker supplying crafted XML can read arbitrary local files,
-    access internal network endpoints via SSRF, or trigger memory exhaustion.
-  fix: >-
-    Do not set noent: true. Keep entity expansion disabled by defaulting noent
-    to false, or omit the option when parsing untrusted XML.
-
-
+    access internal network endpoints via SSRF, or trigger memory exhaustion."
+  fix: "Do not set noent: true. Keep entity expansion disabled by defaulting noent
+    to false, or omit the option when parsing untrusted XML."
+- id: js/express-csrf-missing
+  name: CSRF protection ignores state-changing HTTP methods
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: deep
+  cwe: CWE-352
+  owasp: A01:2021
+  files:
+    - "**/*.js"
+    - "**/*.ts"
+    - "**/*.jsx"
+    - "**/*.tsx"
+  match:
+    regex: (?i)\b(?:csrfProtection|csurf|csrf)\s*\([^)]*\bignoreMethods\s*:\s*\[[^\]]*["'](?:POST|PUT|DELETE|PATCH)["']
+    not_regex: (?i)^\s*//
+  message: CSRF protection middleware is configured to ignore state-changing HTTP
+    methods (POST, PUT, DELETE, PATCH)
+  why: Ignoring state-changing methods disables Cross-Site Request Forgery
+    defenses, allowing malicious websites to forge actions on behalf of
+    authenticated users.
+  fix: Only ignore safe idempotent methods (GET, HEAD, OPTIONS) in CSRF middleware
+    configurations.

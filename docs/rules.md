@@ -2,7 +2,7 @@
 
 # Rule reference
 
-151 rules across 11 packs. 99 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+171 rules across 11 packs. 115 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -13,12 +13,12 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
 | [`container`](#container) | 10 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
-| [`go`](#go) | 6 | 6 | go |
-| [`java`](#java) | 7 | 7 | java |
-| [`js`](#js) | 26 | 17 | JavaScript and TypeScript |
+| [`go`](#go) | 12 | 11 | go |
+| [`java`](#java) | 13 | 12 | java |
+| [`js`](#js) | 27 | 17 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 18 | 8 | Kubernetes |
-| [`py`](#py) | 28 | 23 | Python |
-| [`rust`](#rust) | 1 | 1 | rust |
+| [`py`](#py) | 30 | 25 | Python |
+| [`rust`](#rust) | 6 | 5 | rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 20 | 7 | Terraform |
 
@@ -399,7 +399,19 @@ Any publish by the maintainer, or by anyone who compromises their account, is in
 
 ## go
 
-go. 6 rules.
+go. 12 rules.
+
+### `go/bind-all-interfaces`
+
+Server listening on all network interfaces
+
+**low** / firm · `P3` · CWE-200 · A01:2021 · end of turn
+
+Binding to all network interfaces exposes local internal services or administrative endpoints to the broader network or public Internet.
+
+**Fix.** Bind explicitly to a private internal IP address or 127.0.0.1 for local services.
+
+<sub>Waive: `airtight hooks ignore-value go/bind-all-interfaces "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/bind-all-interfaces -- <reason>`</sub>
 
 ### `go/command-exec-shell`
 
@@ -413,6 +425,18 @@ Passing dynamic strings to a shell interpreter via -c allows command injection t
 
 <sub>Waive: `airtight hooks ignore-value go/command-exec-shell "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/command-exec-shell -- <reason>`</sub>
 
+### `go/cors-wildcard`
+
+Permissive CORS wildcard origin configuration
+
+**medium** / confirmed · `P2` · CWE-942 · A01:2021 · fires on edit
+
+Permitting all origins allows arbitrary third-party websites to issue cross-origin requests to internal application APIs on behalf of authenticated users.
+
+**Fix.** Explicitly configure allowed origins with a whitelist of trusted domains (e.g., AllowedOrigins: []string{"https://app.example.com"}).
+
+<sub>Waive: `airtight hooks ignore-value go/cors-wildcard "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/cors-wildcard -- <reason>`</sub>
+
 ### `go/env-exfiltration`
 
 Process environment harvested to network
@@ -424,6 +448,54 @@ Dumping and serializing os.Environ() into an outbound network payload leaks all 
 **Fix.** Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice.
 
 <sub>Waive: `airtight hooks ignore-value go/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/env-exfiltration -- <reason>`</sub>
+
+### `go/insecure-cipher`
+
+Insecure cipher algorithm (DES or RC4)
+
+**high** / confirmed · `P1` · CWE-327 · A02:2021 · fires on edit
+
+DES and 3DES have inadequate key lengths susceptible to brute force attacks, and RC4 contains known keystream biases that compromise confidentiality.
+
+**Fix.** Use modern authenticated encryption such as AES-GCM (crypto/cipher NewGCM) or ChaCha20-Poly1305.
+
+<sub>Waive: `airtight hooks ignore-value go/insecure-cipher "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/insecure-cipher -- <reason>`</sub>
+
+### `go/jwt-algorithm-none`
+
+Insecure JWT parser allows 'none' algorithm
+
+**critical** / confirmed · `P0` · CWE-327 · A02:2021 · fires on edit
+
+Allowing the 'none' signature algorithm permits attackers to forge arbitrary tokens with spoofed identities and bypass all authentication.
+
+**Fix.** Remove UnsafeAllowNoneSignatureType and ensure the Keyfunc explicitly validates expected cryptographic signing methods.
+
+<sub>Waive: `airtight hooks ignore-value go/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/jwt-algorithm-none -- <reason>`</sub>
+
+### `go/math-rand-for-secret`
+
+Insecure pseudo-random number generator used for sensitive token
+
+**high** / firm · `P1` · CWE-338 · A02:2021 · fires on edit
+
+math/rand produces deterministic, predictable sequences unsuitable for cryptographic keys, session tokens, or authentication secrets.
+
+**Fix.** Use crypto/rand instead of math/rand for generating security tokens and secrets.
+
+<sub>Waive: `airtight hooks ignore-value go/math-rand-for-secret "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/math-rand-for-secret -- <reason>`</sub>
+
+### `go/open-redirect`
+
+Unvalidated HTTP redirect from request parameter
+
+**medium** / confirmed · `P2` · CWE-601 · A01:2021 · fires on edit
+
+Redirecting users to an unvalidated URL provided in query parameters allows attackers to construct trusted-looking links that redirect victims to phishing or malicious sites.
+
+**Fix.** Validate the redirect target against an allowlist of permitted destinations or verify that the path starts with a single forward slash and does not specify an external scheme or host.
+
+<sub>Waive: `airtight hooks ignore-value go/open-redirect "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/open-redirect -- <reason>`</sub>
 
 ### `go/sql-string-concat`
 
@@ -476,7 +548,7 @@ MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive
 
 ## java
 
-java. 7 rules.
+java. 13 rules.
 
 ### `java/command-exec`
 
@@ -489,6 +561,30 @@ Executing commands through a shell interpreter like sh, bash, or cmd.exe with dy
 **Fix.** Pass the executable and arguments as separate array elements or List items to ProcessBuilder without invoking a shell.
 
 <sub>Waive: `airtight hooks ignore-value java/command-exec "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/command-exec -- <reason>`</sub>
+
+### `java/cookie-missing-httponly`
+
+Cookie configured with HttpOnly disabled
+
+**medium** / confirmed · `P2` · CWE-1004 · A05:2021 · fires on edit
+
+Disabling the HttpOnly flag allows client-side scripts to access sensitive session identifiers via document.cookie, facilitating XSS token theft.
+
+**Fix.** Call setHttpOnly(true) on all session and authentication cookies.
+
+<sub>Waive: `airtight hooks ignore-value java/cookie-missing-httponly "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/cookie-missing-httponly -- <reason>`</sub>
+
+### `java/env-exfiltration`
+
+Bulk environment variable harvesting
+
+**high** / confirmed · `P1` · CWE-200 · A01:2021 · end of turn
+
+Iterating System.getenv() dumps the entire process environment, which typically holds API tokens, database passwords, and cloud keys. This is characteristic of supply-chain telemetry or exfiltration payloads.
+
+**Fix.** Access only specific environment variables needed by the application via System.getenv("NAME").
+
+<sub>Waive: `airtight hooks ignore-value java/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/env-exfiltration -- <reason>`</sub>
 
 ### `java/insecure-cipher`
 
@@ -514,6 +610,42 @@ Java deserialization invokes readObject() callbacks automatically on instantiate
 
 <sub>Waive: `airtight hooks ignore-value java/insecure-deserialization "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/insecure-deserialization -- <reason>`</sub>
 
+### `java/insecure-random`
+
+Insecure pseudo-random number generator used for sensitive token
+
+**high** / firm · `P1` · CWE-338 · A02:2021 · fires on edit
+
+java.util.Random and Math.random produce predictable sequences that an attacker can reverse-engineer to predict future tokens or reset links.
+
+**Fix.** Use java.security.SecureRandom for generating cryptographically secure secrets and tokens.
+
+<sub>Waive: `airtight hooks ignore-value java/insecure-random "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/insecure-random -- <reason>`</sub>
+
+### `java/jwt-algorithm-none`
+
+Insecure JWT parser allows 'none' algorithm
+
+**critical** / confirmed · `P0` · CWE-327 · A02:2021 · fires on edit
+
+Permitting unsigned tokens allows attackers to forge tokens with spoofed user identifiers without possessing the cryptographic signing key.
+
+**Fix.** Enforce signed tokens using strong cryptographic algorithms (such as HMAC256 or RSA256) and use parseClaimsJws().
+
+<sub>Waive: `airtight hooks ignore-value java/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/jwt-algorithm-none -- <reason>`</sub>
+
+### `java/open-redirect`
+
+Unvalidated HTTP redirect from request parameter
+
+**medium** / confirmed · `P2` · CWE-601 · A01:2021 · fires on edit
+
+Redirecting users to an unvalidated URL provided in query parameters allows attackers to construct trusted-looking links that redirect victims to phishing or malicious sites.
+
+**Fix.** Validate the redirect target against an allowlist of permitted destinations or ensure it is a relative path starting with a single forward slash.
+
+<sub>Waive: `airtight hooks ignore-value java/open-redirect "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/open-redirect -- <reason>`</sub>
+
 ### `java/sql-concatenation`
 
 SQL query built by string formatting or concatenation
@@ -525,6 +657,18 @@ Interpolating or concatenating dynamic user variables into SQL queries allows at
 **Fix.** Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting.
 
 <sub>Waive: `airtight hooks ignore-value java/sql-concatenation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/sql-concatenation -- <reason>`</sub>
+
+### `java/steal-credential-file`
+
+Access to sensitive credential file
+
+**critical** / confirmed · `P0` · CWE-200 · A01:2021 · fires on edit
+
+Accessing private SSH keys, AWS credentials, Kubernetes configs, or Docker auth tokens directly from disk is characteristic of credential harvesting malware. Legitimate applications should use standard identity SDKs or environment injection.
+
+**Fix.** Use standard credential provider chains (such as AWS SDK DefaultCredentialsProvider) or pass credentials via environment variables rather than reading local user credential directories directly.
+
+<sub>Waive: `airtight hooks ignore-value java/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/steal-credential-file -- <reason>`</sub>
 
 ### `java/trust-all-certs`
 
@@ -565,7 +709,7 @@ Allowing external entity resolution or disabling secure processing enables XML E
 
 ## js
 
-JavaScript and TypeScript. 26 rules.
+JavaScript and TypeScript. 27 rules.
 
 ### `js/child-process-interpolation`
 
@@ -662,6 +806,18 @@ If any part of the evaluated string derives from input, this is remote code exec
 **Fix.** Use a lookup table or a switch for dynamic dispatch, JSON.parse for data, and a purpose-built expression library if you genuinely need user expressions.
 
 <sub>Waive: `airtight hooks ignore-value js/eval-dynamic "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/eval-dynamic -- <reason>`</sub>
+
+### `js/express-csrf-missing`
+
+CSRF protection ignores state-changing HTTP methods
+
+**high** / firm · `P1` · CWE-352 · A01:2021 · end of turn
+
+Ignoring state-changing methods disables Cross-Site Request Forgery defenses, allowing malicious websites to forge actions on behalf of authenticated users.
+
+**Fix.** Only ignore safe idempotent methods (GET, HEAD, OPTIONS) in CSRF middleware configurations.
+
+<sub>Waive: `airtight hooks ignore-value js/express-csrf-missing "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/express-csrf-missing -- <reason>`</sub>
 
 ### `js/inner-html-assignment`
 
@@ -1103,7 +1259,7 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 
 ## py
 
-Python. 28 rules.
+Python. 30 rules.
 
 ### `py/assert-for-authorization`
 
@@ -1261,6 +1417,18 @@ Disabling JWT signature verification or allowing the none algorithm permits atta
 
 <sub>Waive: `airtight hooks ignore-value py/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/jwt-algorithm-none -- <reason>`</sub>
 
+### `py/nosql-injection`
+
+MongoDB query uses $where operator
+
+**high** / confirmed · `P1` · CWE-943 · A03:2021 · fires on edit
+
+The $where operator executes arbitrary JavaScript on the database server, allowing code injection and data exfiltration when evaluated with untrusted input.
+
+**Fix.** Use standard query operators (such as $eq, $in, $gt) instead of JavaScript evaluation via $where.
+
+<sub>Waive: `airtight hooks ignore-value py/nosql-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/nosql-injection -- <reason>`</sub>
+
 ### `py/open-redirect`
 
 Redirect destination taken from request input
@@ -1284,6 +1452,18 @@ os.system always goes through a shell, so an interpolated value is a command inj
 **Fix.** Use subprocess.run with an argument list and shell defaulting to False.
 
 <sub>Waive: `airtight hooks ignore-value py/os-system-interpolation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/os-system-interpolation -- <reason>`</sub>
+
+### `py/paramiko-missing-host-key-policy`
+
+Insecure SSH AutoAddPolicy accepts untrusted host keys
+
+**high** / confirmed · `P1` · CWE-295 · A02:2021 · fires on edit
+
+Using AutoAddPolicy() automatically adds and trusts unknown SSH host keys without verification, leaving connections vulnerable to Man-in-the-Middle (MitM) attacks.
+
+**Fix.** Use RejectPolicy() or WarningPolicy() and ensure trusted host keys are verified from known_hosts.
+
+<sub>Waive: `airtight hooks ignore-value py/paramiko-missing-host-key-policy "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/paramiko-missing-host-key-policy -- <reason>`</sub>
 
 ### `py/pickle-loads`
 
@@ -1444,7 +1624,7 @@ The default loader honours tags like !!python/object/apply, which constructs arb
 
 ## rust
 
-rust. 1 rules.
+rust. 6 rules.
 
 ### `rust/command-injection`
 
@@ -1457,6 +1637,66 @@ Executing commands through a shell interpreter with dynamic or formatted argumen
 **Fix.** Pass arguments directly to the executable using .arg() or .args() instead of invoking a shell with -c.
 
 <sub>Waive: `airtight hooks ignore-value rust/command-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/command-injection -- <reason>`</sub>
+
+### `rust/env-exfiltration`
+
+Bulk environment variable harvesting
+
+**high** / confirmed · `P1` · CWE-200 · A01:2021 · end of turn
+
+Iterating std::env::vars() dumps the entire process environment, which typically holds API tokens, database passwords, and cloud keys. This is characteristic of supply-chain telemetry or exfiltration payloads.
+
+**Fix.** Read only the specific environment variables required by your application via std::env::var("NAME").
+
+<sub>Waive: `airtight hooks ignore-value rust/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/env-exfiltration -- <reason>`</sub>
+
+### `rust/path-traversal`
+
+Path constructed with format! string interpolation
+
+**high** / confirmed · `P1` · CWE-22 · A01:2021 · fires on edit
+
+Interpolating user input directly into file paths allows path traversal (e.g., ../../etc/passwd) to access files outside the intended directory.
+
+**Fix.** Validate that components do not contain path separators or '..', and ensure canonicalized paths reside within the allowed base directory.
+
+<sub>Waive: `airtight hooks ignore-value rust/path-traversal "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/path-traversal -- <reason>`</sub>
+
+### `rust/sql-format`
+
+SQL query constructed with format!
+
+**high** / confirmed · `P1` · CWE-89 · A03:2021 · fires on edit
+
+Formatting SQL query strings with format! interpolates untrusted values directly into the query, enabling SQL injection.
+
+**Fix.** Use parameterized queries with bind variables (e.g., sqlx::query("SELECT ... WHERE id = $1").bind(id)).
+
+<sub>Waive: `airtight hooks ignore-value rust/sql-format "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/sql-format -- <reason>`</sub>
+
+### `rust/steal-credential-file`
+
+Access to sensitive credential file
+
+**critical** / confirmed · `P0` · CWE-200 · A01:2021 · fires on edit
+
+Accessing private SSH keys, AWS credentials, Kubernetes configs, or Docker auth tokens directly from disk is characteristic of credential harvesting malware. Legitimate applications should use standard identity SDKs or environment injection.
+
+**Fix.** Use standard credential provider chains (such as aws-config) or pass credentials via environment variables rather than reading local user credential directories directly.
+
+<sub>Waive: `airtight hooks ignore-value rust/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/steal-credential-file -- <reason>`</sub>
+
+### `rust/tls-insecure-skip-verify`
+
+TLS certificate verification disabled
+
+**high** / confirmed · `P1` · CWE-295 · A07:2021 · fires on edit
+
+Disabling certificate validation allows network attackers to perform man-in-the-middle (MitM) attacks and decrypt or alter traffic.
+
+**Fix.** Remove danger_accept_invalid_certs(true) and add custom CA certificates to the certificate store if private certificates are needed.
+
+<sub>Waive: `airtight hooks ignore-value rust/tls-insecure-skip-verify "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/tls-insecure-skip-verify -- <reason>`</sub>
 
 
 ## secret

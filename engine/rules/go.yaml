@@ -1,5 +1,3 @@
-# Go sinks and credential protection rules.
-
 - id: go/steal-credential-file
   name: Host credential file accessed by code
   domain: secrets
@@ -8,15 +6,15 @@
   tier: immediate
   cwe: CWE-552
   owasp: A01:2021
-  files: ['**/*.go']
+  files:
+    - "**/*.go"
   match:
-    regex: '\b(?:os\.(?:ReadFile|Open)|ioutil\.ReadFile)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["'']\.ssh["'']\s*,\s*["'']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)'
+    regex: \b(?:os\.(?:ReadFile|Open)|ioutil\.ReadFile)\b.*(?:\.ssh[\/\\](?:id_rsa|id_ed25519|id_ecdsa)|["']\.ssh["']\s*,\s*["']id_|\.aws[\/\\]credentials|\.kube[\/\\]config|\.docker[\/\\]config\.json|\.netrc|\.npmrc)
   message: Go code accesses host credential store (.ssh, .aws, .kube, or .npmrc)
-  why: >-
-    Reading private keys or cloud credentials from standard user home locations is a primary signature of credential harvesting malware.
-  fix: >-
-    Never access host credentials directly in Go application code. Supply credentials via environment variables or cloud metadata services.
-
+  why: Reading private keys or cloud credentials from standard user home locations
+    is a primary signature of credential harvesting malware.
+  fix: Never access host credentials directly in Go application code. Supply
+    credentials via environment variables or cloud metadata services.
 - id: go/env-exfiltration
   name: Process environment harvested to network
   domain: secrets
@@ -25,15 +23,16 @@
   tier: immediate
   cwe: CWE-200
   owasp: A01:2021
-  files: ['**/*.go']
+  files:
+    - "**/*.go"
   match:
-    regex: '\b(?:http\.(?:Post|Get|PostForm|NewRequest)\b.*?\bos\.Environ\s*\(|json\.Marshal\s*\(\s*os\.Environ\s*\(\s*\)|strings\.Join\s*\(\s*os\.Environ\s*\(\s*\))'
-  message: Complete environment variable table is prepared for transmission or sent over HTTP
-  why: >-
-    Dumping and serializing os.Environ() into an outbound network payload leaks all environment variables, including secrets and tokens.
-  fix: >-
-    Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice.
-
+    regex: \b(?:http\.(?:Post|Get|PostForm|NewRequest)\b.*?\bos\.Environ\s*\(|json\.Marshal\s*\(\s*os\.Environ\s*\(\s*\)|strings\.Join\s*\(\s*os\.Environ\s*\(\s*\))
+  message: Complete environment variable table is prepared for transmission or
+    sent over HTTP
+  why: Dumping and serializing os.Environ() into an outbound network payload leaks
+    all environment variables, including secrets and tokens.
+  fix: Transmit only specific, required configuration fields rather than
+    serializing the entire os.Environ() slice.
 - id: go/sql-string-concat
   name: SQL query built by string formatting or concatenation
   domain: appsec
@@ -42,15 +41,17 @@
   tier: immediate
   cwe: CWE-89
   owasp: A03:2021
-  files: ['**/*.go']
+  files:
+    - "**/*.go"
   match:
-    regex: '\bfmt\.Sprintf\s*\(\s*(["''`])(?:(?!\1).)*(?i:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*,|(["''`])(?:(?!\2).)*(?i:\bSELECT\b(?:(?!\2).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\2).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\2).)*\2\s*\+\s*[A-Za-z_]'
-  message: SQL query executed with formatted or concatenated string instead of parameter bindings
-  why: >-
-    Formatting or concatenating variables directly into a SQL statement allows untrusted input to break out of data literals and alter query logic, leading to arbitrary database access or data loss.
-  fix: >-
-    Use parameterized queries with placeholder arguments (''?'' or ''$1'') and pass variables as separate arguments to the database driver.
-
+    regex: (?i)\bfmt\.Sprintf\s*\(\s*(["'`])(?:(?!\1).)*(?:\bSELECT\b(?:(?!\1).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\1).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\1).)*\1\s*,|(["'`])(?:(?!\2).)*(?:\bSELECT\b(?:(?!\2).)*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\b(?:(?!\2).)*\bSET\b|\bDELETE\s+FROM\b)(?:(?!\2).)*\2\s*\+\s*[A-Za-z_]
+  message: SQL query executed with formatted or concatenated string instead of
+    parameter bindings
+  why: Formatting or concatenating variables directly into a SQL statement allows
+    untrusted input to break out of data literals and alter query logic, leading
+    to arbitrary database access or data loss.
+  fix: Use parameterized queries with placeholder arguments (''?'' or ''$1'') and
+    pass variables as separate arguments to the database driver.
 - id: go/command-exec-shell
   name: Operating system command executed via shell interpreter
   domain: appsec
@@ -59,16 +60,17 @@
   tier: immediate
   cwe: CWE-78
   owasp: A03:2021
-  files: ['**/*.go']
+  files:
+    - "**/*.go"
   match:
-    regex: '\bexec\.(?:Command\s*\(\s*|CommandContext\s*\([^,]+,\s*)(["`])(?:[A-Za-z0-9_.\/-]*\/)?(?:ba|z|da|k)?sh\1\s*,\s*(["`])-c\2,(?:(?!\s*["`])\s*|\s*(["`])(?:(?!\3).)*\3\s*\+)'
-    not_regex: '^\s*//'
+    regex: \bexec\.(?:Command\s*\(\s*|CommandContext\s*\([^,]+,\s*)(["`])(?:[A-Za-z0-9_.\/-]*\/)?(?:ba|z|da|k)?sh\1\s*,\s*(["`])-c\2,(?:(?!\s*["`])\s*|\s*(["`])(?:(?!\3).)*\3\s*\+)
+    not_regex: ^\s*//
   message: Shell interpreter invoked to execute system command with dynamic input
-  why: >-
-    Passing dynamic strings to a shell interpreter via -c allows command injection through shell metacharacters. Any unvalidated input can execute arbitrary commands with the privileges of the process.
-  fix: >-
-    Invoke the target executable directly with arguments passed as separate slice elements instead of routing through a shell interpreter.
-
+  why: Passing dynamic strings to a shell interpreter via -c allows command
+    injection through shell metacharacters. Any unvalidated input can execute
+    arbitrary commands with the privileges of the process.
+  fix: Invoke the target executable directly with arguments passed as separate
+    slice elements instead of routing through a shell interpreter.
 - id: go/tls-insecure-skip-verify
   name: TLS certificate verification disabled
   domain: appsec
@@ -77,15 +79,16 @@
   tier: immediate
   cwe: CWE-295
   owasp: A07:2021
-  files: ['**/*.go']
+  files:
+    - "**/*.go"
   match:
-    regex: '\bInsecureSkipVerify\s*[:=]\s*true\b'
-  message: 'TLS certificate validation is disabled via InsecureSkipVerify: true'
-  why: >-
-    Disabling TLS certificate verification allows attackers with network access to perform man-in-the-middle (MITM) attacks, intercepting or altering plaintext traffic.
-  fix: >-
-    Remove InsecureSkipVerify or set it to false. To trust private certificates, configure RootCAs with a custom cert pool.
-
+    regex: \bInsecureSkipVerify\s*[:=]\s*true\b
+  message: "TLS certificate validation is disabled via InsecureSkipVerify: true"
+  why: Disabling TLS certificate verification allows attackers with network access
+    to perform man-in-the-middle (MITM) attacks, intercepting or altering
+    plaintext traffic.
+  fix: Remove InsecureSkipVerify or set it to false. To trust private
+    certificates, configure RootCAs with a custom cert pool.
 - id: go/weak-password-hash
   name: Weak hash algorithm used for password or credential
   domain: appsec
@@ -94,11 +97,126 @@
   tier: immediate
   cwe: CWE-328
   owasp: A02:2021
-  files: ['**/*.go']
+  files:
+    - "**/*.go"
   match:
-    regex: '(?i)(?:\b(?:md5|sha1)\.(?:New|Sum)\b[^\n]*\b\w*(?:password|passwd|passphrase|pwd)\w*\b|\b\w*(?:password|passwd|passphrase|pwd)\w*\b[^\n]*\b(?:md5|sha1)\.(?:New|Sum)\b)'
+    regex: (?i)(?:\b(?:md5|sha1)\.(?:New|Sum)\b[^\n]*\b\w*(?:password|passwd|passphrase|pwd)\w*\b|\b\w*(?:password|passwd|passphrase|pwd)\w*\b[^\n]*\b(?:md5|sha1)\.(?:New|Sum)\b)
   message: MD5 or SHA1 used to hash passwords or authentication secrets
-  why: >-
-    MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive rainbow table lookup tables, and extreme vulnerability to high-speed offline GPU brute-force attacks.
-  fix: >-
-    Use a salted, work-factor tuned password hashing algorithm such as bcrypt, argon2id, or scrypt.
+  why: MD5 and SHA-1 are cryptographically broken due to preimage collisions,
+    extensive rainbow table lookup tables, and extreme vulnerability to
+    high-speed offline GPU brute-force attacks.
+  fix: Use a salted, work-factor tuned password hashing algorithm such as bcrypt,
+    argon2id, or scrypt.
+- id: go/cors-wildcard
+  name: Permissive CORS wildcard origin configuration
+  domain: appsec
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-942
+  owasp: A01:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: (?i)(?:cors\.AllowAll\s*\(\)|AllowedOrigins:\s*\[\]string\{["']\*["']\}|AllowAllOrigins:\s*true)
+    not_regex: (?i)^\s*//
+  message: CORS is configured with a wildcard origin allowing all domains
+  why: Permitting all origins allows arbitrary third-party websites to issue
+    cross-origin requests to internal application APIs on behalf of
+    authenticated users.
+  fix: 'Explicitly configure allowed origins with a whitelist of trusted domains
+    (e.g., AllowedOrigins: []string{"https://app.example.com"}).'
+- id: go/open-redirect
+  name: Unvalidated HTTP redirect from request parameter
+  domain: appsec
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-601
+  owasp: A01:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: http\.Redirect\s*\(\s*\w+\s*,\s*\w+\s*,\s*(?:\w+\.)?(?:URL\.Query\(\)\.Get|FormValue)\s*\(\s*["'](?:url|redirect|next|dest|target|return_to|forward)["']\s*\)
+  message: Target URL for http.Redirect is taken directly from an unvalidated
+    request parameter
+  why: Redirecting users to an unvalidated URL provided in query parameters allows
+    attackers to construct trusted-looking links that redirect victims to
+    phishing or malicious sites.
+  fix: Validate the redirect target against an allowlist of permitted destinations
+    or verify that the path starts with a single forward slash and does not
+    specify an external scheme or host.
+- id: go/insecure-cipher
+  name: Insecure cipher algorithm (DES or RC4)
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-327
+  owasp: A02:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: (?:des\.NewCipher|des\.NewTripleDESCipher|rc4\.NewCipher)\s*\(
+  message: Insecure cipher algorithm (DES, 3DES, or RC4) is instantiated
+  why: DES and 3DES have inadequate key lengths susceptible to brute force
+    attacks, and RC4 contains known keystream biases that compromise
+    confidentiality.
+  fix: Use modern authenticated encryption such as AES-GCM (crypto/cipher NewGCM)
+    or ChaCha20-Poly1305.
+- id: go/bind-all-interfaces
+  name: Server listening on all network interfaces
+  domain: infrastructure
+  severity: low
+  confidence: firm
+  tier: deep
+  cwe: CWE-200
+  owasp: A01:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: \b(?:http\.ListenAndServe(?:TLS)?|net\.Listen)\s*\(\s*(?:(["'])(?:tcp|tcp4|tcp6)\1\s*,\s*)?(["'])(?:0\.0\.0\.0)?:\d+\2(?:\s*[,)])
+    not_regex: (?i)^\s*//
+  message: Service is configured to bind to all network interfaces (0.0.0.0 or
+    wildcard port)
+  why: Binding to all network interfaces exposes local internal services or
+    administrative endpoints to the broader network or public Internet.
+  fix: Bind explicitly to a private internal IP address or 127.0.0.1 for local
+    services.
+- id: go/jwt-algorithm-none
+  name: Insecure JWT parser allows 'none' algorithm
+  domain: appsec
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-327
+  owasp: A02:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: \bUnsafeAllowNoneSignatureType\b|\bjwt\.Parse(?:WithClaims)?\s*\([^)]*jwt\.None\b
+    not_regex: (?i)^\s*//
+  message: JWT parser explicitly permits unauthenticated 'none' signature algorithm
+  why: Allowing the 'none' signature algorithm permits attackers to forge
+    arbitrary tokens with spoofed identities and bypass all authentication.
+  fix: Remove UnsafeAllowNoneSignatureType and ensure the Keyfunc explicitly
+    validates expected cryptographic signing methods.
+- id: go/math-rand-for-secret
+  name: Insecure pseudo-random number generator used for sensitive token
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-338
+  owasp: A02:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: (?i)(?:token|secret|password|passwd|apiKey|session|nonce|salt)\s*[:=][^\n]*\b(?:rand\.Int|rand\.Intn|rand\.Read|rand\.Uint64|rand\.Float64)\b|\b(?:rand\.Int|rand\.Intn|rand\.Read|rand\.Uint64|rand\.Float64)\b[^\n]*(?:token|secret|password|passwd|apiKey|session|nonce|salt)
+    not_regex: (?i)^\s*//|crypto/rand
+  message: Pseudo-random generator math/rand is used for security-sensitive token
+    or secret
+  why: math/rand produces deterministic, predictable sequences unsuitable for
+    cryptographic keys, session tokens, or authentication secrets.
+  fix: Use crypto/rand instead of math/rand for generating security tokens and
+    secrets.

@@ -7771,10 +7771,20 @@ function fail(id, msg) {
 function compileRegex(id, field, source) {
   let body = source;
   let flags = "g";
+  if (/\(\?[ims]+:/.test(body)) {
+    for (const [, mod] of body.matchAll(/\(\?([ims]+):/g)) {
+      for (const ch of mod) {
+        if (!flags.includes(ch)) flags += ch;
+      }
+    }
+    body = body.replace(/\(\?([ims]+):/g, "(?:");
+  }
   const inline = /^\(\?([ims]+)\)/.exec(body);
   if (inline) {
     body = body.slice(inline[0].length);
-    flags += inline[1];
+    for (const ch of inline[1]) {
+      if (!flags.includes(ch)) flags += ch;
+    }
   }
   try {
     return new RegExp(body, flags);

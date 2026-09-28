@@ -78,3 +78,19 @@ test('the corpus covers every domain the packs claim', () => {
     assert.ok(domains.has(d), `no rules for domain "${d}"`);
   }
 });
+
+test('rule regexes are valid under standard ES2020 without unsupported modifier groups', () => {
+  // (?i:...) modifier groups require V8 12.8 / Node 23.6+. Node 20 and 22 reject them.
+  // Rule definitions must use standard (?i) prefixes or flags.
+  const bad = [];
+  for (const r of allRules()) {
+    for (const key of ['regex', 'not_regex', 'require_regex']) {
+      const p = r.match?.[key];
+      if (!p) continue;
+      if (/\(\?[a-z]+:/.test(p)) {
+        bad.push(`${r.id} ${key}: uses unsupported modifier group (?i:...)`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
+});
