@@ -1,6 +1,6 @@
 {
   "name": "@airtight/engine",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Deterministic security rule engine. Ships as one bundled file with no runtime dependencies."
