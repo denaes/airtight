@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.2.0, installable from npm across 18 harnesses. Engine with 151
+> **Status:** v0.3.0, installable from npm across 18 harnesses. Engine with 191
 > rules, findings store, control register, nine commands, edit hook, installer,
 > docs, and a demo. Benchmarked against four real repositories; see
 > [measured against real code](#measured-against-real-code) for what that

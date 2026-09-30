@@ -1,7 +1,7 @@
 # Airtight Coverage Matrix & Security Roadmap
 
 > **Status:** Architecture Plan & Coverage Specification  
-> **Target Version Alignment:** Airtight v0.2.0 (Current) → v0.3.0+ (Roadmap)  
+> **Target Version Alignment:** Airtight v0.3.0 (Current) → v0.4.0+ (Roadmap)  
 > **Location:** `docs/plans/coverage-matrix-roadmap.md`
 
 This document defines the multidimensional security coverage model for Airtight. It maps security coverage across three orthogonal axes:
