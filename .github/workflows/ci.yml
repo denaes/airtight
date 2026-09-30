@@ -25,8 +25,8 @@ jobs:
       matrix:
         node: ['20', '22', '24']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci
@@ -35,8 +35,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '24'
       - run: npm ci
@@ -44,11 +44,14 @@ jobs:
       - name: Build
         run: npm run build:release
 
-      # skill/ is the source of truth and the harness directories are
+      # skill/ is the source of truth and all 18 harness directories are
       # generated from it. If they disagree, the committed output is stale and
       # a plugin install would ship something nobody reviewed.
-      - name: Generated output is current
-        run: git diff --exit-code -- .claude plugin .claude-plugin skill/scripts/engine skill/scripts/rules.json
+      - name: Generated output is current across all harnesses
+        run: git diff --exit-code -- .agent .agents .claude .cursor .dsh .gemini .github .grok .hermes .kiro .opencode .pi .qoder .rovodev .trae .trae-cn .veto .vibe plugin .claude-plugin skill/scripts/engine skill/scripts/rules.json
+
+      - name: Progress audit verifies counts and docs
+        run: npm run audit:progress
 
       # The engine bundle must run with nothing installed. Removing
       # node_modules is the only honest way to prove it.
@@ -61,8 +64,8 @@ jobs:
   self-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '24'
       - run: npm ci

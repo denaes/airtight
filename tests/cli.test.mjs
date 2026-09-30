@@ -266,6 +266,18 @@ test('cli delegates engine commands directly', () => {
     assert.equal(rules.code, 0, rules.out);
     assert.match(rules.out, /rule\(s\)/);
 
+    // 2b. Rules count-by-pack breakdown works in text and json mode
+    const countText = run([CLI, 'rules', '--count-by-pack']);
+    assert.equal(countText.code, 0, countText.out);
+    assert.match(countText.out, /\bsecret\s+\d+/);
+    assert.match(countText.out, /\btotal:\s+\d+/);
+
+    const countJson = run([CLI, 'rules', '--count-by-pack', '--json']);
+    assert.equal(countJson.code, 0, countJson.out);
+    const parsed = JSON.parse(countJson.out);
+    assert.ok(parsed.secret >= 15);
+    assert.ok(parsed.py >= 34);
+
     // 3. Planting a finding triggers exit code 2
     writeFileSync(join(dir, 'insecure.js'), 'const key = "sk_live_' + '123456789012345678901234";\n');
     const dirty = run([CLI, 'detect', '--no-config', dir]);

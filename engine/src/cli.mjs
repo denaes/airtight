@@ -9,7 +9,7 @@
 // Every verb returns a code; nothing here calls process.exit except main, so
 // the engine stays testable in-process.
 
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compileAll, immediateTier } from './rules.mjs';
@@ -40,6 +40,7 @@ Options
   --json                 machine-readable output
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
+  --count-by-pack        display rule counts broken down by pack
   --no-config            ignore .airtight/config.json suppressions
   --status <status>      filter findings by status
   --framework <name>     project controls onto one compliance framework
@@ -47,6 +48,26 @@ Options
   --file <glob>          scope a value waiver to paths (repeatable)
   --fingerprint <hex>    waive a redacted finding by its fingerprint
 `;
+
+function checkStaleRules(bundlePath) {
+  try {
+    const rulesDir = join(HERE, '..', 'rules');
+    if (!existsSync(rulesDir)) return;
+    const bundleStat = statSync(bundlePath);
+    const yamlFiles = readdirSync(rulesDir).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+    for (const f of yamlFiles) {
+      const yamlStat = statSync(join(rulesDir, f));
+      if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
+        process.stderr.write(
+          `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules\n`
+        );
+        break;
+      }
+    }
+  } catch {
+    // Fail open on stat errors
+  }
+}
 
 function loadRules(env) {
   const candidates = [
@@ -57,7 +78,9 @@ function loadRules(env) {
 
   for (const path of candidates) {
     try {
-      return compileAll(JSON.parse(readFileSync(path, 'utf8')));
+      const data = JSON.parse(readFileSync(path, 'utf8'));
+      checkStaleRules(path);
+      return compileAll(data);
     } catch (err) {
       if (err?.code !== 'ENOENT') throw err;
     }
@@ -77,6 +100,7 @@ function parseArgs(argv) {
     if (a === '--json') opts.json = true;
     else if (a === '--no-config') opts.useConfig = false;
     else if (a === '--pack') opts.packs.push(argv[++i]);
+    else if (a === '--count-by-pack') opts.flags['count-by-pack'] = true;
     else if (a === '--file') (opts.files ??= []).push(argv[++i]);
     else if (a === '--tier') opts.tier = argv[++i];
     else if (FLAGS_WITH_VALUES.has(a)) opts.flags[a.slice(2)] = argv[++i];
@@ -121,6 +145,19 @@ function cmdRules(argv, io, env) {
   const opts = parseArgs(argv);
   let rules = loadRules(env);
   if (opts.packs.length) rules = rules.filter((r) => opts.packs.includes(r.pack));
+  if (opts.flags['count-by-pack']) {
+    const counts = {};
+    for (const r of rules) counts[r.pack] = (counts[r.pack] ?? 0) + 1;
+    if (opts.json) {
+      io.out(JSON.stringify(counts, null, 2));
+    } else {
+      for (const [pack, count] of Object.entries(counts).sort()) {
+        io.out(`${pack.padEnd(16)} ${count}`);
+      }
+      io.out(`\ntotal: ${rules.length}`);
+    }
+    return 0;
+  }
   if (opts.json) { io.out(JSON.stringify(rules.map(stripCompiled), null, 2)); return 0; }
   for (const r of rules) {
     io.out(`${r.id.padEnd(40)} ${`${r.severity}/${r.confidence}`.padEnd(20)} ${r.tier.padEnd(9)} ${r.name}`);

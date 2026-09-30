@@ -87,18 +87,40 @@ function auditDocs(rulesInfo) {
   let readmeStale = false;
   let updatedReadme = readme;
 
-  for (const [, n, noun] of readme.matchAll(/(\d+)\s+(rules|commands)\b/g)) {
+  for (const [, n, noun] of readme.matchAll(/(\d+)[\s\n>]+(rules|commands)\b/g)) {
     const expected = noun === 'rules' ? rulesInfo.rules.length : commandCount;
     if (Number(n) !== expected) {
       readmeStale = true;
       if (FIX) {
         updatedReadme = updatedReadme.replace(
-          new RegExp(`\\b${n}\\s+${noun}\\b`, 'g'),
-          `${expected} ${noun}`,
+          new RegExp(`\\b${n}([\\s\\n>]+)${noun}\\b`, 'g'),
+          `${expected}$1${noun}`,
         );
       } else {
         fail(`README.md claims ${n} ${noun}; actual count is ${expected}.`);
       }
+    }
+  }
+
+  // Audit Rule packs table rows
+  for (const [pack, count] of rulesInfo.packs.entries()) {
+    const tableRowRegex = new RegExp(`\\|\\s*\`(${pack})\`\\s*\\|\\s*(\\d+)\\s*\\|`);
+    const match = updatedReadme.match(tableRowRegex);
+    if (match) {
+      const statedCount = Number(match[2]);
+      if (statedCount !== count) {
+        readmeStale = true;
+        if (FIX) {
+          updatedReadme = updatedReadme.replace(
+            tableRowRegex,
+            `| \`${pack}\` | ${count} |`,
+          );
+        } else {
+          fail(`README.md pack table lists ${statedCount} rules for ${pack}, but actual count is ${count}.`);
+        }
+      }
+    } else {
+      fail(`README.md pack table is missing pack '${pack}'.`);
     }
   }
 

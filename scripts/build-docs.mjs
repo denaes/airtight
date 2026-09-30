@@ -31,6 +31,9 @@ const PACK_TITLES = {
   k8s: 'Kubernetes',
   js: 'JavaScript and TypeScript',
   py: 'Python',
+  go: 'Go',
+  java: 'Java',
+  rust: 'Rust',
 };
 
 const TIER_NOTE = {

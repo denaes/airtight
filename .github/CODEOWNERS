@@ -1,0 +1,17 @@
+# Code Owners
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repository
+* @denaes
+
+# Core deterministic engine and rules
+/engine/ @denaes
+/engine/rules/ @denaes
+
+# Agent skill and playbooks
+/skill/ @denaes
+
+# Generated and tracked harness distributions
+/.claude/ @denaes
+/.cursor/ @denaes
+/plugin/ @denaes

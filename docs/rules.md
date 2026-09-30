@@ -13,12 +13,12 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
 | [`container`](#container) | 10 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
-| [`go`](#go) | 19 | 16 | go |
-| [`java`](#java) | 18 | 17 | java |
+| [`go`](#go) | 19 | 16 | Go |
+| [`java`](#java) | 18 | 17 | Java |
 | [`js`](#js) | 29 | 18 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 18 | 8 | Kubernetes |
 | [`py`](#py) | 34 | 28 | Python |
-| [`rust`](#rust) | 8 | 7 | rust |
+| [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 20 | 7 | Terraform |
 
@@ -399,7 +399,7 @@ Any publish by the maintainer, or by anyone who compromises their account, is in
 
 ## go
 
-go. 19 rules.
+Go. 19 rules.
 
 ### `go/bind-all-interfaces`
 
@@ -632,7 +632,7 @@ Joining an archive entry's filename directly to a destination directory without 
 
 ## java
 
-java. 18 rules.
+Java. 18 rules.
 
 ### `java/command-exec`
 
@@ -1840,7 +1840,7 @@ Calling ZipFile.extractall() without validating member filepaths allows Zip Slip
 
 ## rust
 
-rust. 8 rules.
+Rust. 8 rules.
 
 ### `rust/command-injection`
 

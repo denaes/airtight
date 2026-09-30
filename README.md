@@ -134,9 +134,11 @@ prevent.
 | `dep` | 12 | text | Install scripts, wildcard versions, plaintext registries, unpinned git refs |
 | `terraform` | 20 | hcl | Open ingress, wildcard IAM, public storage, unencrypted state |
 | `k8s` | 18 | yaml | Privileged pods, host namespaces, wildcard RBAC, runtime socket mounts |
-| `js` | 23 | text | Injection sinks, TLS and CORS misconfiguration, credential harvesting |
-| `py` | 21 | text | Deserialization, `shell=True`, f-string SQL, credential exfiltration |
-| `go` | 2 | text | Host credential file access, environment exfiltration |
+| `js` | 29 | text | Injection sinks, TLS/CORS misconfiguration, prototype pollution, JWT verification, body limits |
+| `py` | 34 | text | Deserialization, `shell=True`, SQL injection, SSRF, JWT verification, deprecated SSL |
+| `go` | 19 | text | SQL injection, shell exec, TLS verification, temporary files, XXE, SSRF |
+| `java` | 18 | text | Command execution, SQL concat, XXE parsers, path traversal, LDAP, SSRF |
+| `rust` | 8 | text | Command injection, SQL formatting, insecure temporary files, weak RNG |
 
 ## The edit hook
 
