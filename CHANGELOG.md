@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JavaScript & TypeScript Pack** (29 rules): JWT decoded without signature verification (`jwt-decode-unverified`), excessive body parser request limits (`express-body-parser-large-limit`), prototype pollution, node-serialize, libxml XXE, CSRF ignore methods.
 - **CLI Stale Rule Detection**: `engine/src/cli.mjs` checks file modification timestamps on `engine/rules/*.yaml` and warns developers when source YAMLs are newer than the compiled rule bundle.
 - **Rule Breakdown Command**: `airtight rules --count-by-pack [--json]` emits per-pack rule distributions.
+- **Baseline Filtering Mode**: `airtight detect --baseline <path>` suppresses known findings from historical `.airtight/findings.ndjson` or JSON scans, reporting only new net-delta findings and enabling immediate CI adoption on legacy repositories.
+- **Git Diff Mode**: `airtight detect --since <git-ref>` restricts scanner execution to files modified or added since a git reference, drastically speeding up PR analysis.
 - **Automated Pack Table Auditing**: Pre-commit progress audit (`npm run audit:progress`) verifies that the README rule packs table and counts exactly match compiled engine state.
 - **CI Supply-Chain Hardening**: GitHub Actions workflows pin third-party actions to immutable commit SHAs with semantic version trailing comments, and check all 18 tracked agent harnesses for output drift.
 

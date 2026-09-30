@@ -10,7 +10,7 @@
 // produce edits on different lines, so git merges them without a conflict, and
 // `grep` still works on it.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { SLA_DAYS } from './findings.mjs';
 
@@ -46,6 +46,50 @@ export function load(root) {
     }
   }
   return out;
+}
+
+export function loadBaseline(pathOrRoot) {
+  let filePath = pathOrRoot;
+  if (existsSync(filePath) && statSync(filePath).isDirectory()) {
+    filePath = join(pathOrRoot, STORE_PATH);
+  }
+  if (!existsSync(filePath)) {
+    throw new Error(`baseline file not found: ${pathOrRoot}`);
+  }
+  const content = readFileSync(filePath, 'utf8').trim();
+  const baselineIds = new Set();
+  if (content.startsWith('[') || content.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(content);
+      const list = Array.isArray(parsed) ? parsed : (parsed.findings ?? []);
+      for (const item of list) {
+        if (item.id) baselineIds.add(item.id);
+        if (item.valueFingerprint) baselineIds.add(item.valueFingerprint);
+      }
+      return baselineIds;
+    } catch {
+      // Fall through to NDJSON line parsing
+    }
+  }
+  for (const line of content.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec.id) baselineIds.add(rec.id);
+      if (rec.valueFingerprint) baselineIds.add(rec.valueFingerprint);
+    } catch {
+      // ignore corrupt lines
+    }
+  }
+  return baselineIds;
+}
+
+export function filterBaseline(findings, baselineIds) {
+  return findings.filter((f) => {
+    if (baselineIds.has(f.id)) return false;
+    if (f.valueFingerprint && baselineIds.has(f.valueFingerprint)) return false;
+    return true;
+  });
 }
 
 export function save(root, records) {

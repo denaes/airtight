@@ -288,3 +288,42 @@ test('cli delegates engine commands directly', () => {
   }
 });
 
+test('detect --baseline reports only new findings and ignores baseline ones', () => {
+  const dir = project();
+  try {
+    const file1 = join(dir, 'key1.js');
+    writeFileSync(file1, 'const k1 = "sk_live_' + '111111111111111111111111";\n');
+
+    // 1. Initial scan has 1 finding
+    const initial = run([CLI, 'detect', '--no-config', '--json', dir]);
+    assert.equal(initial.code, 2);
+    const baselinePath = join(dir, 'baseline.json');
+    writeFileSync(baselinePath, initial.out);
+
+    // 2. Scan with --baseline reports 0 findings and exit code 0
+    const cleanWithBaseline = run([CLI, 'detect', '--no-config', '--baseline', baselinePath, dir]);
+    assert.equal(cleanWithBaseline.code, 0, cleanWithBaseline.out);
+    assert.match(cleanWithBaseline.out, /no findings/);
+    assert.match(cleanWithBaseline.out, /1 baseline finding\(s\) ignored/);
+
+    // 3. Add a second finding
+    const file2 = join(dir, 'key2.js');
+    writeFileSync(file2, 'const k2 = "sk_live_' + '222222222222222222222222";\n');
+
+    // 4. Scan with --baseline reports only the new finding (exit code 2)
+    const deltaScan = run([CLI, 'detect', '--no-config', '--baseline', baselinePath, dir]);
+    assert.equal(deltaScan.code, 2, deltaScan.out);
+    assert.match(deltaScan.out, /1 finding\(s\)/);
+    assert.match(deltaScan.out, /key2\.js/);
+    assert.doesNotMatch(deltaScan.out, /key1\.js/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('detect --since limits scan to files modified since git ref', () => {
+  const scan = run([CLI, 'detect', '--since', 'HEAD']);
+  assert.equal(scan.code, 0, scan.out);
+  assert.match(scan.out, /no findings/);
+});
+

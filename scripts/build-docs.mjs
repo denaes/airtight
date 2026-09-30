@@ -116,7 +116,7 @@ function commandsDoc(meta, skillSrc) {
     '```bash',
     'airtight hooks on | off | status',
     'airtight hooks ignore-value <rule> "<value>" --reason "..."',
-    'airtight detect [paths] [--json] [--tier immediate] [--pack <name>]',
+    'airtight detect [paths] [--json] [--tier immediate] [--pack <name>] [--baseline <path>] [--since <ref>]',
     'airtight findings sync | list | accept | overdue',
     'airtight controls verify | coverage --framework <name>',
     'airtight context',

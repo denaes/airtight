@@ -9,6 +9,7 @@
 // Every verb returns a code; nothing here calls process.exit except main, so
 // the engine stays testable in-process.
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, realpathSync, statSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -41,6 +42,8 @@ Options
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
   --count-by-pack        display rule counts broken down by pack
+  --baseline <path>      report only findings not present in baseline file
+  --since <git-ref>      limit scan to files modified since git-ref
   --no-config            ignore .airtight/config.json suppressions
   --status <status>      filter findings by status
   --framework <name>     project controls onto one compliance framework
@@ -90,8 +93,37 @@ function loadRules(env) {
 
 const FLAGS_WITH_VALUES = new Set([
   '--tier', '--pack', '--status', '--framework', '--reason', '--approver',
-  '--expires', '--fingerprint',
+  '--expires', '--fingerprint', '--baseline', '--since',
 ]);
+
+function getChangedFilesSince(root, ref) {
+  try {
+    const diffOut = execFileSync('git', ['diff', '--name-only', '--diff-filter=ACMR', ref], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const untrackedOut = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const set = new Set(
+      `${diffOut}\n${untrackedOut}`
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((p) => resolve(root, p))
+        .filter((p) => {
+          try { return statSync(p).isFile(); } catch { return false; }
+        })
+    );
+    return [...set];
+  } catch (err) {
+    const msg = err.stderr ? err.stderr.toString().trim() : err.message;
+    throw new Error(`git diff failed for --since "${ref}": ${msg}`);
+  }
+}
 
 function parseArgs(argv) {
   const opts = { json: false, tier: null, packs: [], useConfig: true, paths: [], flags: {} };
@@ -122,15 +154,41 @@ function runScan(opts, env, { defaultPaths = ['.'] } = {}) {
   const config = opts.useConfig ? loadConfig(root) : { detector: {} };
   const isSuppressed = opts.useConfig ? buildFilter(config) : null;
 
-  const paths = opts.paths.length ? opts.paths : defaultPaths;
-  const files = collectTargets(root, paths.map((p) => resolve(root, p)));
+  let files;
+  if (opts.flags.since) {
+    const changed = getChangedFilesSince(root, opts.flags.since);
+    if (opts.paths.length) {
+      const targetPaths = opts.paths.map((p) => resolve(root, p));
+      files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith('/') ? t : `${t}/`)));
+    } else {
+      files = changed;
+    }
+  } else {
+    const paths = opts.paths.length ? opts.paths : defaultPaths;
+    files = collectTargets(root, paths.map((p) => resolve(root, p)));
+  }
+
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
+  let findings = scanned.findings;
+  let baselineIgnored = 0;
+
+  if (opts.flags.baseline) {
+    const baselineIds = store.loadBaseline(resolve(root, opts.flags.baseline));
+    const totalBefore = findings.length;
+    findings = store.filterBaseline(findings, baselineIds);
+    baselineIgnored = totalBefore - findings.length;
+  }
 
   return {
     ...scanned,
+    findings,
     root,
     allRuleIds,
-    meta: { filesScanned: files.length - scanned.skipped.length, rulesApplied: rules.length },
+    meta: {
+      filesScanned: files.length - scanned.skipped.length,
+      rulesApplied: rules.length,
+      ...(baselineIgnored > 0 ? { baselineIgnored } : {}),
+    },
   };
 }
 

@@ -9,8 +9,9 @@ export function renderJson({ findings, vault, meta }) {
 }
 
 export function renderText({ findings, vault, meta }) {
+  const baselineNote = meta?.baselineIgnored ? ` (${meta.baselineIgnored} baseline finding(s) ignored)` : '';
   if (findings.length === 0) {
-    return vault.scrub(`airtight: no findings in ${meta.filesScanned} file(s).`);
+    return vault.scrub(`airtight: no findings in ${meta.filesScanned} file(s)${baselineNote}.`);
   }
 
   const byFile = new Map();
@@ -21,7 +22,7 @@ export function renderText({ findings, vault, meta }) {
 
   const out = [];
   const counts = tally(findings);
-  out.push(`airtight: ${findings.length} finding(s) in ${byFile.size} file(s) (${counts}).`);
+  out.push(`airtight: ${findings.length} finding(s) in ${byFile.size} file(s) (${counts})${baselineNote}.`);
   out.push('');
 
   for (const [file, group] of byFile) {

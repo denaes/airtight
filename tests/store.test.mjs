@@ -123,3 +123,35 @@ test('a corrupt line is skipped rather than failing the whole load', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('baseline loading and filtering suppresses known findings', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'airtight-baseline-'));
+  try {
+    const f1 = finding({ id: 'f1111111', valueFingerprint: 'vp1' });
+    const f2 = finding({ id: 'f2222222', valueFingerprint: 'vp2' });
+    const f3 = finding({ id: 'f3333333', valueFingerprint: 'vp3' });
+
+    // 1. NDJSON baseline
+    const ndjsonPath = join(dir, 'baseline.ndjson');
+    const { records } = store.reconcile(new Map(), [f1, f2]);
+    store.save(dir, records); // writes to .airtight/findings.ndjson
+    const loaded = store.loadBaseline(dir);
+    assert.ok(loaded.has('f1111111'));
+    assert.ok(loaded.has('f2222222'));
+    assert.ok(!loaded.has('f3333333'));
+
+    // Filter current findings [f1, f2, f3] against baseline
+    const remaining = store.filterBaseline([f1, f2, f3], loaded);
+    assert.equal(remaining.length, 1);
+    assert.equal(remaining[0].id, 'f3333333');
+
+    // 2. JSON baseline format
+    const jsonPath = join(dir, 'scan.json');
+    appendFileSync(jsonPath, JSON.stringify({ findings: [f1] }));
+    const jsonLoaded = store.loadBaseline(jsonPath);
+    assert.ok(jsonLoaded.has('f1111111'));
+    assert.ok(!jsonLoaded.has('f2222222'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

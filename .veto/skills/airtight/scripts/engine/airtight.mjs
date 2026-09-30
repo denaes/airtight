@@ -7371,7 +7371,8 @@ var require_dist = __commonJS({
 });
 
 // engine/src/cli.mjs
-import { readFileSync as readFileSync8, realpathSync as realpathSync2, statSync as statSync4, readdirSync as readdirSync2, existsSync as existsSync6 } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync as readFileSync8, realpathSync as realpathSync2, statSync as statSync5, readdirSync as readdirSync2, existsSync as existsSync6 } from "node:fs";
 import { dirname as dirname4, join as join8, resolve as resolve2 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -8634,8 +8635,9 @@ function renderJson({ findings, vault, meta }) {
   return JSON.stringify(payload2, null, 2);
 }
 function renderText({ findings, vault, meta }) {
+  const baselineNote = meta?.baselineIgnored ? ` (${meta.baselineIgnored} baseline finding(s) ignored)` : "";
   if (findings.length === 0) {
-    return vault.scrub(`airtight: no findings in ${meta.filesScanned} file(s).`);
+    return vault.scrub(`airtight: no findings in ${meta.filesScanned} file(s)${baselineNote}.`);
   }
   const byFile = /* @__PURE__ */ new Map();
   for (const f of findings) {
@@ -8644,7 +8646,7 @@ function renderText({ findings, vault, meta }) {
   }
   const out = [];
   const counts = tally(findings);
-  out.push(`airtight: ${findings.length} finding(s) in ${byFile.size} file(s) (${counts}).`);
+  out.push(`airtight: ${findings.length} finding(s) in ${byFile.size} file(s) (${counts})${baselineNote}.`);
   out.push("");
   for (const [file, group] of byFile) {
     out.push(file);
@@ -8666,7 +8668,7 @@ function tally(findings) {
 }
 
 // engine/src/store.mjs
-import { readFileSync as readFileSync3, writeFileSync, mkdirSync, existsSync as existsSync2 } from "node:fs";
+import { readFileSync as readFileSync3, writeFileSync, mkdirSync, existsSync as existsSync2, statSync as statSync2 } from "node:fs";
 import { dirname, join as join3 } from "node:path";
 var STORE_PATH = ".airtight/findings.ndjson";
 var ACTIVE = /* @__PURE__ */ new Set(["open", "verified", "regressed"]);
@@ -8686,6 +8688,46 @@ function load(root) {
     }
   }
   return out;
+}
+function loadBaseline(pathOrRoot) {
+  let filePath = pathOrRoot;
+  if (existsSync2(filePath) && statSync2(filePath).isDirectory()) {
+    filePath = join3(pathOrRoot, STORE_PATH);
+  }
+  if (!existsSync2(filePath)) {
+    throw new Error(`baseline file not found: ${pathOrRoot}`);
+  }
+  const content = readFileSync3(filePath, "utf8").trim();
+  const baselineIds = /* @__PURE__ */ new Set();
+  if (content.startsWith("[") || content.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(content);
+      const list = Array.isArray(parsed) ? parsed : parsed.findings ?? [];
+      for (const item of list) {
+        if (item.id) baselineIds.add(item.id);
+        if (item.valueFingerprint) baselineIds.add(item.valueFingerprint);
+      }
+      return baselineIds;
+    } catch {
+    }
+  }
+  for (const line of content.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec.id) baselineIds.add(rec.id);
+      if (rec.valueFingerprint) baselineIds.add(rec.valueFingerprint);
+    } catch {
+    }
+  }
+  return baselineIds;
+}
+function filterBaseline(findings, baselineIds) {
+  return findings.filter((f) => {
+    if (baselineIds.has(f.id)) return false;
+    if (f.valueFingerprint && baselineIds.has(f.valueFingerprint)) return false;
+    return true;
+  });
 }
 function save(root, records) {
   const path = join3(root, STORE_PATH);
@@ -8777,7 +8819,7 @@ function summarize(store) {
 }
 
 // engine/src/context.mjs
-import { existsSync as existsSync4, readFileSync as readFileSync5, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync4, readFileSync as readFileSync5, statSync as statSync3 } from "node:fs";
 import { join as join5 } from "node:path";
 
 // engine/src/controls.mjs
@@ -8898,7 +8940,7 @@ function detectStack(root, ignoreFiles = []) {
 function readIfPresent(root, name) {
   const path = join5(root, name);
   try {
-    return statSync2(path).isFile() ? readFileSync5(path, "utf8") : null;
+    return statSync3(path).isFile() ? readFileSync5(path, "utf8") : null;
   } catch {
     return null;
   }
@@ -9027,7 +9069,7 @@ ${JSON.stringify({
 }
 
 // engine/src/hook.mjs
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, statSync as statSync3, realpathSync } from "node:fs";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, statSync as statSync4, realpathSync } from "node:fs";
 import { dirname as dirname2, join as join6, relative as relative2, resolve, sep as sep2 } from "node:path";
 var ENVELOPE = "[airtight@1]";
 var CACHE_PATH = ".airtight/hook.cache.json";
@@ -9095,7 +9137,7 @@ function loadCache(root) {
 }
 function saveCache(root, cache2) {
   try {
-    if (!statSync3(join6(root, ".airtight")).isDirectory()) return;
+    if (!statSync4(join6(root, ".airtight")).isDirectory()) return;
   } catch {
     return;
   }
@@ -9230,7 +9272,7 @@ function runHook(io, env, stdinText) {
       if (!isScannable(rel)) continue;
       if (matchesAny(rel, config.detector?.ignoreFiles ?? [])) continue;
       try {
-        if (statSync3(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
+        if (statSync4(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
       } catch {
         continue;
       }
@@ -9452,6 +9494,8 @@ Options
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
   --count-by-pack        display rule counts broken down by pack
+  --baseline <path>      report only findings not present in baseline file
+  --since <git-ref>      limit scan to files modified since git-ref
   --no-config            ignore .airtight/config.json suppressions
   --status <status>      filter findings by status
   --framework <name>     project controls onto one compliance framework
@@ -9463,10 +9507,10 @@ function checkStaleRules(bundlePath) {
   try {
     const rulesDir = join8(HERE, "..", "rules");
     if (!existsSync6(rulesDir)) return;
-    const bundleStat = statSync4(bundlePath);
+    const bundleStat = statSync5(bundlePath);
     const yamlFiles = readdirSync2(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const f of yamlFiles) {
-      const yamlStat = statSync4(join8(rulesDir, f));
+      const yamlStat = statSync5(join8(rulesDir, f));
       if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
         process.stderr.write(
           `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules
@@ -9503,8 +9547,38 @@ var FLAGS_WITH_VALUES = /* @__PURE__ */ new Set([
   "--reason",
   "--approver",
   "--expires",
-  "--fingerprint"
+  "--fingerprint",
+  "--baseline",
+  "--since"
 ]);
+function getChangedFilesSince(root, ref) {
+  try {
+    const diffOut = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMR", ref], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const untrackedOut = execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const set = new Set(
+      `${diffOut}
+${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve2(root, p)).filter((p) => {
+        try {
+          return statSync5(p).isFile();
+        } catch {
+          return false;
+        }
+      })
+    );
+    return [...set];
+  } catch (err) {
+    const msg = err.stderr ? err.stderr.toString().trim() : err.message;
+    throw new Error(`git diff failed for --since "${ref}": ${msg}`);
+  }
+}
 function parseArgs(argv) {
   const opts = { json: false, tier: null, packs: [], useConfig: true, paths: [], flags: {} };
   for (let i = 0; i < argv.length; i += 1) {
@@ -9529,14 +9603,38 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.packs.length) rules = rules.filter((r) => opts.packs.includes(r.pack));
   const config = opts.useConfig ? loadConfig(root) : { detector: {} };
   const isSuppressed = opts.useConfig ? buildFilter(config) : null;
-  const paths = opts.paths.length ? opts.paths : defaultPaths;
-  const files = collectTargets(root, paths.map((p) => resolve2(root, p)));
+  let files;
+  if (opts.flags.since) {
+    const changed = getChangedFilesSince(root, opts.flags.since);
+    if (opts.paths.length) {
+      const targetPaths = opts.paths.map((p) => resolve2(root, p));
+      files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith("/") ? t : `${t}/`)));
+    } else {
+      files = changed;
+    }
+  } else {
+    const paths = opts.paths.length ? opts.paths : defaultPaths;
+    files = collectTargets(root, paths.map((p) => resolve2(root, p)));
+  }
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
+  let findings = scanned.findings;
+  let baselineIgnored = 0;
+  if (opts.flags.baseline) {
+    const baselineIds = loadBaseline(resolve2(root, opts.flags.baseline));
+    const totalBefore = findings.length;
+    findings = filterBaseline(findings, baselineIds);
+    baselineIgnored = totalBefore - findings.length;
+  }
   return {
     ...scanned,
+    findings,
     root,
     allRuleIds,
-    meta: { filesScanned: files.length - scanned.skipped.length, rulesApplied: rules.length }
+    meta: {
+      filesScanned: files.length - scanned.skipped.length,
+      rulesApplied: rules.length,
+      ...baselineIgnored > 0 ? { baselineIgnored } : {}
+    }
   };
 }
 function cmdDetect(argv, io, env) {
