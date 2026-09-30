@@ -1,0 +1,143 @@
+name: 'Airtight Security Scan'
+description: 'Fast, deterministic security scanner with SARIF reporting for GitHub Code Scanning and AI agent guardrails'
+author: 'denaes'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  paths:
+    description: 'Paths or directories to scan (separated by space)'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format (sarif, json, or text)'
+    required: false
+    default: 'sarif'
+  sarif-file:
+    description: 'Filename for SARIF report'
+    required: false
+    default: 'airtight.sarif'
+  upload-sarif:
+    description: 'Upload generated SARIF to GitHub Code Scanning'
+    required: false
+    default: 'true'
+  baseline:
+    description: 'Path to baseline JSON file to suppress known findings'
+    required: false
+    default: ''
+  since:
+    description: 'Git ref to limit scan to changed files'
+    required: false
+    default: ''
+  tier:
+    description: 'Filter rules by tier (e.g. immediate)'
+    required: false
+    default: ''
+  pack:
+    description: 'Restrict to one rule pack (e.g. secret, injection)'
+    required: false
+    default: ''
+  verify-controls:
+    description: 'Verify declared controls in .airtight/controls.json'
+    required: false
+    default: 'false'
+  fail-on-findings:
+    description: 'Fail the step if findings are present'
+    required: false
+    default: 'true'
+
+outputs:
+  findings-count:
+    description: 'Number of findings detected'
+    value: ${{ steps.scan.outputs.findings-count }}
+  sarif-path:
+    description: 'Path to the generated SARIF report file'
+    value: ${{ steps.scan.outputs.sarif-path }}
+  exit-code:
+    description: 'Scanner exit code (0: clean, 2: findings detected)'
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+      with:
+        node-version: '20'
+
+    - name: Run Airtight Scan
+      id: scan
+      shell: bash
+      run: |
+        ENGINE="${{ github.action_path }}/skill/scripts/engine/airtight.mjs"
+        if [ ! -f "$ENGINE" ]; then
+          ENGINE="${{ github.action_path }}/engine/src/cli.mjs"
+        fi
+
+        RULES="${{ github.action_path }}/skill/scripts/rules.json"
+        if [ ! -f "$RULES" ]; then
+          RULES="${{ github.action_path }}/engine/build/rules.json"
+        fi
+        export AIRTIGHT_RULES="$RULES"
+
+        CMD_ARGS=("detect" "--format" "${{ inputs.format }}")
+
+        if [ -n "${{ inputs.baseline }}" ]; then
+          CMD_ARGS+=("--baseline" "${{ inputs.baseline }}")
+        fi
+
+        if [ -n "${{ inputs.since }}" ]; then
+          CMD_ARGS+=("--since" "${{ inputs.since }}")
+        fi
+
+        if [ -n "${{ inputs.tier }}" ]; then
+          CMD_ARGS+=("--tier" "${{ inputs.tier }}")
+        fi
+
+        if [ -n "${{ inputs.pack }}" ]; then
+          CMD_ARGS+=("--pack" "${{ inputs.pack }}")
+        fi
+
+        CMD_ARGS+=(${{ inputs.paths }})
+
+        SCAN_EXIT=0
+        if [ "${{ inputs.format }}" = "sarif" ]; then
+          SARIF_FILE="${{ inputs.sarif-file }}"
+          node "$ENGINE" "${CMD_ARGS[@]}" > "$SARIF_FILE" || SCAN_EXIT=$?
+          echo "sarif-path=$SARIF_FILE" >> "$GITHUB_OUTPUT"
+
+          COUNT=$(node -e "try { const d = JSON.parse(require('fs').readFileSync('$SARIF_FILE', 'utf8')); console.log(d.runs?.[0]?.results?.length || 0); } catch { console.log(0); }")
+          echo "findings-count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Airtight Scan::Detected $COUNT security finding(s)"
+        else
+          node "$ENGINE" "${CMD_ARGS[@]}" || SCAN_EXIT=$?
+          echo "findings-count=0" >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "exit-code=$SCAN_EXIT" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF report to GitHub Code Scanning
+      if: ${{ inputs.upload-sarif == 'true' && inputs.format == 'sarif' }}
+      uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: airtight
+      continue-on-error: true
+
+    - name: Verify Controls
+      if: ${{ inputs.verify-controls == 'true' }}
+      shell: bash
+      run: |
+        ENGINE="${{ github.action_path }}/skill/scripts/engine/airtight.mjs"
+        if [ ! -f "$ENGINE" ]; then
+          ENGINE="${{ github.action_path }}/engine/src/cli.mjs"
+        fi
+        node "$ENGINE" controls verify
+
+    - name: Check Scan Result
+      if: ${{ inputs.fail-on-findings == 'true' && steps.scan.outputs.exit-code != '0' }}
+      shell: bash
+      run: |
+        echo "::error title=Airtight Security Scan Failed::Security findings detected (exit code ${{ steps.scan.outputs.exit-code }})."
+        exit ${{ steps.scan.outputs.exit-code }}

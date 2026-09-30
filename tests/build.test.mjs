@@ -9,6 +9,7 @@ import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { ROOT } from './helpers.mjs';
 import { providerList, placeholdersFor } from '../scripts/lib/providers.js';
+import { parse as parseYaml } from 'yaml';
 
 const CLAUDE_SKILL = resolve(ROOT, '.claude/skills/airtight');
 const PLUGIN = resolve(ROOT, 'plugin');
@@ -250,3 +251,35 @@ test('the launcher stays dependency-light and fails open for the hook', () => {
   assert.match(sh, /exec "\$node_bin"/);
   assert.ok(existsSync(join(CLAUDE_SKILL, 'scripts/airtight.cmd')));
 });
+
+test('action.yml is valid composite GitHub Action with pinned SHAs', () => {
+  const actionFile = resolve(ROOT, 'action.yml');
+  assert.ok(existsSync(actionFile), 'action.yml must exist at repository root');
+
+  const content = read(actionFile);
+  const action = parseYaml(content);
+
+  assert.equal(action.runs.using, 'composite');
+  assert.ok(action.name);
+  assert.ok(action.inputs.paths);
+  assert.ok(action.inputs.format);
+  assert.ok(action.inputs['sarif-file']);
+  assert.ok(action.inputs['upload-sarif']);
+  assert.ok(action.inputs.baseline);
+  assert.ok(action.inputs.since);
+  assert.ok(action.inputs.tier);
+  assert.ok(action.inputs['verify-controls']);
+  assert.ok(action.inputs['fail-on-findings']);
+
+  // Every action used must be pinned to a 40-character commit SHA
+  for (const step of action.runs.steps) {
+    if (step.uses) {
+      assert.match(
+        step.uses,
+        /@[0-9a-f]{40}/,
+        `step "${step.name || step.uses}" uses unpinned action ref: ${step.uses}`
+      );
+    }
+  }
+});
+

@@ -79,6 +79,16 @@ jobs:
       - name: Declared controls are holding
         run: node engine/src/cli.mjs controls verify
 
+      # Test the root composite action directly
+      - name: Composite action executes cleanly
+        uses: ./
+        with:
+          paths: '.'
+          format: 'sarif'
+          sarif-file: 'airtight-ci.sarif'
+          upload-sarif: 'false'
+          verify-controls: 'true'
+
       # The demo's golden output is a regression test with a second job: it
       # keeps the numbers in the README and demo/README.md honest. A claim
       # nobody re-derives is a claim that quietly stops being true.

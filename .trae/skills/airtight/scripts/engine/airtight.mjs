@@ -8667,6 +8667,120 @@ function tally(findings) {
   return PRIORITY_ORDER.filter((p) => counts[p]).map((p) => `${counts[p]} ${p}`).join(", ");
 }
 
+// engine/src/render-sarif.mjs
+function priorityToLevel(priority, severity) {
+  if (priority === "P0" || priority === "P1") return "error";
+  if (priority === "P2") return "warning";
+  if (priority === "P3") return "note";
+  if (severity === "critical" || severity === "high") return "error";
+  if (severity === "medium") return "warning";
+  return "note";
+}
+function confidenceToPrecision(confidence) {
+  if (confidence === "confirmed") return "very-high";
+  if (confidence === "firm") return "high";
+  return "medium";
+}
+function renderSarif({ findings = [], vault, meta, rules = [], version = VERSION } = {}) {
+  const ruleMap = /* @__PURE__ */ new Map();
+  for (const r of rules) {
+    if (r?.id) ruleMap.set(r.id, r);
+  }
+  const citedRuleIds = new Set(findings.map((f) => f.rule));
+  const sarifRules = [];
+  for (const ruleId of citedRuleIds) {
+    const r = ruleMap.get(ruleId) ?? { id: ruleId };
+    const tags = [
+      "security",
+      r.domain,
+      r.cwe,
+      r.owasp
+    ].filter(Boolean);
+    const ruleName = (r.id || "rule").replace(/[^a-zA-Z0-9_-]/g, "-");
+    sarifRules.push({
+      id: r.id,
+      name: ruleName,
+      shortDescription: { text: r.name || r.id },
+      fullDescription: { text: r.why ? r.why.trim() : r.name || r.id },
+      help: {
+        text: `Why: ${r.why || ""}
+
+Fix: ${r.fix || ""}`.trim(),
+        markdown: `### Why
+
+${r.why || ""}
+
+### Fix
+
+${r.fix || ""}`.trim()
+      },
+      properties: {
+        tags,
+        precision: confidenceToPrecision(r.confidence),
+        "problem.severity": r.severity === "critical" || r.severity === "high" ? "error" : "warning"
+      },
+      defaultConfiguration: {
+        level: priorityToLevel(r.priority, r.severity)
+      }
+    });
+  }
+  const results = findings.map((f) => ({
+    ruleId: f.rule,
+    level: priorityToLevel(f.priority, f.severity),
+    message: {
+      text: `${f.message}${f.fix ? `
+
+Fix: ${f.fix}` : ""}`
+    },
+    locations: [
+      {
+        physicalLocation: {
+          artifactLocation: {
+            uri: f.file,
+            uriBaseId: "%SRCROOT%"
+          },
+          region: {
+            startLine: f.line > 0 ? f.line : 1,
+            startColumn: f.column > 0 ? f.column : 1,
+            snippet: {
+              text: f.snippet || ""
+            }
+          }
+        }
+      }
+    ],
+    partialFingerprints: {
+      primaryLocationLineHash: f.valueFingerprint || f.id
+    },
+    properties: {
+      priority: f.priority,
+      severity: f.severity,
+      confidence: f.confidence,
+      ...f.cwe ? { cwe: f.cwe } : {},
+      ...f.owasp ? { owasp: f.owasp } : {}
+    }
+  }));
+  const payload2 = {
+    $schema: "https://json.schemastore.org/sarif-2.1.0.json",
+    version: "2.1.0",
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: "airtight",
+            semanticVersion: version,
+            informationUri: "https://github.com/denaes/airtight",
+            rules: sarifRules
+          }
+        },
+        results
+      }
+    ]
+  };
+  const scrubbed = vault?.scrubDeep ? vault.scrubDeep(payload2) : payload2;
+  return JSON.stringify(scrubbed, null, 2);
+}
+
 // engine/src/store.mjs
 import { readFileSync as readFileSync3, writeFileSync, mkdirSync, existsSync as existsSync2, statSync as statSync2 } from "node:fs";
 import { dirname, join as join3 } from "node:path";
@@ -9477,7 +9591,7 @@ var ESCALATION_NOTICE = "ignore-file and ignore-rule suppress far more than one 
 
 // engine/src/cli.mjs
 var HERE = dirname4(fileURLToPath(import.meta.url));
-var VERSION = "0.3.0";
+var VERSION = "0.3.1";
 var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
@@ -9490,7 +9604,8 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
   airtight engine-probe             launcher handshake
 
 Options
-  --json                 machine-readable output
+  --format <type>        output format: text, json, sarif (default: text)
+  --json                 machine-readable output (alias for --format json)
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
   --count-by-pack        display rule counts broken down by pack
@@ -9549,7 +9664,8 @@ var FLAGS_WITH_VALUES = /* @__PURE__ */ new Set([
   "--expires",
   "--fingerprint",
   "--baseline",
-  "--since"
+  "--since",
+  "--format"
 ]);
 function getChangedFilesSince(root, ref) {
   try {
@@ -9580,10 +9696,13 @@ ${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => res
   }
 }
 function parseArgs(argv) {
-  const opts = { json: false, tier: null, packs: [], useConfig: true, paths: [], flags: {} };
+  const opts = { json: false, format: null, tier: null, packs: [], useConfig: true, paths: [], flags: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === "--json") opts.json = true;
+    if (a === "--json") {
+      opts.json = true;
+      opts.format = "json";
+    } else if (a === "--format") opts.format = argv[++i];
     else if (a === "--no-config") opts.useConfig = false;
     else if (a === "--pack") opts.packs.push(argv[++i]);
     else if (a === "--count-by-pack") opts.flags["count-by-pack"] = true;
@@ -9630,6 +9749,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
     findings,
     root,
     allRuleIds,
+    rules,
     meta: {
       filesScanned: files.length - scanned.skipped.length,
       rulesApplied: rules.length,
@@ -9639,8 +9759,18 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
 }
 function cmdDetect(argv, io, env) {
   const opts = parseArgs(argv);
-  const { findings, vault, meta } = runScan(opts, env);
-  io.out(opts.json ? renderJson({ findings, vault, meta }) : renderText({ findings, vault, meta }));
+  const format = opts.format || (opts.json ? "json" : "text");
+  if (format !== "text" && format !== "json" && format !== "sarif") {
+    throw new Error(`unknown output format: "${format}" (expected: text, json, sarif)`);
+  }
+  const { findings, vault, meta, rules } = runScan(opts, env);
+  if (format === "sarif") {
+    io.out(renderSarif({ findings, vault, meta, rules, version: VERSION }));
+  } else if (format === "json") {
+    io.out(renderJson({ findings, vault, meta }));
+  } else {
+    io.out(renderText({ findings, vault, meta }));
+  }
   return findings.length > 0 ? 2 : 0;
 }
 function cmdRules(argv, io, env) {

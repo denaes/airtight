@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.3.0, installable from npm across 18 harnesses. Engine with 191
+> **Status:** v0.3.1, installable from npm across 18 harnesses. Engine with 191
 > rules, findings store, control register, nine commands, edit hook, installer,
 > docs, and a demo. Benchmarked against four real repositories; see
 > [measured against real code](#measured-against-real-code) for what that
@@ -220,6 +220,18 @@ test plants known secrets and greps every output path for them.
 Findings keep a short non-reversible fingerprint of the value, so the same
 credential in three files is three edits to make but one key to rotate.
 
+## GitHub Actions & CI
+
+Scan pull requests and push findings to GitHub Code Scanning via the composite action:
+
+```yaml
+- uses: denaes/airtight@v0.3.1
+  with:
+    paths: '.'
+    format: 'sarif'
+    upload-sarif: 'true'
+```
+
 ## Development
 
 `skill/` and `engine/` are the authoring surfaces. `.claude/`, `plugin/`, and
@@ -230,9 +242,10 @@ npm install
 npm run build
 npm test
 
-node engine/src/cli.mjs detect .          # exit 0 clean, 2 findings
-node engine/src/cli.mjs detect --json .   # machine-readable
-node engine/src/cli.mjs rules             # the loaded taxonomy
+node engine/src/cli.mjs detect .                # exit 0 clean, 2 findings
+node engine/src/cli.mjs detect --format sarif . # SARIF 2.1.0 for Code Scanning
+node engine/src/cli.mjs detect --json .         # machine-readable JSON
+node engine/src/cli.mjs rules                   # the loaded taxonomy
 ```
 
 Rules are data, authored as YAML in `engine/rules/` and compiled to JSON at

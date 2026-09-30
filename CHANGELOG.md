@@ -5,6 +5,14 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-30
+
+### Added
+- **SARIF 2.1.0 Output Renderer**: `airtight detect --format sarif` outputs compliant OASIS SARIF 2.1.0 JSON with full rule metadata (CWEs, OWASP tags, descriptions, remediation markdown), precision ratings, and location fingerprints (`partialFingerprints.primaryLocationLineHash`) for seamless integration with GitHub Code Scanning, GitLab SAST, and DefectDojo. All SARIF fields scrub through the engine's secret redaction vault.
+- **Reusable Composite GitHub Action (`action.yml`)**: Official composite GitHub Action at repository root (`denaes/airtight@v0.3.1`) for automated CI/CD security scanning. Supports configurable scan paths, baseline suppression (`baseline`), git diff scoping (`since`), SARIF reporting, automatic SARIF upload to GitHub Code Scanning via `github/codeql-action/upload-sarif`, and compliance control verification (`verify-controls`).
+- **Unified Output Formatting**: Added `--format <text|json|sarif>` to the CLI engine (`--json` preserved as an alias for `--format json`).
+- **Redaction Containment Suite**: Extended `tests/redaction.test.mjs` to verify that planted secrets never escape through in-process SARIF rendering or CLI SARIF export.
+
 ## [0.3.0] - 2026-09-30
 
 ### Added

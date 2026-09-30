@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path';
 import { ROOT, allRules } from './helpers.mjs';
 import { scanFiles } from '../engine/src/scan.mjs';
 import { renderJson, renderText } from '../engine/src/render.mjs';
+import { renderSarif } from '../engine/src/render-sarif.mjs';
 
 // Synthetic, but shaped exactly like the real thing — which means airtight
 // finds them when it scans its own repository, correctly. This is the narrowest
@@ -70,6 +71,7 @@ function everyOutputPath(dir) {
     outputs: {
       text: renderText({ findings, vault, meta }),
       json: renderJson({ findings, vault, meta }),
+      sarif: renderSarif({ findings, vault, meta, rules: allRules() }),
       // The store and the hook both serialize findings directly. If the vault
       // were the renderer's job rather than the engine's, this is the path that
       // would leak.
@@ -96,7 +98,7 @@ test('no planted secret survives any in-process output path', () => {
   }
 });
 
-test('no planted secret survives the CLI, in text or json mode', () => {
+test('no planted secret survives the CLI, in text, json, or sarif mode', () => {
   const dir = plantedCorpus();
   try {
     const cli = resolve(ROOT, 'engine/src/cli.mjs');
@@ -112,7 +114,7 @@ test('no planted secret survives the CLI, in text or json mode', () => {
     };
 
     const leaks = [];
-    for (const args of [['detect', '.'], ['detect', '--json', '.']]) {
+    for (const args of [['detect', '.'], ['detect', '--json', '.'], ['detect', '--format', 'sarif', '.']]) {
       const out = run(args);
       assert.ok(out.length > 0, `no output from: ${args.join(' ')}`);
       for (const [name, value] of Object.entries(PLANTED)) {

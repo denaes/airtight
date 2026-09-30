@@ -17,6 +17,7 @@ import { compileAll, immediateTier } from './rules.mjs';
 import { collectTargets, scanFiles } from './scan.mjs';
 import { loadConfig, buildFilter } from './config.mjs';
 import { renderJson, renderText } from './render.mjs';
+import { renderSarif } from './render-sarif.mjs';
 import * as store from './store.mjs';
 import { buildContext } from './context.mjs';
 import { runHook, readStdin } from './hook.mjs';
@@ -24,7 +25,7 @@ import * as hooks from './hooks-admin.mjs';
 import { loadControls, verifyControls, frameworkCoverage, frameworksIn } from './controls.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 
 const USAGE = `airtight ${VERSION} — deterministic security rule engine
 
@@ -38,7 +39,8 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
   airtight engine-probe             launcher handshake
 
 Options
-  --json                 machine-readable output
+  --format <type>        output format: text, json, sarif (default: text)
+  --json                 machine-readable output (alias for --format json)
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
   --count-by-pack        display rule counts broken down by pack
@@ -93,7 +95,7 @@ function loadRules(env) {
 
 const FLAGS_WITH_VALUES = new Set([
   '--tier', '--pack', '--status', '--framework', '--reason', '--approver',
-  '--expires', '--fingerprint', '--baseline', '--since',
+  '--expires', '--fingerprint', '--baseline', '--since', '--format',
 ]);
 
 function getChangedFilesSince(root, ref) {
@@ -126,10 +128,11 @@ function getChangedFilesSince(root, ref) {
 }
 
 function parseArgs(argv) {
-  const opts = { json: false, tier: null, packs: [], useConfig: true, paths: [], flags: {} };
+  const opts = { json: false, format: null, tier: null, packs: [], useConfig: true, paths: [], flags: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--json') opts.json = true;
+    if (a === '--json') { opts.json = true; opts.format = 'json'; }
+    else if (a === '--format') opts.format = argv[++i];
     else if (a === '--no-config') opts.useConfig = false;
     else if (a === '--pack') opts.packs.push(argv[++i]);
     else if (a === '--count-by-pack') opts.flags['count-by-pack'] = true;
@@ -184,6 +187,7 @@ function runScan(opts, env, { defaultPaths = ['.'] } = {}) {
     findings,
     root,
     allRuleIds,
+    rules,
     meta: {
       filesScanned: files.length - scanned.skipped.length,
       rulesApplied: rules.length,
@@ -194,8 +198,18 @@ function runScan(opts, env, { defaultPaths = ['.'] } = {}) {
 
 function cmdDetect(argv, io, env) {
   const opts = parseArgs(argv);
-  const { findings, vault, meta } = runScan(opts, env);
-  io.out(opts.json ? renderJson({ findings, vault, meta }) : renderText({ findings, vault, meta }));
+  const format = opts.format || (opts.json ? 'json' : 'text');
+  if (format !== 'text' && format !== 'json' && format !== 'sarif') {
+    throw new Error(`unknown output format: "${format}" (expected: text, json, sarif)`);
+  }
+  const { findings, vault, meta, rules } = runScan(opts, env);
+  if (format === 'sarif') {
+    io.out(renderSarif({ findings, vault, meta, rules, version: VERSION }));
+  } else if (format === 'json') {
+    io.out(renderJson({ findings, vault, meta }));
+  } else {
+    io.out(renderText({ findings, vault, meta }));
+  }
   return findings.length > 0 ? 2 : 0;
 }
 

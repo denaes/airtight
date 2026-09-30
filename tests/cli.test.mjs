@@ -283,6 +283,15 @@ test('cli delegates engine commands directly', () => {
     const dirty = run([CLI, 'detect', '--no-config', dir]);
     assert.equal(dirty.code, 2, dirty.out);
     assert.match(dirty.out, /secret\/stripe-live-key/);
+
+    // 4. SARIF output via CLI wrapper
+    const dirtySarif = run([CLI, 'detect', '--no-config', '--format', 'sarif', dir]);
+    assert.equal(dirtySarif.code, 2, dirtySarif.out);
+    const parsedSarif = JSON.parse(dirtySarif.out);
+    assert.equal(parsedSarif.version, '2.1.0');
+    assert.equal(parsedSarif.runs[0].results.length, 1);
+    assert.equal(parsedSarif.runs[0].results[0].ruleId, 'secret/stripe-live-key');
+    assert.equal(parsedSarif.runs[0].results[0].level, 'error');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
