@@ -543,3 +543,36 @@
     input.
   fix: Use standard query operators (such as $eq, $in, $gt) instead of JavaScript
     evaluation via $where.
+- id: py/re-compile-from-input
+  name: Regular expression compiled from untrusted request input
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: deep
+  cwe: CWE-1333
+  owasp: A05:2021
+  files:
+    - '**/*.py'
+  match:
+    regex: '(?i)\bre\.(?:compile|search|match|findall|sub)\s*\(\s*(?:request|req)\.(?:args|form|values|json|GET|POST|params)(?:\.get\(|\[)'
+    not_regex: '(?i)^\s*#|re\.escape'
+  message: Regular expression pattern compiled directly from incoming request input (ReDoS risk)
+  why: Compiling or evaluating regular expressions directly from user-supplied input allows attackers to inject catastrophic backtracking patterns (ReDoS), causing prolonged high CPU consumption and service denial.
+  fix: Use re.escape() to sanitize user input before including it in regular expressions, or restrict matching to static, pre-compiled patterns.
+- id: py/zipfile-extractall
+  name: Zip archive extraction without directory traversal protection
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-22
+  owasp: A01:2021
+  files:
+    - "**/*.py"
+  match:
+    regex: '(?i)\b(?:zip_ref|zip_file|zf|archive|z)\.extractall\s*\('
+    not_regex: '(?i)^\s*#|filter\s*=|filter\s*:\s*|is_safe_path|clean_path'
+  message: ZipFile.extractall called without member path filtering (Zip Slip)
+  why: Calling ZipFile.extractall() without validating member filepaths allows Zip Slip attacks where archives containing '../' paths overwrite arbitrary files outside the target extraction directory.
+  fix: Validate that each member's filename does not contain '..' and resolves to a path strictly inside the target directory before extracting, or extract members individually with path sanitation.
+

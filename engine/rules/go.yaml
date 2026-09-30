@@ -220,3 +220,89 @@
     cryptographic keys, session tokens, or authentication secrets.
   fix: Use crypto/rand instead of math/rand for generating security tokens and
     secrets.
+- id: go/cookie-flags
+  name: Insecure cookie missing HttpOnly or Secure flag
+  domain: appsec
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-1004
+  owasp: A05:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)(?:http\.)?Cookie\s*\{[^}]*\b(?:HttpOnly\s*:\s*false|Secure\s*:\s*false)\b'
+    not_regex: '(?i)^\s*//'
+  message: Cookie has HttpOnly or Secure explicitly set to false
+  why: Cookies configured with HttpOnly or Secure set to false can be accessed by client-side scripts via document.cookie during XSS attacks, or transmitted in plaintext over unencrypted HTTP connections where network eavesdroppers can capture session tokens.
+  fix: "Explicitly set HttpOnly: true and Secure: true on all session and authentication cookies in Go services."
+- id: go/gin-debug-mode
+  name: Gin framework running in debug mode
+  domain: appsec
+  severity: low
+  confidence: firm
+  tier: deep
+  cwe: CWE-200
+  owasp: A05:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)\bgin\.SetMode\s*\(\s*(?:gin\.DebugMode|["'']debug["''])\s*\)'
+    not_regex: '(?i)^\s*//|_test\.go'
+  message: Gin web framework configured to run in debug mode
+  why: Running the Gin web framework in debug mode outputs detailed routing logs, internal handlers, and stack traces that expose internal application structure and file paths to users and observers.
+  fix: Use gin.SetMode(gin.ReleaseMode) in production deployments and load the active environment from configuration.
+- id: go/html-template-unescaped
+  name: Template contextual escaping bypassed with template.HTML or template.JS
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-79
+  owasp: A03:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)\btemplate\.(?:HTML|JS|CSS|HTMLAttr|URL)\s*\(\s*(?:r\.URL\.Query|r\.FormValue|c\.Query|c\.Param|req\.|params\b|[a-zA-Z0-9_]*input|[a-zA-Z0-9_]*untrusted|[a-zA-Z0-9_]*user)'
+    not_regex: '(?i)^\s*//'
+  message: Untrusted dynamic input converted to template.HTML or template.JS bypassing auto-escaping
+  why: Go's html/template package automatically escapes data to prevent Cross-Site Scripting (XSS). Converting dynamic user input or request values into template.HTML, template.JS, or template.URL tells the template engine that the string is safe, completely bypassing contextual escaping and allowing malicious script execution.
+  fix: Pass raw strings directly to the template data context rather than wrapping untrusted values in template.HTML, or sanitize the HTML with a dedicated sanitizer like bluemonday before conversion.
+- id: go/ssrf-from-input
+  name: Server-Side Request Forgery from request URL parameter
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-918
+  owasp: A10:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)\bhttp\.(?:Get|Post|Head|PostForm|NewRequest(?:WithContext)?)\s*\([^)]*\b(?:r\.URL\.Query\(\)\.Get|r\.FormValue|c\.Query|c\.Param|req\.URL\.Query\(\)\.Get)\s*\(\s*["''](?:url|target|dest|endpoint|link|webhook|feed|uri|redirect)["'']'
+    not_regex: '(?i)^\s*//'
+  message: Outbound HTTP request target derived directly from request query or form parameter
+  why: Triggering outbound HTTP client requests using URLs passed directly from incoming user request parameters allows attackers to make the server issue requests to internal network services, cloud metadata endpoints (169.254.169.254), or loopback interfaces.
+  fix: Validate the target URL against an explicit allowlist of permitted hosts and schemes, and block access to private, loopback, and link-local IP addresses.
+- id: go/zip-slip
+  name: Arbitrary file overwrite via archive extraction (Zip Slip)
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-22
+  owasp: A01:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)\bfilepath\.Join\s*\([^)]*,\s*(?:f|file|header|tr|hdr)\.Name\b'
+    not_regex: '(?i)^\s*//|filepath\.Clean|strings\.HasPrefix'
+  message: Archive extraction path constructed directly with archive member filename
+  why: Joining an archive entry's filename directly to a destination directory without
+    verifying that the resolved path stays within the target directory allows maliciously
+    crafted archives containing '../' path traversals to overwrite arbitrary system or
+    application files.
+  fix: Verify that the target path is cleaned and has the destination directory as
+    a prefix using strings.HasPrefix(filepath.Clean(dest), targetDir) before creating
+    or writing the file.
+

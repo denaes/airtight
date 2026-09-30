@@ -107,3 +107,20 @@
     man-in-the-middle (MitM) attacks and decrypt or alter traffic.
   fix: Remove danger_accept_invalid_certs(true) and add custom CA certificates to
     the certificate store if private certificates are needed.
+- id: rust/weak-rng
+  name: Insecure random number generator used for sensitive token
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-338
+  owasp: A02:2021
+  files:
+    - "**/*.rs"
+  match:
+    regex: '(?i)(?:token|secret|password|passwd|apiKey|session|nonce|salt|auth)\s*[:=][^\n]*\b(?:rand::thread_rng|rand::random)\b|\b(?:rand::thread_rng|rand::random)\b[^\n]*(?:token|secret|password|passwd|apiKey|session|nonce|salt|auth)'
+    not_regex: '(?i)^\s*//|OsRng|StdRng'
+  message: Non-cryptographic RNG rand::thread_rng or rand::random used for security-sensitive token or secret
+  why: Default thread_rng in the rand crate is not guaranteed to be cryptographically secure across all platforms and seed states, making tokens generated with it potentially predictable.
+  fix: Use rand::rngs::OsRng or a dedicated cryptographic key generator (such as ring or rand_core) for security-sensitive tokens and secrets.
+

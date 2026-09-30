@@ -2,7 +2,7 @@
 
 # Rule reference
 
-171 rules across 11 packs. 115 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+181 rules across 11 packs. 123 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -13,12 +13,12 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
 | [`container`](#container) | 10 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
-| [`go`](#go) | 12 | 11 | go |
-| [`java`](#java) | 13 | 12 | java |
+| [`go`](#go) | 17 | 15 | go |
+| [`java`](#java) | 15 | 14 | java |
 | [`js`](#js) | 27 | 17 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 18 | 8 | Kubernetes |
-| [`py`](#py) | 30 | 25 | Python |
-| [`rust`](#rust) | 6 | 5 | rust |
+| [`py`](#py) | 32 | 26 | Python |
+| [`rust`](#rust) | 7 | 6 | rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 20 | 7 | Terraform |
 
@@ -399,7 +399,7 @@ Any publish by the maintainer, or by anyone who compromises their account, is in
 
 ## go
 
-go. 12 rules.
+go. 17 rules.
 
 ### `go/bind-all-interfaces`
 
@@ -425,6 +425,18 @@ Passing dynamic strings to a shell interpreter via -c allows command injection t
 
 <sub>Waive: `airtight hooks ignore-value go/command-exec-shell "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/command-exec-shell -- <reason>`</sub>
 
+### `go/cookie-flags`
+
+Insecure cookie missing HttpOnly or Secure flag
+
+**medium** / confirmed · `P2` · CWE-1004 · A05:2021 · fires on edit
+
+Cookies configured with HttpOnly or Secure set to false can be accessed by client-side scripts via document.cookie during XSS attacks, or transmitted in plaintext over unencrypted HTTP connections where network eavesdroppers can capture session tokens.
+
+**Fix.** Explicitly set HttpOnly: true and Secure: true on all session and authentication cookies in Go services.
+
+<sub>Waive: `airtight hooks ignore-value go/cookie-flags "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/cookie-flags -- <reason>`</sub>
+
 ### `go/cors-wildcard`
 
 Permissive CORS wildcard origin configuration
@@ -448,6 +460,30 @@ Dumping and serializing os.Environ() into an outbound network payload leaks all 
 **Fix.** Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice.
 
 <sub>Waive: `airtight hooks ignore-value go/env-exfiltration "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/env-exfiltration -- <reason>`</sub>
+
+### `go/gin-debug-mode`
+
+Gin framework running in debug mode
+
+**low** / firm · `P3` · CWE-200 · A05:2021 · end of turn
+
+Running the Gin web framework in debug mode outputs detailed routing logs, internal handlers, and stack traces that expose internal application structure and file paths to users and observers.
+
+**Fix.** Use gin.SetMode(gin.ReleaseMode) in production deployments and load the active environment from configuration.
+
+<sub>Waive: `airtight hooks ignore-value go/gin-debug-mode "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/gin-debug-mode -- <reason>`</sub>
+
+### `go/html-template-unescaped`
+
+Template contextual escaping bypassed with template.HTML or template.JS
+
+**high** / firm · `P1` · CWE-79 · A03:2021 · fires on edit
+
+Go's html/template package automatically escapes data to prevent Cross-Site Scripting (XSS). Converting dynamic user input or request values into template.HTML, template.JS, or template.URL tells the template engine that the string is safe, completely bypassing contextual escaping and allowing malicious script execution.
+
+**Fix.** Pass raw strings directly to the template data context rather than wrapping untrusted values in template.HTML, or sanitize the HTML with a dedicated sanitizer like bluemonday before conversion.
+
+<sub>Waive: `airtight hooks ignore-value go/html-template-unescaped "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/html-template-unescaped -- <reason>`</sub>
 
 ### `go/insecure-cipher`
 
@@ -509,6 +545,18 @@ Formatting or concatenating variables directly into a SQL statement allows untru
 
 <sub>Waive: `airtight hooks ignore-value go/sql-string-concat "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/sql-string-concat -- <reason>`</sub>
 
+### `go/ssrf-from-input`
+
+Server-Side Request Forgery from request URL parameter
+
+**high** / firm · `P1` · CWE-918 · A10:2021 · fires on edit
+
+Triggering outbound HTTP client requests using URLs passed directly from incoming user request parameters allows attackers to make the server issue requests to internal network services, cloud metadata endpoints (169.254.169.254), or loopback interfaces.
+
+**Fix.** Validate the target URL against an explicit allowlist of permitted hosts and schemes, and block access to private, loopback, and link-local IP addresses.
+
+<sub>Waive: `airtight hooks ignore-value go/ssrf-from-input "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/ssrf-from-input -- <reason>`</sub>
+
 ### `go/steal-credential-file`
 
 Host credential file accessed by code
@@ -545,10 +593,22 @@ MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive
 
 <sub>Waive: `airtight hooks ignore-value go/weak-password-hash "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/weak-password-hash -- <reason>`</sub>
 
+### `go/zip-slip`
+
+Arbitrary file overwrite via archive extraction (Zip Slip)
+
+**high** / firm · `P1` · CWE-22 · A01:2021 · fires on edit
+
+Joining an archive entry's filename directly to a destination directory without verifying that the resolved path stays within the target directory allows maliciously crafted archives containing '../' path traversals to overwrite arbitrary system or application files.
+
+**Fix.** Verify that the target path is cleaned and has the destination directory as a prefix using strings.HasPrefix(filepath.Clean(dest), targetDir) before creating or writing the file.
+
+<sub>Waive: `airtight hooks ignore-value go/zip-slip "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/zip-slip -- <reason>`</sub>
+
 
 ## java
 
-java. 13 rules.
+java. 15 rules.
 
 ### `java/command-exec`
 
@@ -573,6 +633,18 @@ Disabling the HttpOnly flag allows client-side scripts to access sensitive sessi
 **Fix.** Call setHttpOnly(true) on all session and authentication cookies.
 
 <sub>Waive: `airtight hooks ignore-value java/cookie-missing-httponly "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/cookie-missing-httponly -- <reason>`</sub>
+
+### `java/cors-wildcard`
+
+CORS configured with wildcard origin and credentials
+
+**high** / confirmed · `P1` · CWE-346 · A01:2021 · fires on edit
+
+Permitting wildcard CORS origins together with user credentials allows any untrusted external domain to read sensitive user data and authentication responses via cross-origin requests.
+
+**Fix.** Specify explicit trusted origins instead of wildcard '*' when credentials (cookies or HTTP auth headers) are permitted.
+
+<sub>Waive: `airtight hooks ignore-value java/cors-wildcard "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/cors-wildcard -- <reason>`</sub>
 
 ### `java/env-exfiltration`
 
@@ -645,6 +717,18 @@ Redirecting users to an unvalidated URL provided in query parameters allows atta
 **Fix.** Validate the redirect target against an allowlist of permitted destinations or ensure it is a relative path starting with a single forward slash.
 
 <sub>Waive: `airtight hooks ignore-value java/open-redirect "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/open-redirect -- <reason>`</sub>
+
+### `java/spring-csrf-disabled`
+
+Spring Security CSRF protection explicitly disabled
+
+**high** / confirmed · `P1` · CWE-352 · A01:2021 · fires on edit
+
+Disabling CSRF protection in Spring Security allows attackers on third-party websites to forge state-changing HTTP requests on behalf of authenticated users via their active session cookies.
+
+**Fix.** Keep CSRF protection enabled. If using stateless token authentication (such as JWTs in authorization headers), document the waiver and ensure cookies are not used for authentication.
+
+<sub>Waive: `airtight hooks ignore-value java/spring-csrf-disabled "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/spring-csrf-disabled -- <reason>`</sub>
 
 ### `java/sql-concatenation`
 
@@ -1259,7 +1343,7 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 
 ## py
 
-Python. 30 rules.
+Python. 32 rules.
 
 ### `py/assert-for-authorization`
 
@@ -1489,6 +1573,18 @@ random is a Mersenne Twister with observable state: 624 outputs are enough to re
 
 <sub>Waive: `airtight hooks ignore-value py/random-for-secret "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/random-for-secret -- <reason>`</sub>
 
+### `py/re-compile-from-input`
+
+Regular expression compiled from untrusted request input
+
+**medium** / firm · `P2` · CWE-1333 · A05:2021 · end of turn
+
+Compiling or evaluating regular expressions directly from user-supplied input allows attackers to inject catastrophic backtracking patterns (ReDoS), causing prolonged high CPU consumption and service denial.
+
+**Fix.** Use re.escape() to sanitize user input before including it in regular expressions, or restrict matching to static, pre-compiled patterns.
+
+<sub>Waive: `airtight hooks ignore-value py/re-compile-from-input "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/re-compile-from-input -- <reason>`</sub>
+
 ### `py/requests-verify-false`
 
 TLS certificate verification disabled
@@ -1621,10 +1717,22 @@ The default loader honours tags like !!python/object/apply, which constructs arb
 
 <sub>Waive: `airtight hooks ignore-value py/yaml-unsafe-load "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/yaml-unsafe-load -- <reason>`</sub>
 
+### `py/zipfile-extractall`
+
+Zip archive extraction without directory traversal protection
+
+**high** / firm · `P1` · CWE-22 · A01:2021 · fires on edit
+
+Calling ZipFile.extractall() without validating member filepaths allows Zip Slip attacks where archives containing '../' paths overwrite arbitrary files outside the target extraction directory.
+
+**Fix.** Validate that each member's filename does not contain '..' and resolves to a path strictly inside the target directory before extracting, or extract members individually with path sanitation.
+
+<sub>Waive: `airtight hooks ignore-value py/zipfile-extractall "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/zipfile-extractall -- <reason>`</sub>
+
 
 ## rust
 
-rust. 6 rules.
+rust. 7 rules.
 
 ### `rust/command-injection`
 
@@ -1697,6 +1805,18 @@ Disabling certificate validation allows network attackers to perform man-in-the-
 **Fix.** Remove danger_accept_invalid_certs(true) and add custom CA certificates to the certificate store if private certificates are needed.
 
 <sub>Waive: `airtight hooks ignore-value rust/tls-insecure-skip-verify "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/tls-insecure-skip-verify -- <reason>`</sub>
+
+### `rust/weak-rng`
+
+Insecure random number generator used for sensitive token
+
+**high** / firm · `P1` · CWE-338 · A02:2021 · fires on edit
+
+Default thread_rng in the rand crate is not guaranteed to be cryptographically secure across all platforms and seed states, making tokens generated with it potentially predictable.
+
+**Fix.** Use rand::rngs::OsRng or a dedicated cryptographic key generator (such as ring or rand_core) for security-sensitive tokens and secrets.
+
+<sub>Waive: `airtight hooks ignore-value rust/weak-rng "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/weak-rng -- <reason>`</sub>
 
 
 ## secret

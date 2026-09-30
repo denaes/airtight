@@ -243,3 +243,36 @@
     user identifiers without possessing the cryptographic signing key.
   fix: Enforce signed tokens using strong cryptographic algorithms (such as
     HMAC256 or RSA256) and use parseClaimsJws().
+- id: java/cors-wildcard
+  name: CORS configured with wildcard origin and credentials
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-346
+  owasp: A01:2021
+  files:
+    - '**/*.java'
+  match:
+    regex: '(?i)(?:\.allowedOrigins\s*\(\s*["'']\*["'']\s*\)[^;]*\.allowCredentials\s*\(\s*true\s*\)|\.allowCredentials\s*\(\s*true\s*\)[^;]*\.allowedOrigins\s*\(\s*["'']\*["'']\s*\)|@CrossOrigin\s*\([^)]*origins\s*=\s*["'']\*["''][^)]*allowCredentials\s*=\s*["'']true["''])'
+    not_regex: '(?i)^\s*//'
+  message: "CORS configuration permits wildcard origin '*' with credentials enabled"
+  why: "Permitting wildcard CORS origins together with user credentials allows any untrusted external domain to read sensitive user data and authentication responses via cross-origin requests."
+  fix: "Specify explicit trusted origins instead of wildcard '*' when credentials (cookies or HTTP auth headers) are permitted."
+- id: java/spring-csrf-disabled
+  name: Spring Security CSRF protection explicitly disabled
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-352
+  owasp: A01:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: '(?i)\.csrf\s*\(\s*\)\s*\.disable\s*\(\s*\)|\.csrf\s*\(\s*(?:AbstractHttpConfigurer::disable|csrf\s*->\s*csrf\.disable\(\))\s*\)'
+    not_regex: '(?i)^\s*//'
+  message: Spring Security CSRF protection is explicitly disabled
+  why: Disabling CSRF protection in Spring Security allows attackers on third-party websites to forge state-changing HTTP requests on behalf of authenticated users via their active session cookies.
+  fix: Keep CSRF protection enabled. If using stateless token authentication (such as JWTs in authorization headers), document the waiver and ensure cookies are not used for authentication.
+

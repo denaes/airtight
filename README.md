@@ -98,7 +98,7 @@ hand — [full method and results](docs/benchmark.md), reproducible with
 
 Four repositories is a start, not a coverage claim. Three of them are
 JavaScript or Python HTTP libraries, so the Terraform and Kubernetes packs —
-38 of the 171 rules — have not been run against real infrastructure. Recall is
+38 of the 181 rules — have not been run against real infrastructure. Recall is
 judged by reading, not scored against labelled ground truth, and this measures
 the engine only, not the model layer. [What the benchmark does and does not
 cover](docs/benchmark.md#what-this-still-does-not-measure).

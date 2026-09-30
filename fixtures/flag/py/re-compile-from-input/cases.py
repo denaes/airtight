@@ -1,0 +1,6 @@
+pattern = re.compile(request.args.get("pattern"))
+match = re.search(request.form["query"], text)
+rx = re.compile(req.json.get("regex"))
+result = re.match(request.GET.get("filter"), content)
+matches = re.findall(req.params["search"], document)
+cleaned = re.sub(request.values.get("replacement_pat"), "", text)

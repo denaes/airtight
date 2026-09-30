@@ -343,7 +343,7 @@ function auditGitStatus() {
   const modified = lines.filter((l) => !l.startsWith('??'));
 
   if (untracked.length > 0) {
-    const scratch = untracked.filter((l) => l.includes('scratch') || l.includes('temp') || l.endsWith('.tmp'));
+    const scratch = untracked.filter((l) => l.includes('scratch') || /(^|[/._-])(temp|tmp)([/._-]|$)/i.test(l) || l.endsWith('.tmp'));
     if (scratch.length > 0) {
       warn(`Untracked temporary files detected:\n  ${scratch.join('\n  ')}`);
     }

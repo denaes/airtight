@@ -1,0 +1,7 @@
+# zip_ref.extractall(target_dir)
+zip_ref.extractall(target_dir, filter='data')
+zf.extractall(dest, filter="data")
+if is_safe_path(target_dir): archive.extractall(target_dir)
+if clean_path(filename): z.extractall(dest)
+zf.extract(member, path=target_dir)
+shutil.unpack_archive(archive_path, extract_dir)

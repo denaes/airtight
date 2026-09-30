@@ -70,9 +70,9 @@ flowchart TD
 | Security Topic / Threat | TypeScript / JavaScript | Python | Go | Cloud / IaC / K8s |
 |---|---|---|---|---|
 | **Password Hashing** | `[DONE - Engine]`<br>`js/weak-password-hash` (MD5/SHA) | `[DONE - Engine]`<br>`py/weak-password-hash` (MD5/SHA) | `[DONE - Engine]`<br>`go/weak-password-hash` (crypto/md5 or sha1 for pwd) | `[N/A]` |
-| **Session Cookie Flags** | `[DONE - Engine]`<br>`js/cookie-insecure`<br>`js/cookie-missing-httponly`<br>`js/cookie-samesite-none` | `[DONE - Engine]`<br>`py/cookie-missing-httponly`<br>`py/cookie-insecure` | `[PLANNED - Engine]`<br>`go/cookie-flags`<br>*(Also `java/cookie-missing-httponly`)* | `[N/A]` |
+| **Session Cookie Flags** | `[DONE - Engine]`<br>`js/cookie-insecure`<br>`js/cookie-missing-httponly`<br>`js/cookie-samesite-none` | `[DONE - Engine]`<br>`py/cookie-missing-httponly`<br>`py/cookie-insecure` | `[DONE - Engine]`<br>`go/cookie-flags`<br>*(Also `java/cookie-missing-httponly`)* | `[N/A]` |
 | **JWT Verification & Algorithms** | `[DONE - Engine]`<br>`js/jwt-algorithm-none`<br>`js/jwt-verify-without-algorithms` | `[DONE - Engine]`<br>`py/jwt-algorithm-none` (PyJWT algorithms/verify) | `[DONE - Engine]`<br>`go/jwt-algorithm-none` (golang-jwt parser)<br>*(Also `java/jwt-algorithm-none`)* | `[N/A]` |
-| **Insecure Randomness for Tokens** | `[DONE - Engine]`<br>`js/math-random-for-secret` (Math.random) | `[DONE - Engine]`<br>`py/random-for-secret` (random.* for token/secret) | `[DONE - Engine]`<br>`go/math-rand-for-secret` (math/rand vs crypto/rand)<br>*(Also `java/insecure-random`)* | `[N/A]` |
+| **Insecure Randomness for Tokens** | `[DONE - Engine]`<br>`js/math-random-for-secret` (Math.random) | `[DONE - Engine]`<br>`py/random-for-secret` (random.* for token/secret) | `[DONE - Engine]`<br>`go/math-rand-for-secret` (math/rand vs crypto/rand)<br>*(Also `java/insecure-random`, `rust/weak-rng`)* | `[N/A]` |
 | **Unauthenticated Service Endpoints** | `[DONE - Model]`<br>Route reachability audit | `[DONE - Model]`<br>Route reachability audit | `[DONE - Model]`<br>Handler reachability audit | `[DONE - Engine]`<br>`k8s/anonymous-subject-binding`<br>`terraform/rds-publicly-accessible` |
 | **Hardcoded Tokens & Keys** | `[DONE - Engine]`<br>`secret/*` (15 provider formats) | `[DONE - Engine]`<br>`secret/*` (15 provider formats) | `[DONE - Engine]`<br>`secret/*` (15 provider formats) | `[DONE - Engine]`<br>`terraform/hardcoded-credential`<br>`k8s/secret-in-env-literal` |
 | **Credential File Harvesting** | `[DONE - Engine]`<br>`js/steal-credential-file` (.ssh, .aws, .kube) | `[DONE - Engine]`<br>`py/steal-credential-file` (.ssh, .aws, .kube) | `[DONE - Engine]`<br>`go/steal-credential-file` (.ssh, .aws, .kube) | `[DONE - Engine]`<br>`container/ssh-key-copied` |
@@ -86,8 +86,8 @@ flowchart TD
 |---|---|---|---|---|
 | **Authorization Check Implementation** | `[DONE - Model]`<br>Dual-subagent review | `[DONE - Engine]`<br>`py/assert-for-authorization` (assert user.is_admin) | `[DONE - Model]`<br>Dual-subagent review | `[DONE - Engine]`<br>`k8s/cluster-admin-binding`<br>`terraform/iam-wildcard-action` |
 | **Multi-Tenant Scoping / IDOR** | `[DONE - Model]`<br>Tenant ID boundary verification | `[DONE - Model]`<br>Tenant ID boundary verification | `[DONE - Model]`<br>Tenant ID boundary verification | `[DONE - Engine]`<br>`terraform/iam-wildcard-resource`<br>`terraform/sqs-sns-public-policy` |
-| **CSRF Protection** | `[DONE - Engine]`<br>`js/express-csrf-missing` (state-changing methods) | `[DONE - Engine]`<br>`py/csrf-exempt` (@csrf_exempt decorator) | `[PLANNED - Engine]`<br>`go/csrf-middleware-missing` | `[N/A]` |
-| **CORS Misconfiguration** | `[DONE - Engine]`<br>`js/cors-wildcard-with-credentials` | `[DONE - Engine]`<br>`py/cors-wildcard` (origins='*' or allow-all) | `[DONE - Engine]`<br>`go/cors-wildcard` (rs/cors AllowAll or wildcard) | `[N/A]` |
+| **CSRF Protection** | `[DONE - Engine]`<br>`js/express-csrf-missing` (state-changing methods) | `[DONE - Engine]`<br>`py/csrf-exempt` (@csrf_exempt decorator) | `[PLANNED - Engine]`<br>`go/csrf-middleware-missing`<br>*(Java: `java/spring-csrf-disabled` [DONE])* | `[N/A]` |
+| **CORS Misconfiguration** | `[DONE - Engine]`<br>`js/cors-wildcard-with-credentials` | `[DONE - Engine]`<br>`py/cors-wildcard` (origins='*' or allow-all) | `[DONE - Engine]`<br>`go/cors-wildcard` (rs/cors AllowAll or wildcard)<br>*(Java: `java/cors-wildcard` [DONE])* | `[N/A]` |
 | **Privilege Escalation in Workloads** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`container/runs-as-root`<br>`container/explicit-root-user`<br>`k8s/allow-privilege-escalation`<br>`k8s/privileged-container`<br>`k8s/dangerous-capabilities` |
 | **Namespace & Isolation Breakout** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`k8s/host-namespace`<br>`k8s/docker-socket-mount`<br>`k8s/default-namespace`<br>`container/sudo-in-image` |
 | **CI Token & Permission Scope** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`ci/no-explicit-permissions`<br>`ci/write-all-permissions` |
@@ -110,7 +110,7 @@ flowchart TD
 
 | Security Topic / Threat | TypeScript / JavaScript | Python | Go | Cloud / IaC / K8s |
 |---|---|---|---|---|
-| **SSRF (Server-Side Request Forgery)** | `[DONE - Engine]`<br>`js/ssrf-request-from-input` (fetch/axios from req) | `[DONE - Engine]`<br>`py/ssrf-from-input` (requests from input) | `[PLANNED - Engine]`<br>`go/ssrf-from-input` (http.Get from input) | `[DONE - Engine]`<br>`terraform/imdsv1-allowed` (IMDSv1 permits SSRF theft) |
+| **SSRF (Server-Side Request Forgery)** | `[DONE - Engine]`<br>`js/ssrf-request-from-input` (fetch/axios from req) | `[DONE - Engine]`<br>`py/ssrf-from-input` (requests from input) | `[DONE - Engine]`<br>`go/ssrf-from-input` (http.Get/Post from input) | `[DONE - Engine]`<br>`terraform/imdsv1-allowed` (IMDSv1 permits SSRF theft) |
 | **TLS Certificate Verification Disabled** | `[DONE - Engine]`<br>`js/tls-verification-disabled` (rejectUnauthorized: false) | `[DONE - Engine]`<br>`py/requests-verify-false`<br>`py/cert-reqs-none`<br>`py/paramiko-missing-host-key-policy` | `[DONE - Engine]`<br>`go/tls-insecure-skip-verify` (InsecureSkipVerify: true)<br>*(Also `java/trust-all-certs`, `rust/tls-insecure-skip-verify`)* | `[N/A]` |
 | **Plaintext Transport & Insecure HTTP** | `[DONE - Engine]`<br>`dep/http-registry`<br>`dep/lockfile-http-resolved` | `[DONE - Engine]`<br>`dep/pip-index-http`<br>`dep/pip-trusted-host` | `[PLANNED - Engine]`<br>`go/http-serve-insecure` | `[DONE - Engine]`<br>`terraform/lb-http-listener`<br>`terraform/weak-tls-policy` |
 | **Network Ingress & Exposure** | `[N/A]` | `[DONE - Engine]`<br>`py/bind-all-interfaces` (host=0.0.0.0) | `[DONE - Engine]`<br>`go/bind-all-interfaces` (net.Listen / ListenAndServe 0.0.0.0) | `[DONE - Engine]`<br>`terraform/open-ingress`<br>`terraform/open-ingress-sensitive-port`<br>`k8s/nodeport-service` |
@@ -123,10 +123,10 @@ flowchart TD
 | Security Topic / Threat | TypeScript / JavaScript | Python | Go | Cloud / IaC / K8s |
 |---|---|---|---|---|
 | **Dynamic Code Execution (Eval)** | `[DONE - Engine]`<br>`js/eval-dynamic` (eval, new Function) | `[DONE - Engine]`<br>`py/eval-exec` (eval, exec) | `[N/A]` | `[N/A]` |
-| **Cross-Site Scripting (XSS)** | `[DONE - Engine]`<br>`js/dangerously-set-inner-html`<br>`js/inner-html-assignment` | `[DONE - Engine]`<br>`py/jinja-autoescape-off` (autoescape=False) | `[PLANNED - Engine]`<br>`go/html-template-unescaped` (template.HTML) | `[N/A]` |
+| **Cross-Site Scripting (XSS)** | `[DONE - Engine]`<br>`js/dangerously-set-inner-html`<br>`js/inner-html-assignment` | `[DONE - Engine]`<br>`py/jinja-autoescape-off` (autoescape=False) | `[DONE - Engine]`<br>`go/html-template-unescaped` (template.HTML/JS) | `[N/A]` |
 | **XML External Entity (XXE)** | `[DONE - Engine]`<br>`js/xxe-libxml` (noent: true) | `[DONE - Engine]`<br>`py/xxe-unsafe-parser` (xml.etree entity expansion) | `[PLANNED - Engine]`<br>`go/xxe-xml-decoder` | `[N/A]` |
 | **Insecure Deserialization** | `[DONE - Engine]`<br>`js/node-serialize` | `[DONE - Engine]`<br>`py/pickle-loads`<br>`py/yaml-unsafe-load` | `[PLANNED - Engine]`<br>`go/gob-untrusted-decoder` | `[N/A]` |
-| **Regular Expression Denial of Service** | `[DONE - Engine]`<br>`js/regexp-from-input` (new RegExp from req) | `[PLANNED - Engine]`<br>`py/re-compile-from-input` | `[N/A]` (Go uses RE2 linear-time) | `[N/A]` |
+| **Regular Expression Denial of Service** | `[DONE - Engine]`<br>`js/regexp-from-input` (new RegExp from req) | `[DONE - Engine]`<br>`py/re-compile-from-input` (re.compile from input) | `[N/A]` (Go uses RE2 linear-time) | `[N/A]` |
 | **Prototype Pollution** | `[DONE - Engine]`<br>`js/prototype-pollution` (recursive merge/deep copy) | `[N/A]` | `[N/A]` | `[N/A]` |
 
 ---
@@ -137,9 +137,9 @@ flowchart TD
 |---|---|---|---|---|
 | **Command Injection (Shell Spawning)** | `[DONE - Engine]`<br>`js/child-process-interpolation`<br>`js/spawn-shell-true` | `[DONE - Engine]`<br>`py/os-system-interpolation`<br>`py/subprocess-shell-true` | `[DONE - Engine]`<br>`go/command-exec-shell` (exec.Command with sh/bash -c)<br>*(Also Java: `java/command-exec`, Rust: `rust/command-injection`)* | `[DONE - Engine]`<br>`ci/script-injection` (interpolating ${{ github.event }} into shell) |
 | **Pipe to Shell Execution** | `[DONE - Engine]`<br>`dep/curl-pipe-shell-script` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`container/curl-pipe-shell` (RUN curl \| sh) |
-| **Path Traversal & Zip Slip** | `[DONE - Engine]`<br>`js/path-join-from-input` (path.join with req) | `[DONE - Engine]`<br>`py/tarfile-extractall` (extractall without filter) | `[PLANNED - Engine]`<br>`go/zip-slip` (filepath.Join without clean/prefix check)<br>*(Also `rust/path-traversal`)* | `[DONE - Engine]`<br>`k8s/host-path-volume` (mounting host directories) |
+| **Path Traversal & Zip Slip** | `[DONE - Engine]`<br>`js/path-join-from-input` (path.join with req) | `[DONE - Engine]`<br>`py/tarfile-extractall`<br>`py/zipfile-extractall` | `[DONE - Engine]`<br>`go/zip-slip` (filepath.Join without clean/prefix check)<br>*(Also `rust/path-traversal`)* | `[DONE - Engine]`<br>`k8s/host-path-volume` (mounting host directories) |
 | **Insecure Temporary File Creation** | `[PLANNED - Engine]`<br>`js/temp-file-predictable` (/tmp/ hardcoding) | `[DONE - Engine]`<br>`py/tempfile-mktemp` (mktemp race condition) | `[PLANNED - Engine]`<br>`go/tempfile-insecure` | `[N/A]` |
-| **Debug Mode Left Active** | `[PLANNED - Engine]`<br>`js/express-stacktrace` | `[DONE - Engine]`<br>`py/flask-debug-enabled` (debug=True / DEBUG=True) | `[PLANNED - Engine]`<br>`go/gin-debug-mode` | `[N/A]` |
+| **Debug Mode Left Active** | `[PLANNED - Engine]`<br>`js/express-stacktrace` | `[DONE - Engine]`<br>`py/flask-debug-enabled` (debug=True / DEBUG=True) | `[DONE - Engine]`<br>`go/gin-debug-mode` (gin.SetMode debug) | `[N/A]` |
 | **Filesystem Permissions** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`container/world-writable-chmod`<br>`k8s/writable-root-filesystem` |
 
 ---
@@ -159,31 +159,31 @@ flowchart TD
 
 ---
 
-## Current State Audit (171 Rules)
+## Current State Audit (181 Rules)
 
 ```
 Pack Breakdown:
   ci:         8 rules  [supply-chain]
   container: 10 rules  [containers]
   dep:       12 rules  [supply-chain]
-  go:        12 rules  [appsec, secrets, infrastructure]
-  java:      13 rules  [appsec, secrets]
+  go:        17 rules  [appsec, secrets, infrastructure]
+  java:      15 rules  [appsec, secrets]
   js:        27 rules  [appsec, secrets]
   k8s:       18 rules  [containers, infrastructure]
-  py:        30 rules  [appsec, secrets, infrastructure]
-  rust:       6 rules  [appsec, secrets]
+  py:        32 rules  [appsec, secrets, infrastructure]
+  rust:       7 rules  [appsec, secrets]
   secret:    15 rules  [secrets]
   terraform: 20 rules  [infrastructure]
 
 Immediate vs Deep Tier:
-  Immediate Tier (Edit-site interrupt): 115 rules (67%)
-  Deep Tier (Full scan / Commit-time):   56 rules (33%)
+  Immediate Tier (Edit-site interrupt): 123 rules (68%)
+  Deep Tier (Full scan / Commit-time):   58 rules (32%)
 
 Mechanically Checkable vs Reasoning Split:
   Secrets:              ~95% engine / 5% model
   Containers & IaC:     ~90% engine / 10% model
   Supply Chain & CI:    ~75% engine / 25% model
-  Application Code:     ~65% engine / 35% model
+  Application Code:     ~70% engine / 30% model
 ```
 
 ---

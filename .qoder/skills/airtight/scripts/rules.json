@@ -854,6 +854,26 @@
     "fix": "Invoke the target executable directly with arguments passed as separate slice elements instead of routing through a shell interpreter."
   },
   {
+    "id": "go/cookie-flags",
+    "name": "Insecure cookie missing HttpOnly or Secure flag",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-1004",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)(?:http\\.)?Cookie\\s*\\{[^}]*\\b(?:HttpOnly\\s*:\\s*false|Secure\\s*:\\s*false)\\b",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "Cookie has HttpOnly or Secure explicitly set to false",
+    "why": "Cookies configured with HttpOnly or Secure set to false can be accessed by client-side scripts via document.cookie during XSS attacks, or transmitted in plaintext over unencrypted HTTP connections where network eavesdroppers can capture session tokens.",
+    "fix": "Explicitly set HttpOnly: true and Secure: true on all session and authentication cookies in Go services."
+  },
+  {
     "id": "go/cors-wildcard",
     "name": "Permissive CORS wildcard origin configuration",
     "domain": "appsec",
@@ -891,6 +911,46 @@
     "message": "Complete environment variable table is prepared for transmission or sent over HTTP",
     "why": "Dumping and serializing os.Environ() into an outbound network payload leaks all environment variables, including secrets and tokens.",
     "fix": "Transmit only specific, required configuration fields rather than serializing the entire os.Environ() slice."
+  },
+  {
+    "id": "go/gin-debug-mode",
+    "name": "Gin framework running in debug mode",
+    "domain": "appsec",
+    "severity": "low",
+    "confidence": "firm",
+    "tier": "deep",
+    "cwe": "CWE-200",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)\\bgin\\.SetMode\\s*\\(\\s*(?:gin\\.DebugMode|[\"']debug[\"'])\\s*\\)",
+      "not_regex": "(?i)^\\s*//|_test\\.go"
+    },
+    "message": "Gin web framework configured to run in debug mode",
+    "why": "Running the Gin web framework in debug mode outputs detailed routing logs, internal handlers, and stack traces that expose internal application structure and file paths to users and observers.",
+    "fix": "Use gin.SetMode(gin.ReleaseMode) in production deployments and load the active environment from configuration."
+  },
+  {
+    "id": "go/html-template-unescaped",
+    "name": "Template contextual escaping bypassed with template.HTML or template.JS",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-79",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)\\btemplate\\.(?:HTML|JS|CSS|HTMLAttr|URL)\\s*\\(\\s*(?:r\\.URL\\.Query|r\\.FormValue|c\\.Query|c\\.Param|req\\.|params\\b|[a-zA-Z0-9_]*input|[a-zA-Z0-9_]*untrusted|[a-zA-Z0-9_]*user)",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "Untrusted dynamic input converted to template.HTML or template.JS bypassing auto-escaping",
+    "why": "Go's html/template package automatically escapes data to prevent Cross-Site Scripting (XSS). Converting dynamic user input or request values into template.HTML, template.JS, or template.URL tells the template engine that the string is safe, completely bypassing contextual escaping and allowing malicious script execution.",
+    "fix": "Pass raw strings directly to the template data context rather than wrapping untrusted values in template.HTML, or sanitize the HTML with a dedicated sanitizer like bluemonday before conversion."
   },
   {
     "id": "go/insecure-cipher",
@@ -990,6 +1050,26 @@
     "fix": "Use parameterized queries with placeholder arguments (''?'' or ''$1'') and pass variables as separate arguments to the database driver."
   },
   {
+    "id": "go/ssrf-from-input",
+    "name": "Server-Side Request Forgery from request URL parameter",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)\\bhttp\\.(?:Get|Post|Head|PostForm|NewRequest(?:WithContext)?)\\s*\\([^)]*\\b(?:r\\.URL\\.Query\\(\\)\\.Get|r\\.FormValue|c\\.Query|c\\.Param|req\\.URL\\.Query\\(\\)\\.Get)\\s*\\(\\s*[\"'](?:url|target|dest|endpoint|link|webhook|feed|uri|redirect)[\"']",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "Outbound HTTP request target derived directly from request query or form parameter",
+    "why": "Triggering outbound HTTP client requests using URLs passed directly from incoming user request parameters allows attackers to make the server issue requests to internal network services, cloud metadata endpoints (169.254.169.254), or loopback interfaces.",
+    "fix": "Validate the target URL against an explicit allowlist of permitted hosts and schemes, and block access to private, loopback, and link-local IP addresses."
+  },
+  {
     "id": "go/steal-credential-file",
     "name": "Host credential file accessed by code",
     "domain": "secrets",
@@ -1047,6 +1127,26 @@
     "fix": "Use a salted, work-factor tuned password hashing algorithm such as bcrypt, argon2id, or scrypt."
   },
   {
+    "id": "go/zip-slip",
+    "name": "Arbitrary file overwrite via archive extraction (Zip Slip)",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)\\bfilepath\\.Join\\s*\\([^)]*,\\s*(?:f|file|header|tr|hdr)\\.Name\\b",
+      "not_regex": "(?i)^\\s*//|filepath\\.Clean|strings\\.HasPrefix"
+    },
+    "message": "Archive extraction path constructed directly with archive member filename",
+    "why": "Joining an archive entry's filename directly to a destination directory without verifying that the resolved path stays within the target directory allows maliciously crafted archives containing '../' path traversals to overwrite arbitrary system or application files.",
+    "fix": "Verify that the target path is cleaned and has the destination directory as a prefix using strings.HasPrefix(filepath.Clean(dest), targetDir) before creating or writing the file."
+  },
+  {
     "id": "java/command-exec",
     "name": "Operating system command executed via shell interpreter",
     "domain": "appsec",
@@ -1084,6 +1184,26 @@
     "message": "Cookie has HttpOnly flag explicitly set to false",
     "why": "Disabling the HttpOnly flag allows client-side scripts to access sensitive session identifiers via document.cookie, facilitating XSS token theft.",
     "fix": "Call setHttpOnly(true) on all session and authentication cookies."
+  },
+  {
+    "id": "java/cors-wildcard",
+    "name": "CORS configured with wildcard origin and credentials",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-346",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)(?:\\.allowedOrigins\\s*\\(\\s*[\"']\\*[\"']\\s*\\)[^;]*\\.allowCredentials\\s*\\(\\s*true\\s*\\)|\\.allowCredentials\\s*\\(\\s*true\\s*\\)[^;]*\\.allowedOrigins\\s*\\(\\s*[\"']\\*[\"']\\s*\\)|@CrossOrigin\\s*\\([^)]*origins\\s*=\\s*[\"']\\*[\"'][^)]*allowCredentials\\s*=\\s*[\"']true[\"'])",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "CORS configuration permits wildcard origin '*' with credentials enabled",
+    "why": "Permitting wildcard CORS origins together with user credentials allows any untrusted external domain to read sensitive user data and authentication responses via cross-origin requests.",
+    "fix": "Specify explicit trusted origins instead of wildcard '*' when credentials (cookies or HTTP auth headers) are permitted."
   },
   {
     "id": "java/env-exfiltration",
@@ -1202,6 +1322,26 @@
     "message": "HttpServletResponse.sendRedirect target is taken directly from an unvalidated request parameter",
     "why": "Redirecting users to an unvalidated URL provided in query parameters allows attackers to construct trusted-looking links that redirect victims to phishing or malicious sites.",
     "fix": "Validate the redirect target against an allowlist of permitted destinations or ensure it is a relative path starting with a single forward slash."
+  },
+  {
+    "id": "java/spring-csrf-disabled",
+    "name": "Spring Security CSRF protection explicitly disabled",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-352",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)\\.csrf\\s*\\(\\s*\\)\\s*\\.disable\\s*\\(\\s*\\)|\\.csrf\\s*\\(\\s*(?:AbstractHttpConfigurer::disable|csrf\\s*->\\s*csrf\\.disable\\(\\))\\s*\\)",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "Spring Security CSRF protection is explicitly disabled",
+    "why": "Disabling CSRF protection in Spring Security allows attackers on third-party websites to forge state-changing HTTP requests on behalf of authenticated users via their active session cookies.",
+    "fix": "Keep CSRF protection enabled. If using stateless token authentication (such as JWTs in authorization headers), document the waiver and ensure cookies are not used for authentication."
   },
   {
     "id": "java/sql-concatenation",
@@ -3045,6 +3185,26 @@
     "fix": "Use the secrets module, such as secrets.token_urlsafe(32) or secrets.randbelow."
   },
   {
+    "id": "py/re-compile-from-input",
+    "name": "Regular expression compiled from untrusted request input",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "deep",
+    "cwe": "CWE-1333",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?i)\\bre\\.(?:compile|search|match|findall|sub)\\s*\\(\\s*(?:request|req)\\.(?:args|form|values|json|GET|POST|params)(?:\\.get\\(|\\[)",
+      "not_regex": "(?i)^\\s*#|re\\.escape"
+    },
+    "message": "Regular expression pattern compiled directly from incoming request input (ReDoS risk)",
+    "why": "Compiling or evaluating regular expressions directly from user-supplied input allows attackers to inject catastrophic backtracking patterns (ReDoS), causing prolonged high CPU consumption and service denial.",
+    "fix": "Use re.escape() to sanitize user input before including it in regular expressions, or restrict matching to static, pre-compiled patterns."
+  },
+  {
     "id": "py/requests-verify-false",
     "name": "TLS certificate verification disabled",
     "domain": "appsec",
@@ -3255,6 +3415,26 @@
     "fix": "Use yaml.safe_load, or pass Loader=yaml.SafeLoader explicitly."
   },
   {
+    "id": "py/zipfile-extractall",
+    "name": "Zip archive extraction without directory traversal protection",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?i)\\b(?:zip_ref|zip_file|zf|archive|z)\\.extractall\\s*\\(",
+      "not_regex": "(?i)^\\s*#|filter\\s*=|filter\\s*:\\s*|is_safe_path|clean_path"
+    },
+    "message": "ZipFile.extractall called without member path filtering (Zip Slip)",
+    "why": "Calling ZipFile.extractall() without validating member filepaths allows Zip Slip attacks where archives containing '../' paths overwrite arbitrary files outside the target extraction directory.",
+    "fix": "Validate that each member's filename does not contain '..' and resolves to a path strictly inside the target directory before extracting, or extract members individually with path sanitation."
+  },
+  {
     "id": "rust/command-injection",
     "name": "Operating system command executed via shell interpreter",
     "domain": "appsec",
@@ -3369,6 +3549,26 @@
     "message": "TLS certificate or hostname verification is explicitly disabled",
     "why": "Disabling certificate validation allows network attackers to perform man-in-the-middle (MitM) attacks and decrypt or alter traffic.",
     "fix": "Remove danger_accept_invalid_certs(true) and add custom CA certificates to the certificate store if private certificates are needed."
+  },
+  {
+    "id": "rust/weak-rng",
+    "name": "Insecure random number generator used for sensitive token",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-338",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.rs"
+    ],
+    "match": {
+      "regex": "(?i)(?:token|secret|password|passwd|apiKey|session|nonce|salt|auth)\\s*[:=][^\\n]*\\b(?:rand::thread_rng|rand::random)\\b|\\b(?:rand::thread_rng|rand::random)\\b[^\\n]*(?:token|secret|password|passwd|apiKey|session|nonce|salt|auth)",
+      "not_regex": "(?i)^\\s*//|OsRng|StdRng"
+    },
+    "message": "Non-cryptographic RNG rand::thread_rng or rand::random used for security-sensitive token or secret",
+    "why": "Default thread_rng in the rand crate is not guaranteed to be cryptographically secure across all platforms and seed states, making tokens generated with it potentially predictable.",
+    "fix": "Use rand::rngs::OsRng or a dedicated cryptographic key generator (such as ring or rand_core) for security-sensitive tokens and secrets."
   },
   {
     "id": "secret/anthropic-key",

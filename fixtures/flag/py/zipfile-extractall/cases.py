@@ -1,0 +1,5 @@
+zip_ref.extractall(target_dir)
+zf.extractall(path=output_path)
+archive.extractall("/tmp/out")
+z.extractall(dest)
+zip_file.extractall(members=members, path=dest)
