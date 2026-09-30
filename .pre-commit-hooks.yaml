@@ -1,0 +1,8 @@
+- id: airtight
+  name: airtight
+  description: Fast, deterministic security scanner and AI agent guardrails
+  entry: airtight detect
+  language: system
+  pass_filenames: true
+  types: [text]
+  minimum_pre_commit_version: '2.0.0'

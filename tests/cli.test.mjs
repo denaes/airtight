@@ -336,3 +336,19 @@ test('detect --since limits scan to files modified since git ref', () => {
   assert.match(scan.out, /no findings/);
 });
 
+test('cli sbom emits valid CycloneDX 1.5 JSON', () => {
+  const dir = project();
+  try {
+    writeFileSync(join(dir, 'requirements.txt'), 'requests==2.31.0\nurllib3==2.0.7\n');
+    const res = run([CLI, 'sbom', dir]);
+    assert.equal(res.code, 0, res.out);
+    const parsed = JSON.parse(res.out);
+    assert.equal(parsed.bomFormat, 'CycloneDX');
+    assert.equal(parsed.specVersion, '1.5');
+    assert.ok(parsed.components.some((c) => c.name === 'requests' && c.version === '2.31.0'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+

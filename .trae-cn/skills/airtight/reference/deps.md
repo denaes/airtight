@@ -2,9 +2,10 @@ Review dependency and advisory risk, and be honest about what "vulnerable" means
 
 ## Run
 
-1. `.trae-cn/skills/airtight/scripts/airtight detect --json --pack dep .` for manifest and lockfile hygiene.
-2. Advisory data is a network lookup against OSV. When it is unavailable, say so and report hygiene only. Never present a hygiene-only run as a clean CVE check.
-3. Read the lockfile to distinguish direct from transitive. A transitive advisory you cannot upgrade directly is a different task from a direct one you can.
+1. `.trae-cn/skills/airtight/scripts/airtight detect --json --pack dep .` for manifest/lockfile hygiene and deterministic OSV advisory lookup.
+2. `.trae-cn/skills/airtight/scripts/airtight sbom .` to generate a CycloneDX 1.5 Software Bill of Materials (SBOM) across npm, PyPI, crates.io, and Go dependencies.
+3. Advisory data queries OSV with local disk caching and fails open when offline. When unavailable, hygiene is reported. Never present a hygiene-only run as a clean CVE check.
+4. Read the lockfile to distinguish direct from transitive. A transitive advisory you cannot upgrade directly is a different task from a direct one you can.
 
 ## Reachability is the whole question
 

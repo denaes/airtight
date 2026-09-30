@@ -15,9 +15,12 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compileAll, immediateTier } from './rules.mjs';
 import { collectTargets, scanFiles } from './scan.mjs';
-import { loadConfig, buildFilter } from './config.mjs';
+import { loadConfig, buildFilter, loadCustomRules, applySeverityOverrides } from './config.mjs';
 import { renderJson, renderText } from './render.mjs';
 import { renderSarif } from './render-sarif.mjs';
+import { generateCycloneDx } from './sbom.mjs';
+import { detectLockfiles, parseLockfile } from './lockfile.mjs';
+import { queryOsv } from './osv.mjs';
 import * as store from './store.mjs';
 import { buildContext } from './context.mjs';
 import { runHook, readStdin } from './hook.mjs';
@@ -25,7 +28,7 @@ import * as hooks from './hooks-admin.mjs';
 import { loadControls, verifyControls, frameworkCoverage, frameworksIn } from './controls.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const VERSION = '0.3.1';
+export const VERSION = '0.3.2';
 
 const USAGE = `airtight ${VERSION} — deterministic security rule engine
 
@@ -34,6 +37,7 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
+  airtight sbom [paths...]          generate CycloneDX 1.5 SBOM from lockfiles
   airtight hook                     edit-hook entry point (reads stdin)
   airtight hooks <sub>              on | off | status | ignore-rule | ignore-file | ignore-value
   airtight engine-probe             launcher handshake
@@ -149,13 +153,23 @@ function parseArgs(argv) {
 function runScan(opts, env, { defaultPaths = ['.'] } = {}) {
   const root = process.cwd();
   let rules = loadRules(env);
+
+  const config = opts.useConfig ? loadConfig(root) : { detector: {} };
+  const isSuppressed = opts.useConfig ? buildFilter(config) : null;
+
+  if (opts.useConfig && config.rulePaths?.length > 0) {
+    try {
+      const customRules = loadCustomRules(root, config);
+      rules = [...rules, ...customRules];
+    } catch (err) {
+      process.stderr.write(`[airtight warning] loading custom rulePaths failed: ${err.message}\n`);
+    }
+  }
+
   const allRuleIds = new Set(rules.map((r) => r.id));
 
   if (opts.tier === 'immediate') rules = immediateTier(rules);
   if (opts.packs.length) rules = rules.filter((r) => opts.packs.includes(r.pack));
-
-  const config = opts.useConfig ? loadConfig(root) : { detector: {} };
-  const isSuppressed = opts.useConfig ? buildFilter(config) : null;
 
   let files;
   if (opts.flags.since) {
@@ -173,6 +187,40 @@ function runScan(opts, env, { defaultPaths = ['.'] } = {}) {
 
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
   let findings = scanned.findings;
+
+  if (opts.tier !== 'immediate' && (!opts.packs.length || opts.packs.includes('dep'))) {
+    try {
+      const lockfiles = detectLockfiles(root);
+      const allDeps = [];
+      for (const lf of lockfiles) {
+        try {
+          const content = readFileSync(lf, 'utf8');
+          const parsed = parseLockfile(lf, content);
+          if (parsed?.dependencies?.length) {
+            allDeps.push(...parsed.dependencies);
+          }
+        } catch {}
+      }
+      if (allDeps.length > 0) {
+        const advisories = queryOsv(allDeps, {
+          cacheDir: join(root, '.airtight', 'cache', 'osv.json'),
+          offline: false,
+        });
+        for (const adv of advisories) {
+          if (!isSuppressed || !isSuppressed(adv)) {
+            findings.push(adv);
+          }
+        }
+      }
+    } catch {
+      // OSV fail-open guarantee
+    }
+  }
+
+  if (opts.useConfig && config.severityOverrides && Object.keys(config.severityOverrides).length > 0) {
+    findings = applySeverityOverrides(findings, config.severityOverrides);
+  }
+
   let baselineIgnored = 0;
 
   if (opts.flags.baseline) {
@@ -282,10 +330,12 @@ function cmdFindings(argv, io, env) {
     case 'accept': {
       const [id] = opts.paths;
       if (!id) throw new Error('usage: airtight findings accept <id> --reason "..." --approver "..."');
+      const config = opts.useConfig ? loadConfig(root) : {};
       const next = store.accept(store.load(root), id, {
         reason: opts.flags.reason,
         approver: opts.flags.approver,
         expires: opts.flags.expires,
+        waiverPolicy: config.waiverPolicy,
       });
       store.save(root, next);
       io.out(`airtight: ${id} accepted by ${opts.flags.approver}`
@@ -431,6 +481,15 @@ function cmdControls(argv, io, env) {
   return results.some((r) => r.verdict === 'failing' || r.verdict === 'broken') ? 2 : 0;
 }
 
+function cmdSbom(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const target = opts.paths.length ? resolve(root, opts.paths[0]) : root;
+  const sbom = generateCycloneDx({ root: target });
+  io.out(sbom);
+  return 0;
+}
+
 export function run(argv, io = defaultIo(), env = process.env) {
   const [verb, ...rest] = argv;
   try {
@@ -446,6 +505,7 @@ export function run(argv, io = defaultIo(), env = process.env) {
       case 'rules': return cmdRules(rest, io, env);
       case 'findings': return cmdFindings(rest, io, env);
       case 'context': return cmdContext(rest, io, env);
+      case 'sbom': return cmdSbom(rest, io, env);
       case 'hook': return runHook(io, env, readStdin());
       case 'hooks': return cmdHooks(rest, io, env);
       case 'controls': return cmdControls(rest, io, env);

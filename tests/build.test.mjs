@@ -283,3 +283,13 @@ test('action.yml is valid composite GitHub Action with pinned SHAs', () => {
   }
 });
 
+test('.pre-commit-hooks.yaml is valid and targets airtight detect', () => {
+  const file = resolve(ROOT, '.pre-commit-hooks.yaml');
+  assert.ok(existsSync(file), '.pre-commit-hooks.yaml must exist at root');
+  const hooks = parseYaml(read(file));
+  assert.ok(Array.isArray(hooks));
+  const hook = hooks.find((h) => h.id === 'airtight');
+  assert.ok(hook);
+  assert.match(hook.entry, /airtight detect/);
+});
+

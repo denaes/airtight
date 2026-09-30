@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { SLA_DAYS } from './findings.mjs';
+import { validateWaiverPolicy } from './config.mjs';
 
 export const STORE_PATH = '.airtight/findings.ndjson';
 
@@ -186,13 +187,16 @@ export function reconcile(store, findings, { now = new Date().toISOString() } = 
   return { records: next, events };
 }
 
-export function accept(store, id, { reason, approver, expires, now = new Date().toISOString() }) {
+export function accept(store, id, { reason, approver, expires, now = new Date().toISOString(), waiverPolicy } = {}) {
   const rec = store.get(id);
   if (!rec) throw new Error(`no finding with id ${id}`);
   if (!reason || !approver) {
     // An acceptance with no named approver is an anonymous decision, which is
     // indistinguishable from nobody having decided.
     throw new Error('accepting a finding requires both --reason and --approver');
+  }
+  if (waiverPolicy) {
+    validateWaiverPolicy({ waiverPolicy, reason, approver, expires, now });
   }
   const next = new Map(store);
   next.set(id, { ...rec, status: 'accepted', waiver: { reason, approver, expires: expires ?? null, acceptedAt: now } });

@@ -5,6 +5,21 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-30
+
+### Added
+- **Software Bill of Materials (SBOM)**: Added `airtight sbom [paths...]` command generating valid CycloneDX 1.5 JSON documents with canonical Package URLs (`purl`) covering npm, PyPI, crates.io, and Go dependencies.
+- **Deterministic Lockfile Parsing & OSV Advisory Scanning**:
+  - Implemented `engine/src/lockfile.mjs` parsing `package-lock.json` (v1/v2/v3), `yarn.lock` (v1/v2), `pnpm-lock.yaml`, `Cargo.lock`, `go.sum`, `requirements.txt`, and `poetry.lock`.
+  - Implemented `engine/src/osv.mjs` querying OSV batch API (`querybatch`) with offline local disk caching (`.airtight/cache/osv.json`) and fail-open offline resilience.
+  - Automatically correlates dependency advisories into Airtight's finding taxonomy during deep dependency scans (`--pack dep`).
+- **Python `pre-commit` Framework Hook**: Added `.pre-commit-hooks.yaml` at repository root, enabling plug-and-play local pre-commit gatekeeping with `airtight detect`.
+- **Org Policy Layering & Central Waivers**:
+  - `extends`: Inherit and recursively compose base configuration files (`config.json` extends ancestor configs with circular dependency protection).
+  - `severityOverrides`: Configure per-rule severity overrides in project configuration.
+  - `rulePaths`: Load and compile custom enterprise YAML rule packs from local paths or globs.
+  - `waiverPolicy`: Enforce central risk acceptance rules including maximum expiration limits (`maxExpiryDays`) and required approver email domains (`requiredApproverDomain`).
+
 ## [0.3.1] - 2026-09-30
 
 ### Added
