@@ -1,0 +1,6 @@
+jwt.decode(token, key, algorithms=["HS256"])
+jwt.decode(token, key, options={"verify_signature": True})
+# payload = jwt.decode(token, key, verify=False)
+jwt.decode(token, key, verify=True)
+jwt.get_unverified_header(token)
+jwt.decode(token, options={'verify_signature': True})

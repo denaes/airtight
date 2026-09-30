@@ -123,4 +123,20 @@
   message: Non-cryptographic RNG rand::thread_rng or rand::random used for security-sensitive token or secret
   why: Default thread_rng in the rand crate is not guaranteed to be cryptographically secure across all platforms and seed states, making tokens generated with it potentially predictable.
   fix: Use rand::rngs::OsRng or a dedicated cryptographic key generator (such as ring or rand_core) for security-sensitive tokens and secrets.
+- id: rust/tempfile-insecure
+  name: Predictable temporary file created in system temp directory
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-377
+  owasp: A01:2021
+  files:
+    - "**/*.rs"
+  match:
+    regex: '(?i)(?:File::create|OpenOptions::new)\s*\([^)]*["'']/(?:tmp|var/tmp)/|(?:format!|&format!)\s*\(\s*["'']/(?:tmp|var/tmp)/'
+    not_regex: '(?i)^\s*//|tempfile::|NamedTempFile|tempdir'
+  message: Temporary file created with predictable path in /tmp or /var/tmp
+  why: Creating files with static or predictable filenames in shared system directories like /tmp allows malicious local users to pre-create symlinks pointing to target files (symlink attack) to corrupt or steal data.
+  fix: Use the tempfile crate (tempfile::NamedTempFile or tempfile::tempdir) to generate securely randomized, atomically created temporary files.
 

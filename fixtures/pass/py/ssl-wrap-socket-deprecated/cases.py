@@ -1,0 +1,7 @@
+context = ssl.create_default_context()
+wrapped = context.wrap_socket(sock, server_hostname="example.com")
+# s = ssl.wrap_socket(sock)
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ssl_sock = context.wrap_socket(sock, server_side=True)
+# ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)

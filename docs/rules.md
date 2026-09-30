@@ -2,7 +2,7 @@
 
 # Rule reference
 
-181 rules across 11 packs. 123 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+191 rules across 11 packs. 131 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -13,12 +13,12 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
 | [`container`](#container) | 10 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
-| [`go`](#go) | 17 | 15 | go |
-| [`java`](#java) | 15 | 14 | java |
-| [`js`](#js) | 27 | 17 | JavaScript and TypeScript |
+| [`go`](#go) | 19 | 16 | go |
+| [`java`](#java) | 18 | 17 | java |
+| [`js`](#js) | 29 | 18 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 18 | 8 | Kubernetes |
-| [`py`](#py) | 32 | 26 | Python |
-| [`rust`](#rust) | 7 | 6 | rust |
+| [`py`](#py) | 34 | 28 | Python |
+| [`rust`](#rust) | 8 | 7 | rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 20 | 7 | Terraform |
 
@@ -399,7 +399,7 @@ Any publish by the maintainer, or by anyone who compromises their account, is in
 
 ## go
 
-go. 17 rules.
+go. 19 rules.
 
 ### `go/bind-all-interfaces`
 
@@ -569,6 +569,18 @@ Reading private keys or cloud credentials from standard user home locations is a
 
 <sub>Waive: `airtight hooks ignore-value go/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/steal-credential-file -- <reason>`</sub>
 
+### `go/tempfile-insecure`
+
+Predictable temporary file created in shared system directory
+
+**high** / firm · `P1` · CWE-377 · A01:2021 · fires on edit
+
+Creating files in shared temporary directories with predictable names allows local attackers to stage symlink attacks (CWE-59) to overwrite sensitive files or hijack file contents before write.
+
+**Fix.** Use os.CreateTemp(dir, pattern) to atomically create temporary files with unguessable random names and restrictive permissions.
+
+<sub>Waive: `airtight hooks ignore-value go/tempfile-insecure "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/tempfile-insecure -- <reason>`</sub>
+
 ### `go/tls-insecure-skip-verify`
 
 TLS certificate verification disabled
@@ -593,6 +605,18 @@ MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive
 
 <sub>Waive: `airtight hooks ignore-value go/weak-password-hash "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/weak-password-hash -- <reason>`</sub>
 
+### `go/xxe-xml-decoder`
+
+XML decoder configured with custom entity or charset resolvers
+
+**medium** / firm · `P2` · CWE-611 · A05:2021 · end of turn
+
+Go's encoding/xml package disables external entity resolution by default. Configuring a custom Entity map or CharsetReader can reintroduce entity expansion or unvalidated external content processing leading to XXE or unexpected character conversions.
+
+**Fix.** Use the standard xml.Decoder without setting custom Entity maps or CharsetReader callbacks on untrusted inputs unless strictly necessary and thoroughly filtered.
+
+<sub>Waive: `airtight hooks ignore-value go/xxe-xml-decoder "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/xxe-xml-decoder -- <reason>`</sub>
+
 ### `go/zip-slip`
 
 Arbitrary file overwrite via archive extraction (Zip Slip)
@@ -608,7 +632,7 @@ Joining an archive entry's filename directly to a destination directory without 
 
 ## java
 
-java. 15 rules.
+java. 18 rules.
 
 ### `java/command-exec`
 
@@ -706,6 +730,18 @@ Permitting unsigned tokens allows attackers to forge tokens with spoofed user id
 
 <sub>Waive: `airtight hooks ignore-value java/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/jwt-algorithm-none -- <reason>`</sub>
 
+### `java/ldap-injection`
+
+LDAP query constructed via string concatenation
+
+**high** / firm · `P1` · CWE-90 · A03:2021 · fires on edit
+
+Constructing LDAP query filters with dynamic string concatenation allows attackers to inject malicious LDAP filter operators and bypass authentication or retrieve unindexed directory attributes.
+
+**Fix.** Use parameterized search filters with placeholder variables (e.g. ctx.search(base, "(uid={0})", new Object[]{user}, controls)) or sanitize inputs using an LDAP encoder like Spring Security LdapEncoder.filterEncode.
+
+<sub>Waive: `airtight hooks ignore-value java/ldap-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/ldap-injection -- <reason>`</sub>
+
 ### `java/open-redirect`
 
 Unvalidated HTTP redirect from request parameter
@@ -717,6 +753,18 @@ Redirecting users to an unvalidated URL provided in query parameters allows atta
 **Fix.** Validate the redirect target against an allowlist of permitted destinations or ensure it is a relative path starting with a single forward slash.
 
 <sub>Waive: `airtight hooks ignore-value java/open-redirect "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/open-redirect -- <reason>`</sub>
+
+### `java/path-traversal`
+
+Path traversal via unvalidated file path concatenation
+
+**high** / firm · `P1` · CWE-22 · A01:2021 · fires on edit
+
+Creating file objects or streams using paths concatenated directly with user-supplied request parameters allows attackers to traverse directory boundaries with '../' and access arbitrary system or configuration files.
+
+**Fix.** Resolve the canonical path using file.getCanonicalPath() and verify that it starts with the canonical path of the allowed base directory, or extract only the base filename using FilenameUtils.getName().
+
+<sub>Waive: `airtight hooks ignore-value java/path-traversal "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/path-traversal -- <reason>`</sub>
 
 ### `java/spring-csrf-disabled`
 
@@ -741,6 +789,18 @@ Interpolating or concatenating dynamic user variables into SQL queries allows at
 **Fix.** Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting.
 
 <sub>Waive: `airtight hooks ignore-value java/sql-concatenation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/sql-concatenation -- <reason>`</sub>
+
+### `java/ssrf-from-input`
+
+Server-Side Request Forgery from request parameter
+
+**high** / firm · `P1` · CWE-918 · A10:2021 · fires on edit
+
+Creating network connections using URLs provided directly by user request parameters allows attackers to trigger SSRF attacks against internal network resources, loopback services, or cloud metadata services (169.254.169.254).
+
+**Fix.** Validate user-supplied URLs against a strict domain and scheme allowlist, resolve the IP address to verify it is not in private or link-local ranges, and disable HTTP redirects.
+
+<sub>Waive: `airtight hooks ignore-value java/ssrf-from-input "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line java/ssrf-from-input -- <reason>`</sub>
 
 ### `java/steal-credential-file`
 
@@ -793,7 +853,7 @@ Allowing external entity resolution or disabling secure processing enables XML E
 
 ## js
 
-JavaScript and TypeScript. 27 rules.
+JavaScript and TypeScript. 29 rules.
 
 ### `js/child-process-interpolation`
 
@@ -891,6 +951,18 @@ If any part of the evaluated string derives from input, this is remote code exec
 
 <sub>Waive: `airtight hooks ignore-value js/eval-dynamic "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/eval-dynamic -- <reason>`</sub>
 
+### `js/express-body-parser-large-limit`
+
+Body parser configured with excessively large payload limit
+
+**medium** / firm · `P2` · CWE-400 · A05:2021 · end of turn
+
+Allowing excessively large HTTP request bodies (hundreds of megabytes or gigabytes) in general body parsing middleware enables denial of service attacks by exhausting server memory and CPU during parsing.
+
+**Fix.** Set strict body parser limits suited to the expected API payloads (e.g. 1mb to 10mb), and use streaming upload handlers for large files rather than in-memory body parsers.
+
+<sub>Waive: `airtight hooks ignore-value js/express-body-parser-large-limit "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/express-body-parser-large-limit -- <reason>`</sub>
+
 ### `js/express-csrf-missing`
 
 CSRF protection ignores state-changing HTTP methods
@@ -926,6 +998,18 @@ With "none" accepted, anyone can mint a token by base64-encoding a payload and o
 **Fix.** Pass an explicit algorithms allowlist containing only the algorithm you issue with, such as ["RS256"].
 
 <sub>Waive: `airtight hooks ignore-value js/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/jwt-algorithm-none -- <reason>`</sub>
+
+### `js/jwt-decode-unverified`
+
+JWT payload decoded without signature verification
+
+**medium** / firm · `P2` · CWE-345 · A02:2021 · fires on edit
+
+jwt.decode() reads the token payload without verifying that the signature is valid. An attacker can tamper with claims or provide an arbitrary signed token that will be trusted if passed to application logic.
+
+**Fix.** Use jwt.verify(token, secretOrPublicKey, options) to cryptographically validate the signature and claims before trusting token contents.
+
+<sub>Waive: `airtight hooks ignore-value js/jwt-decode-unverified "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/jwt-decode-unverified -- <reason>`</sub>
 
 ### `js/jwt-verify-without-algorithms`
 
@@ -1343,7 +1427,7 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 
 ## py
 
-Python. 32 rules.
+Python. 34 rules.
 
 ### `py/assert-for-authorization`
 
@@ -1501,6 +1585,18 @@ Disabling JWT signature verification or allowing the none algorithm permits atta
 
 <sub>Waive: `airtight hooks ignore-value py/jwt-algorithm-none "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/jwt-algorithm-none -- <reason>`</sub>
 
+### `py/jwt-decode-unverified`
+
+JWT decoded without cryptographic signature verification
+
+**high** / confirmed · `P1` · CWE-345 · A02:2021 · fires on edit
+
+Decoding a JWT with verify=False or verify_signature: False allows attackers to forge tokens with altered claims, user IDs, or roles without knowing the secret or signing key.
+
+**Fix.** Always verify cryptographic signatures using jwt.decode(token, secret, algorithms=["HS256"]). If inspect claims unverified for routing, never use them for authorization.
+
+<sub>Waive: `airtight hooks ignore-value py/jwt-decode-unverified "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/jwt-decode-unverified -- <reason>`</sub>
+
 ### `py/nosql-injection`
 
 MongoDB query uses $where operator
@@ -1621,6 +1717,18 @@ Formatting with `%` happens in Python, so the driver receives an already assembl
 
 <sub>Waive: `airtight hooks ignore-value py/sql-percent-format "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/sql-percent-format -- <reason>`</sub>
 
+### `py/ssl-wrap-socket-deprecated`
+
+Insecure or deprecated ssl.wrap_socket without context
+
+**high** / firm · `P1` · CWE-326 · A02:2021 · fires on edit
+
+ssl.wrap_socket() was deprecated in Python 3.7 and removed in 3.12 because it defaults to insecure legacy protocol versions and does not validate certificates by default. PROTOCOL_SSLv23 also permits obsolete TLS 1.0 and 1.1 versions.
+
+**Fix.** Use ssl.create_default_context() and call context.wrap_socket(sock, server_hostname=...) to ensure certificate validation and modern TLS protocols.
+
+<sub>Waive: `airtight hooks ignore-value py/ssl-wrap-socket-deprecated "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/ssl-wrap-socket-deprecated -- <reason>`</sub>
+
 ### `py/ssrf-from-input`
 
 Outbound request target taken from request input
@@ -1732,7 +1840,7 @@ Calling ZipFile.extractall() without validating member filepaths allows Zip Slip
 
 ## rust
 
-rust. 7 rules.
+rust. 8 rules.
 
 ### `rust/command-injection`
 
@@ -1793,6 +1901,18 @@ Accessing private SSH keys, AWS credentials, Kubernetes configs, or Docker auth 
 **Fix.** Use standard credential provider chains (such as aws-config) or pass credentials via environment variables rather than reading local user credential directories directly.
 
 <sub>Waive: `airtight hooks ignore-value rust/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/steal-credential-file -- <reason>`</sub>
+
+### `rust/tempfile-insecure`
+
+Predictable temporary file created in system temp directory
+
+**high** / firm · `P1` · CWE-377 · A01:2021 · fires on edit
+
+Creating files with static or predictable filenames in shared system directories like /tmp allows malicious local users to pre-create symlinks pointing to target files (symlink attack) to corrupt or steal data.
+
+**Fix.** Use the tempfile crate (tempfile::NamedTempFile or tempfile::tempdir) to generate securely randomized, atomically created temporary files.
+
+<sub>Waive: `airtight hooks ignore-value rust/tempfile-insecure "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line rust/tempfile-insecure -- <reason>`</sub>
 
 ### `rust/tls-insecure-skip-verify`
 

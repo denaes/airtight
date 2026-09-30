@@ -575,4 +575,37 @@
   message: ZipFile.extractall called without member path filtering (Zip Slip)
   why: Calling ZipFile.extractall() without validating member filepaths allows Zip Slip attacks where archives containing '../' paths overwrite arbitrary files outside the target extraction directory.
   fix: Validate that each member's filename does not contain '..' and resolves to a path strictly inside the target directory before extracting, or extract members individually with path sanitation.
+- id: py/jwt-decode-unverified
+  name: JWT decoded without cryptographic signature verification
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-345
+  owasp: A02:2021
+  files:
+    - "**/*.py"
+  match:
+    regex: '(?i)\bjwt\.decode\s*\([^)]*(?:verify\s*=\s*False|["'']verify_signature["'']\s*:\s*False)'
+    not_regex: '(?i)^\s*#'
+  message: JWT payload decoded with signature verification explicitly disabled
+  why: "Decoding a JWT with verify=False or verify_signature: False allows attackers to forge tokens with altered claims, user IDs, or roles without knowing the secret or signing key."
+  fix: "Always verify cryptographic signatures using jwt.decode(token, secret, algorithms=[\"HS256\"]). If inspect claims unverified for routing, never use them for authorization."
+- id: py/ssl-wrap-socket-deprecated
+  name: Insecure or deprecated ssl.wrap_socket without context
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-326
+  owasp: A02:2021
+  files:
+    - "**/*.py"
+  match:
+    regex: '(?i)\bssl\.wrap_socket\s*\(|\bssl\.PROTOCOL_SSLv23\b'
+    not_regex: '(?i)^\s*#|ssl\.create_default_context'
+  message: Deprecated ssl.wrap_socket or PROTOCOL_SSLv23 used without secure defaults
+  why: ssl.wrap_socket() was deprecated in Python 3.7 and removed in 3.12 because it defaults to insecure legacy protocol versions and does not validate certificates by default. PROTOCOL_SSLv23 also permits obsolete TLS 1.0 and 1.1 versions.
+  fix: Use ssl.create_default_context() and call context.wrap_socket(sock, server_hostname=...) to ensure certificate validation and modern TLS protocols.
+
 

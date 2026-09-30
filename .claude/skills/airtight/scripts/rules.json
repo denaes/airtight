@@ -1089,6 +1089,26 @@
     "fix": "Never access host credentials directly in Go application code. Supply credentials via environment variables or cloud metadata services."
   },
   {
+    "id": "go/tempfile-insecure",
+    "name": "Predictable temporary file created in shared system directory",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-377",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)\\bos\\.(?:Create|OpenFile)\\s*\\(\\s*(?:[\"']/(?:tmp|var/tmp)/|filepath\\.Join\\s*\\(\\s*[\"']/(?:tmp|var/tmp)[\"']|fmt\\.Sprintf\\s*\\(\\s*[\"']/(?:tmp|var/tmp)/)",
+      "not_regex": "(?i)^\\s*//|os\\.CreateTemp|ioutil\\.TempFile"
+    },
+    "message": "Temporary file created with predictable path in /tmp or /var/tmp",
+    "why": "Creating files in shared temporary directories with predictable names allows local attackers to stage symlink attacks (CWE-59) to overwrite sensitive files or hijack file contents before write.",
+    "fix": "Use os.CreateTemp(dir, pattern) to atomically create temporary files with unguessable random names and restrictive permissions."
+  },
+  {
     "id": "go/tls-insecure-skip-verify",
     "name": "TLS certificate verification disabled",
     "domain": "appsec",
@@ -1125,6 +1145,26 @@
     "message": "MD5 or SHA1 used to hash passwords or authentication secrets",
     "why": "MD5 and SHA-1 are cryptographically broken due to preimage collisions, extensive rainbow table lookup tables, and extreme vulnerability to high-speed offline GPU brute-force attacks.",
     "fix": "Use a salted, work-factor tuned password hashing algorithm such as bcrypt, argon2id, or scrypt."
+  },
+  {
+    "id": "go/xxe-xml-decoder",
+    "name": "XML decoder configured with custom entity or charset resolvers",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "deep",
+    "cwe": "CWE-611",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.go"
+    ],
+    "match": {
+      "regex": "(?i)\\b(?:decoder|d|dec|xmlDecoder)\\.(?:Entity|CharsetReader)\\s*=",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "XML decoder configured with custom Entity map or CharsetReader",
+    "why": "Go's encoding/xml package disables external entity resolution by default. Configuring a custom Entity map or CharsetReader can reintroduce entity expansion or unvalidated external content processing leading to XXE or unexpected character conversions.",
+    "fix": "Use the standard xml.Decoder without setting custom Entity maps or CharsetReader callbacks on untrusted inputs unless strictly necessary and thoroughly filtered."
   },
   {
     "id": "go/zip-slip",
@@ -1304,6 +1344,26 @@
     "fix": "Enforce signed tokens using strong cryptographic algorithms (such as HMAC256 or RSA256) and use parseClaimsJws()."
   },
   {
+    "id": "java/ldap-injection",
+    "name": "LDAP query constructed via string concatenation",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-90",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)\\b(?:ctx|dirContext|initialDirContext|context)\\.search\\s*\\([^,]+,\\s*(?:[\"][^\"]*\\(.*?=\\s*[\"']\\s*\\+|String\\.format\\s*\\(\\s*[\"'][^\"]*\\(.*?=)",
+      "not_regex": "(?i)^\\s*//|filterEncode|LdapEncoder"
+    },
+    "message": "LDAP search filter built by concatenating dynamic parameters",
+    "why": "Constructing LDAP query filters with dynamic string concatenation allows attackers to inject malicious LDAP filter operators and bypass authentication or retrieve unindexed directory attributes.",
+    "fix": "Use parameterized search filters with placeholder variables (e.g. ctx.search(base, \"(uid={0})\", new Object[]{user}, controls)) or sanitize inputs using an LDAP encoder like Spring Security LdapEncoder.filterEncode."
+  },
+  {
     "id": "java/open-redirect",
     "name": "Unvalidated HTTP redirect from request parameter",
     "domain": "appsec",
@@ -1322,6 +1382,26 @@
     "message": "HttpServletResponse.sendRedirect target is taken directly from an unvalidated request parameter",
     "why": "Redirecting users to an unvalidated URL provided in query parameters allows attackers to construct trusted-looking links that redirect victims to phishing or malicious sites.",
     "fix": "Validate the redirect target against an allowlist of permitted destinations or ensure it is a relative path starting with a single forward slash."
+  },
+  {
+    "id": "java/path-traversal",
+    "name": "Path traversal via unvalidated file path concatenation",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)(?:new\\s+(?:File|FileInputStream|FileReader)|Paths\\.get)\\s*\\([^)]*\\b(?:req|request)\\.(?:getParameter|getHeader|getQueryString)\\s*\\(",
+      "not_regex": "(?i)^\\s*//|getCanonicalPath|startsWith|FilenameUtils\\.getName"
+    },
+    "message": "File path constructed directly from HTTP request parameter (path traversal risk)",
+    "why": "Creating file objects or streams using paths concatenated directly with user-supplied request parameters allows attackers to traverse directory boundaries with '../' and access arbitrary system or configuration files.",
+    "fix": "Resolve the canonical path using file.getCanonicalPath() and verify that it starts with the canonical path of the allowed base directory, or extract only the base filename using FilenameUtils.getName()."
   },
   {
     "id": "java/spring-csrf-disabled",
@@ -1361,6 +1441,26 @@
     "message": "SQL statement executed with dynamic string concatenation instead of PreparedStatement parameters",
     "why": "Interpolating or concatenating dynamic user variables into SQL queries allows attackers to alter query logic and structure, leading to unauthorized database access, data tampering, or data loss.",
     "fix": "Use parameterized queries with PreparedStatement and placeholder markers (?) instead of string concatenation or formatting."
+  },
+  {
+    "id": "java/ssrf-from-input",
+    "name": "Server-Side Request Forgery from request parameter",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "files": [
+      "**/*.java"
+    ],
+    "match": {
+      "regex": "(?i)(?:new\\s+URL\\s*\\(\\s*(?:req|request)\\.(?:getParameter|getHeader)\\s*\\(|HttpRequest\\.newBuilder\\s*\\(\\s*\\)\\s*\\.uri\\s*\\(\\s*URI\\.create\\s*\\(\\s*(?:req|request)\\.(?:getParameter|getHeader)\\s*\\()",
+      "not_regex": "(?i)^\\s*//"
+    },
+    "message": "Outbound HTTP request target derived directly from incoming request parameter",
+    "why": "Creating network connections using URLs provided directly by user request parameters allows attackers to trigger SSRF attacks against internal network resources, loopback services, or cloud metadata services (169.254.169.254).",
+    "fix": "Validate user-supplied URLs against a strict domain and scheme allowlist, resolve the IP address to verify it is not in private or link-local ranges, and disable HTTP redirects."
   },
   {
     "id": "java/steal-credential-file",
@@ -1657,6 +1757,35 @@
     "fix": "Use a lookup table or a switch for dynamic dispatch, JSON.parse for data, and a purpose-built expression library if you genuinely need user expressions."
   },
   {
+    "id": "js/express-body-parser-large-limit",
+    "name": "Body parser configured with excessively large payload limit",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "deep",
+    "cwe": "CWE-400",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.jsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?i)(?:bodyParser|express)\\.(?:json|urlencoded|raw|text)\\s*\\(\\s*\\{[^}]*limit\\s*:\\s*['\"](?:[5-9]\\d{2,}mb|[1-9]\\d{3,}mb|\\d+gb)['\"]",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)"
+    },
+    "message": "Body parser configured with excessive request payload limit (>500mb)",
+    "why": "Allowing excessively large HTTP request bodies (hundreds of megabytes or gigabytes) in general body parsing middleware enables denial of service attacks by exhausting server memory and CPU during parsing.",
+    "fix": "Set strict body parser limits suited to the expected API payloads (e.g. 1mb to 10mb), and use streaming upload handlers for large files rather than in-memory body parsers."
+  },
+  {
     "id": "js/express-csrf-missing",
     "name": "CSRF protection ignores state-changing HTTP methods",
     "domain": "appsec",
@@ -1734,6 +1863,35 @@
     "message": "JWT configuration permits the \"none\" algorithm",
     "why": "With \"none\" accepted, anyone can mint a token by base64-encoding a payload and omitting the signature. Authentication becomes a formality.",
     "fix": "Pass an explicit algorithms allowlist containing only the algorithm you issue with, such as [\"RS256\"]."
+  },
+  {
+    "id": "js/jwt-decode-unverified",
+    "name": "JWT payload decoded without signature verification",
+    "domain": "appsec",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-345",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.jsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?i)\\bjwt\\.decode\\s*\\([^)]*\\)",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)|jwt\\.verify"
+    },
+    "message": "JWT payload decoded with jwt.decode without cryptographic verification",
+    "why": "jwt.decode() reads the token payload without verifying that the signature is valid. An attacker can tamper with claims or provide an arbitrary signed token that will be trusted if passed to application logic.",
+    "fix": "Use jwt.verify(token, secretOrPublicKey, options) to cryptographically validate the signature and claims before trusting token contents."
   },
   {
     "id": "js/jwt-verify-without-algorithms",
@@ -3065,6 +3223,26 @@
     "fix": "Require signature verification and specify explicit cryptographic algorithms such as HS256 or RS256 in the algorithms allowlist."
   },
   {
+    "id": "py/jwt-decode-unverified",
+    "name": "JWT decoded without cryptographic signature verification",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-345",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?i)\\bjwt\\.decode\\s*\\([^)]*(?:verify\\s*=\\s*False|[\"']verify_signature[\"']\\s*:\\s*False)",
+      "not_regex": "(?i)^\\s*#"
+    },
+    "message": "JWT payload decoded with signature verification explicitly disabled",
+    "why": "Decoding a JWT with verify=False or verify_signature: False allows attackers to forge tokens with altered claims, user IDs, or roles without knowing the secret or signing key.",
+    "fix": "Always verify cryptographic signatures using jwt.decode(token, secret, algorithms=[\"HS256\"]). If inspect claims unverified for routing, never use them for authorization."
+  },
+  {
     "id": "py/nosql-injection",
     "name": "MongoDB query uses $where operator",
     "domain": "appsec",
@@ -3261,6 +3439,26 @@
     "message": "SQL statement built with percent formatting before execute",
     "why": "Formatting with `%` happens in Python, so the driver receives an already assembled string. Passing the values as execute's second argument looks almost identical and is parameterized.",
     "fix": "Change `cur.execute(q % vals)` to `cur.execute(q, vals)`."
+  },
+  {
+    "id": "py/ssl-wrap-socket-deprecated",
+    "name": "Insecure or deprecated ssl.wrap_socket without context",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-326",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?i)\\bssl\\.wrap_socket\\s*\\(|\\bssl\\.PROTOCOL_SSLv23\\b",
+      "not_regex": "(?i)^\\s*#|ssl\\.create_default_context"
+    },
+    "message": "Deprecated ssl.wrap_socket or PROTOCOL_SSLv23 used without secure defaults",
+    "why": "ssl.wrap_socket() was deprecated in Python 3.7 and removed in 3.12 because it defaults to insecure legacy protocol versions and does not validate certificates by default. PROTOCOL_SSLv23 also permits obsolete TLS 1.0 and 1.1 versions.",
+    "fix": "Use ssl.create_default_context() and call context.wrap_socket(sock, server_hostname=...) to ensure certificate validation and modern TLS protocols."
   },
   {
     "id": "py/ssrf-from-input",
@@ -3529,6 +3727,26 @@
     "message": "Sensitive credential file path is accessed directly",
     "why": "Accessing private SSH keys, AWS credentials, Kubernetes configs, or Docker auth tokens directly from disk is characteristic of credential harvesting malware. Legitimate applications should use standard identity SDKs or environment injection.",
     "fix": "Use standard credential provider chains (such as aws-config) or pass credentials via environment variables rather than reading local user credential directories directly."
+  },
+  {
+    "id": "rust/tempfile-insecure",
+    "name": "Predictable temporary file created in system temp directory",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-377",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.rs"
+    ],
+    "match": {
+      "regex": "(?i)(?:File::create|OpenOptions::new)\\s*\\([^)]*[\"']/(?:tmp|var/tmp)/|(?:format!|&format!)\\s*\\(\\s*[\"']/(?:tmp|var/tmp)/",
+      "not_regex": "(?i)^\\s*//|tempfile::|NamedTempFile|tempdir"
+    },
+    "message": "Temporary file created with predictable path in /tmp or /var/tmp",
+    "why": "Creating files with static or predictable filenames in shared system directories like /tmp allows malicious local users to pre-create symlinks pointing to target files (symlink attack) to corrupt or steal data.",
+    "fix": "Use the tempfile crate (tempfile::NamedTempFile or tempfile::tempdir) to generate securely randomized, atomically created temporary files."
   },
   {
     "id": "rust/tls-insecure-skip-verify",

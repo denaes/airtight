@@ -1,0 +1,5 @@
+payload = jwt.decode(token, key, verify=False)
+claims = jwt.decode(auth_token, options={"verify_signature": False})
+data = jwt.decode(raw_jwt, algorithms=["HS256"], verify=False)
+decoded = jwt.decode(token, verify=False, algorithms=["RS256"])
+jwt.decode(t, options={'verify_signature': False})

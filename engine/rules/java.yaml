@@ -275,4 +275,53 @@
   message: Spring Security CSRF protection is explicitly disabled
   why: Disabling CSRF protection in Spring Security allows attackers on third-party websites to forge state-changing HTTP requests on behalf of authenticated users via their active session cookies.
   fix: Keep CSRF protection enabled. If using stateless token authentication (such as JWTs in authorization headers), document the waiver and ensure cookies are not used for authentication.
+- id: java/ldap-injection
+  name: LDAP query constructed via string concatenation
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-90
+  owasp: A03:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: "(?i)\\b(?:ctx|dirContext|initialDirContext|context)\\.search\\s*\\([^,]+,\\s*(?:[\"][^\"]*\\(.*?=\\s*[\"']\\s*\\+|String\\.format\\s*\\(\\s*[\"'][^\"]*\\(.*?=)"
+    not_regex: '(?i)^\s*//|filterEncode|LdapEncoder'
+  message: LDAP search filter built by concatenating dynamic parameters
+  why: Constructing LDAP query filters with dynamic string concatenation allows attackers to inject malicious LDAP filter operators and bypass authentication or retrieve unindexed directory attributes.
+  fix: Use parameterized search filters with placeholder variables (e.g. ctx.search(base, "(uid={0})", new Object[]{user}, controls)) or sanitize inputs using an LDAP encoder like Spring Security LdapEncoder.filterEncode.
+- id: java/path-traversal
+  name: Path traversal via unvalidated file path concatenation
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-22
+  owasp: A01:2021
+  files:
+    - '**/*.java'
+  match:
+    regex: '(?i)(?:new\s+(?:File|FileInputStream|FileReader)|Paths\.get)\s*\([^)]*\b(?:req|request)\.(?:getParameter|getHeader|getQueryString)\s*\('
+    not_regex: '(?i)^\s*//|getCanonicalPath|startsWith|FilenameUtils\.getName'
+  message: File path constructed directly from HTTP request parameter (path traversal risk)
+  why: Creating file objects or streams using paths concatenated directly with user-supplied request parameters allows attackers to traverse directory boundaries with '../' and access arbitrary system or configuration files.
+  fix: Resolve the canonical path using file.getCanonicalPath() and verify that it starts with the canonical path of the allowed base directory, or extract only the base filename using FilenameUtils.getName().
+- id: java/ssrf-from-input
+  name: Server-Side Request Forgery from request parameter
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-918
+  owasp: A10:2021
+  files:
+    - "**/*.java"
+  match:
+    regex: '(?i)(?:new\s+URL\s*\(\s*(?:req|request)\.(?:getParameter|getHeader)\s*\(|HttpRequest\.newBuilder\s*\(\s*\)\s*\.uri\s*\(\s*URI\.create\s*\(\s*(?:req|request)\.(?:getParameter|getHeader)\s*\()'
+    not_regex: '(?i)^\s*//'
+  message: Outbound HTTP request target derived directly from incoming request parameter
+  why: Creating network connections using URLs provided directly by user request parameters allows attackers to trigger SSRF attacks against internal network resources, loopback services, or cloud metadata services (169.254.169.254).
+  fix: Validate user-supplied URLs against a strict domain and scheme allowlist, resolve the IP address to verify it is not in private or link-local ranges, and disable HTTP redirects.
+
 

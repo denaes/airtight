@@ -305,4 +305,36 @@
   fix: Verify that the target path is cleaned and has the destination directory as
     a prefix using strings.HasPrefix(filepath.Clean(dest), targetDir) before creating
     or writing the file.
+- id: go/tempfile-insecure
+  name: Predictable temporary file created in shared system directory
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-377
+  owasp: A01:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)\bos\.(?:Create|OpenFile)\s*\(\s*(?:["'']/(?:tmp|var/tmp)/|filepath\.Join\s*\(\s*["'']/(?:tmp|var/tmp)["'']|fmt\.Sprintf\s*\(\s*["'']/(?:tmp|var/tmp)/)'
+    not_regex: '(?i)^\s*//|os\.CreateTemp|ioutil\.TempFile'
+  message: Temporary file created with predictable path in /tmp or /var/tmp
+  why: Creating files in shared temporary directories with predictable names allows local attackers to stage symlink attacks (CWE-59) to overwrite sensitive files or hijack file contents before write.
+  fix: Use os.CreateTemp(dir, pattern) to atomically create temporary files with unguessable random names and restrictive permissions.
+- id: go/xxe-xml-decoder
+  name: XML decoder configured with custom entity or charset resolvers
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: deep
+  cwe: CWE-611
+  owasp: A05:2021
+  files:
+    - "**/*.go"
+  match:
+    regex: '(?i)\b(?:decoder|d|dec|xmlDecoder)\.(?:Entity|CharsetReader)\s*='
+    not_regex: '(?i)^\s*//'
+  message: XML decoder configured with custom Entity map or CharsetReader
+  why: Go's encoding/xml package disables external entity resolution by default. Configuring a custom Entity map or CharsetReader can reintroduce entity expansion or unvalidated external content processing leading to XXE or unexpected character conversions.
+  fix: Use the standard xml.Decoder without setting custom Entity maps or CharsetReader callbacks on untrusted inputs unless strictly necessary and thoroughly filtered.
 

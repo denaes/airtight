@@ -71,7 +71,7 @@ flowchart TD
 |---|---|---|---|---|
 | **Password Hashing** | `[DONE - Engine]`<br>`js/weak-password-hash` (MD5/SHA) | `[DONE - Engine]`<br>`py/weak-password-hash` (MD5/SHA) | `[DONE - Engine]`<br>`go/weak-password-hash` (crypto/md5 or sha1 for pwd) | `[N/A]` |
 | **Session Cookie Flags** | `[DONE - Engine]`<br>`js/cookie-insecure`<br>`js/cookie-missing-httponly`<br>`js/cookie-samesite-none` | `[DONE - Engine]`<br>`py/cookie-missing-httponly`<br>`py/cookie-insecure` | `[DONE - Engine]`<br>`go/cookie-flags`<br>*(Also `java/cookie-missing-httponly`)* | `[N/A]` |
-| **JWT Verification & Algorithms** | `[DONE - Engine]`<br>`js/jwt-algorithm-none`<br>`js/jwt-verify-without-algorithms` | `[DONE - Engine]`<br>`py/jwt-algorithm-none` (PyJWT algorithms/verify) | `[DONE - Engine]`<br>`go/jwt-algorithm-none` (golang-jwt parser)<br>*(Also `java/jwt-algorithm-none`)* | `[N/A]` |
+| **JWT Verification & Algorithms** | `[DONE - Engine]`<br>`js/jwt-algorithm-none`<br>`js/jwt-verify-without-algorithms`<br>`js/jwt-decode-unverified` | `[DONE - Engine]`<br>`py/jwt-algorithm-none`<br>`py/jwt-decode-unverified` | `[DONE - Engine]`<br>`go/jwt-algorithm-none` (golang-jwt parser)<br>*(Also `java/jwt-algorithm-none`)* | `[N/A]` |
 | **Insecure Randomness for Tokens** | `[DONE - Engine]`<br>`js/math-random-for-secret` (Math.random) | `[DONE - Engine]`<br>`py/random-for-secret` (random.* for token/secret) | `[DONE - Engine]`<br>`go/math-rand-for-secret` (math/rand vs crypto/rand)<br>*(Also `java/insecure-random`, `rust/weak-rng`)* | `[N/A]` |
 | **Unauthenticated Service Endpoints** | `[DONE - Model]`<br>Route reachability audit | `[DONE - Model]`<br>Route reachability audit | `[DONE - Model]`<br>Handler reachability audit | `[DONE - Engine]`<br>`k8s/anonymous-subject-binding`<br>`terraform/rds-publicly-accessible` |
 | **Hardcoded Tokens & Keys** | `[DONE - Engine]`<br>`secret/*` (15 provider formats) | `[DONE - Engine]`<br>`secret/*` (15 provider formats) | `[DONE - Engine]`<br>`secret/*` (15 provider formats) | `[DONE - Engine]`<br>`terraform/hardcoded-credential`<br>`k8s/secret-in-env-literal` |
@@ -98,7 +98,7 @@ flowchart TD
 
 | Security Topic / Threat | TypeScript / JavaScript | Python | Go | Cloud / IaC / K8s |
 |---|---|---|---|---|
-| **SQL Injection (Concat / Interpolation)** | `[DONE - Engine]`<br>`js/sql-string-concat`<br>`js/sql-template-interpolation` | `[DONE - Engine]`<br>`py/sql-fstring`<br>`py/sql-percent-format` | `[DONE - Engine]`<br>`go/sql-string-concat` (db.Query with fmt.Sprintf or +)<br>*(Also `rust/sql-format`, `java/sql-concatenation`)* | `[N/A]` |
+| **SQL & Directory Injection** | `[DONE - Engine]`<br>`js/sql-string-concat`<br>`js/sql-template-interpolation` | `[DONE - Engine]`<br>`py/sql-fstring`<br>`py/sql-percent-format` | `[DONE - Engine]`<br>`go/sql-string-concat` (db.Query with fmt.Sprintf or +)<br>*(Also `rust/sql-format`, `java/sql-concatenation`, `java/ldap-injection`)* | `[N/A]` |
 | **NoSQL Injection (Operator & Selector)** | `[DONE - Engine]`<br>`js/nosql-injection` ($where, req.body to find) | `[DONE - Engine]`<br>`py/nosql-injection` ($where operator evaluation) | `[PLANNED - Engine]`<br>`go/nosql-injection` (bson.M injection) | `[N/A]` |
 | **Database Encryption at Rest** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`terraform/rds-unencrypted`<br>`terraform/ebs-unencrypted` |
 | **State Storage & Bucket Encryption** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`terraform/unencrypted-state-backend`<br>`terraform/s3-public-access-block-disabled`<br>`terraform/s3-public-acl` |
@@ -110,8 +110,8 @@ flowchart TD
 
 | Security Topic / Threat | TypeScript / JavaScript | Python | Go | Cloud / IaC / K8s |
 |---|---|---|---|---|
-| **SSRF (Server-Side Request Forgery)** | `[DONE - Engine]`<br>`js/ssrf-request-from-input` (fetch/axios from req) | `[DONE - Engine]`<br>`py/ssrf-from-input` (requests from input) | `[DONE - Engine]`<br>`go/ssrf-from-input` (http.Get/Post from input) | `[DONE - Engine]`<br>`terraform/imdsv1-allowed` (IMDSv1 permits SSRF theft) |
-| **TLS Certificate Verification Disabled** | `[DONE - Engine]`<br>`js/tls-verification-disabled` (rejectUnauthorized: false) | `[DONE - Engine]`<br>`py/requests-verify-false`<br>`py/cert-reqs-none`<br>`py/paramiko-missing-host-key-policy` | `[DONE - Engine]`<br>`go/tls-insecure-skip-verify` (InsecureSkipVerify: true)<br>*(Also `java/trust-all-certs`, `rust/tls-insecure-skip-verify`)* | `[N/A]` |
+| **SSRF (Server-Side Request Forgery)** | `[DONE - Engine]`<br>`js/ssrf-request-from-input` (fetch/axios from req) | `[DONE - Engine]`<br>`py/ssrf-from-input` (requests from input) | `[DONE - Engine]`<br>`go/ssrf-from-input` (http.Get/Post from input)<br>*(Also `java/ssrf-from-input`)* | `[DONE - Engine]`<br>`terraform/imdsv1-allowed` (IMDSv1 permits SSRF theft) |
+| **TLS Certificate Verification Disabled** | `[DONE - Engine]`<br>`js/tls-verification-disabled` (rejectUnauthorized: false) | `[DONE - Engine]`<br>`py/requests-verify-false`<br>`py/cert-reqs-none`<br>`py/ssl-wrap-socket-deprecated`<br>`py/paramiko-missing-host-key-policy` | `[DONE - Engine]`<br>`go/tls-insecure-skip-verify` (InsecureSkipVerify: true)<br>*(Also `java/trust-all-certs`, `rust/tls-insecure-skip-verify`)* | `[N/A]` |
 | **Plaintext Transport & Insecure HTTP** | `[DONE - Engine]`<br>`dep/http-registry`<br>`dep/lockfile-http-resolved` | `[DONE - Engine]`<br>`dep/pip-index-http`<br>`dep/pip-trusted-host` | `[PLANNED - Engine]`<br>`go/http-serve-insecure` | `[DONE - Engine]`<br>`terraform/lb-http-listener`<br>`terraform/weak-tls-policy` |
 | **Network Ingress & Exposure** | `[N/A]` | `[DONE - Engine]`<br>`py/bind-all-interfaces` (host=0.0.0.0) | `[DONE - Engine]`<br>`go/bind-all-interfaces` (net.Listen / ListenAndServe 0.0.0.0) | `[DONE - Engine]`<br>`terraform/open-ingress`<br>`terraform/open-ingress-sensitive-port`<br>`k8s/nodeport-service` |
 | **Open Redirect** | `[DONE - Engine]`<br>`js/open-redirect` (res.redirect(req.query.url)) | `[DONE - Engine]`<br>`py/open-redirect` (redirect(request.args/GET)) | `[DONE - Engine]`<br>`go/open-redirect` (http.Redirect from query)<br>*(Also `java/open-redirect`)* | `[N/A]` |
@@ -124,9 +124,10 @@ flowchart TD
 |---|---|---|---|---|
 | **Dynamic Code Execution (Eval)** | `[DONE - Engine]`<br>`js/eval-dynamic` (eval, new Function) | `[DONE - Engine]`<br>`py/eval-exec` (eval, exec) | `[N/A]` | `[N/A]` |
 | **Cross-Site Scripting (XSS)** | `[DONE - Engine]`<br>`js/dangerously-set-inner-html`<br>`js/inner-html-assignment` | `[DONE - Engine]`<br>`py/jinja-autoescape-off` (autoescape=False) | `[DONE - Engine]`<br>`go/html-template-unescaped` (template.HTML/JS) | `[N/A]` |
-| **XML External Entity (XXE)** | `[DONE - Engine]`<br>`js/xxe-libxml` (noent: true) | `[DONE - Engine]`<br>`py/xxe-unsafe-parser` (xml.etree entity expansion) | `[PLANNED - Engine]`<br>`go/xxe-xml-decoder` | `[N/A]` |
-| **Insecure Deserialization** | `[DONE - Engine]`<br>`js/node-serialize` | `[DONE - Engine]`<br>`py/pickle-loads`<br>`py/yaml-unsafe-load` | `[PLANNED - Engine]`<br>`go/gob-untrusted-decoder` | `[N/A]` |
+| **XML External Entity (XXE)** | `[DONE - Engine]`<br>`js/xxe-libxml` (noent: true) | `[DONE - Engine]`<br>`py/xxe-unsafe-parser` (xml.etree entity expansion) | `[DONE - Engine]`<br>`go/xxe-xml-decoder`<br>*(Also `java/xxe-parser`)* | `[N/A]` |
+| **Insecure Deserialization** | `[DONE - Engine]`<br>`js/node-serialize` | `[DONE - Engine]`<br>`py/pickle-loads`<br>`py/yaml-unsafe-load` | `[PLANNED - Engine]`<br>`go/gob-untrusted-decoder`<br>*(Also `java/insecure-deserialization`)* | `[N/A]` |
 | **Regular Expression Denial of Service** | `[DONE - Engine]`<br>`js/regexp-from-input` (new RegExp from req) | `[DONE - Engine]`<br>`py/re-compile-from-input` (re.compile from input) | `[N/A]` (Go uses RE2 linear-time) | `[N/A]` |
+| **Payload Limits & DoS Controls** | `[DONE - Engine]`<br>`js/express-body-parser-large-limit` (>500mb limit) | `[PLANNED - Engine]`<br>`py/large-payload-limit` | `[PLANNED - Engine]`<br>`go/max-bytes-reader-missing` | `[N/A]` |
 | **Prototype Pollution** | `[DONE - Engine]`<br>`js/prototype-pollution` (recursive merge/deep copy) | `[N/A]` | `[N/A]` | `[N/A]` |
 
 ---
@@ -137,8 +138,8 @@ flowchart TD
 |---|---|---|---|---|
 | **Command Injection (Shell Spawning)** | `[DONE - Engine]`<br>`js/child-process-interpolation`<br>`js/spawn-shell-true` | `[DONE - Engine]`<br>`py/os-system-interpolation`<br>`py/subprocess-shell-true` | `[DONE - Engine]`<br>`go/command-exec-shell` (exec.Command with sh/bash -c)<br>*(Also Java: `java/command-exec`, Rust: `rust/command-injection`)* | `[DONE - Engine]`<br>`ci/script-injection` (interpolating ${{ github.event }} into shell) |
 | **Pipe to Shell Execution** | `[DONE - Engine]`<br>`dep/curl-pipe-shell-script` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`container/curl-pipe-shell` (RUN curl \| sh) |
-| **Path Traversal & Zip Slip** | `[DONE - Engine]`<br>`js/path-join-from-input` (path.join with req) | `[DONE - Engine]`<br>`py/tarfile-extractall`<br>`py/zipfile-extractall` | `[DONE - Engine]`<br>`go/zip-slip` (filepath.Join without clean/prefix check)<br>*(Also `rust/path-traversal`)* | `[DONE - Engine]`<br>`k8s/host-path-volume` (mounting host directories) |
-| **Insecure Temporary File Creation** | `[PLANNED - Engine]`<br>`js/temp-file-predictable` (/tmp/ hardcoding) | `[DONE - Engine]`<br>`py/tempfile-mktemp` (mktemp race condition) | `[PLANNED - Engine]`<br>`go/tempfile-insecure` | `[N/A]` |
+| **Path Traversal & Zip Slip** | `[DONE - Engine]`<br>`js/path-join-from-input` (path.join with req) | `[DONE - Engine]`<br>`py/tarfile-extractall`<br>`py/zipfile-extractall` | `[DONE - Engine]`<br>`go/zip-slip` (filepath.Join without clean/prefix check)<br>*(Also `rust/path-traversal`, `java/path-traversal`)* | `[DONE - Engine]`<br>`k8s/host-path-volume` (mounting host directories) |
+| **Insecure Temporary File Creation** | `[PLANNED - Engine]`<br>`js/temp-file-predictable` (/tmp/ hardcoding) | `[DONE - Engine]`<br>`py/tempfile-mktemp` (mktemp race condition) | `[DONE - Engine]`<br>`go/tempfile-insecure`<br>*(Also `rust/tempfile-insecure`)* | `[N/A]` |
 | **Debug Mode Left Active** | `[PLANNED - Engine]`<br>`js/express-stacktrace` | `[DONE - Engine]`<br>`py/flask-debug-enabled` (debug=True / DEBUG=True) | `[DONE - Engine]`<br>`go/gin-debug-mode` (gin.SetMode debug) | `[N/A]` |
 | **Filesystem Permissions** | `[N/A]` | `[N/A]` | `[N/A]` | `[DONE - Engine]`<br>`container/world-writable-chmod`<br>`k8s/writable-root-filesystem` |
 
@@ -159,25 +160,25 @@ flowchart TD
 
 ---
 
-## Current State Audit (181 Rules)
+## Current State Audit (191 Rules)
 
 ```
 Pack Breakdown:
   ci:         8 rules  [supply-chain]
   container: 10 rules  [containers]
   dep:       12 rules  [supply-chain]
-  go:        17 rules  [appsec, secrets, infrastructure]
-  java:      15 rules  [appsec, secrets]
-  js:        27 rules  [appsec, secrets]
+  go:        19 rules  [appsec, secrets, infrastructure]
+  java:      18 rules  [appsec, secrets]
+  js:        29 rules  [appsec, secrets]
   k8s:       18 rules  [containers, infrastructure]
-  py:        32 rules  [appsec, secrets, infrastructure]
-  rust:       7 rules  [appsec, secrets]
+  py:        34 rules  [appsec, secrets, infrastructure]
+  rust:       8 rules  [appsec, secrets]
   secret:    15 rules  [secrets]
   terraform: 20 rules  [infrastructure]
 
 Immediate vs Deep Tier:
-  Immediate Tier (Edit-site interrupt): 123 rules (68%)
-  Deep Tier (Full scan / Commit-time):   58 rules (32%)
+  Immediate Tier (Edit-site interrupt): 131 rules (68.6%)
+  Deep Tier (Full scan / Commit-time):   60 rules (31.4%)
 
 Mechanically Checkable vs Reasoning Split:
   Secrets:              ~95% engine / 5% model

@@ -670,3 +670,51 @@
     authenticated users.
   fix: Only ignore safe idempotent methods (GET, HEAD, OPTIONS) in CSRF middleware
     configurations.
+- id: js/jwt-decode-unverified
+  name: JWT payload decoded without signature verification
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: immediate
+  cwe: CWE-345
+  owasp: A02:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.jsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '(?i)\bjwt\.decode\s*\([^)]*\)'
+    not_regex: '(?i)^\s*(//|\*|/\*)|jwt\.verify'
+  message: JWT payload decoded with jwt.decode without cryptographic verification
+  why: jwt.decode() reads the token payload without verifying that the signature is valid. An attacker can tamper with claims or provide an arbitrary signed token that will be trusted if passed to application logic.
+  fix: Use jwt.verify(token, secretOrPublicKey, options) to cryptographically validate the signature and claims before trusting token contents.
+- id: js/express-body-parser-large-limit
+  name: Body parser configured with excessively large payload limit
+  domain: appsec
+  severity: medium
+  confidence: firm
+  tier: deep
+  cwe: CWE-400
+  owasp: A05:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.jsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '(?i)(?:bodyParser|express)\.(?:json|urlencoded|raw|text)\s*\(\s*\{[^}]*limit\s*:\s*[''"](?:[5-9]\d{2,}mb|[1-9]\d{3,}mb|\d+gb)[''"]'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: Body parser configured with excessive request payload limit (>500mb)
+  why: Allowing excessively large HTTP request bodies (hundreds of megabytes or gigabytes) in general body parsing middleware enables denial of service attacks by exhausting server memory and CPU during parsing.
+  fix: Set strict body parser limits suited to the expected API payloads (e.g. 1mb to 10mb), and use streaming upload handlers for large files rather than in-memory body parsers.
