@@ -5,6 +5,16 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-02
+
+### Changed
+- **Harness Symlinking & De-duplication**:
+  - Eliminated 286 redundant markdown files and over 300,000 lines of duplicated code across tracked agent harnesses.
+  - Linked all 18 tracked agent harnesses (`.claude/skills/airtight`, `.cursor/skills/airtight`, `.agent/skills/airtight`, etc.) back to canonical `skill/reference` and `skill/scripts` using relative symlinks.
+  - Standardized all 14 reference playbooks in `skill/reference/` to be completely harness-agnostic, referencing `airtight` directly without per-harness placeholders (`{{scripts_path}}`).
+  - Added dedicated standalone plugin staging in `plugin/` with fully materialized files for standalone Claude plugin distribution.
+  - Added build-time invariant tests in `tests/build.test.mjs` verifying symlink integrity and targets across all 18 agent harnesses.
+
 ## [0.4.0] - 2026-09-30
 
 ### Added
