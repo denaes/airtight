@@ -1,8 +1,8 @@
 Report and repair drift between this project's airtight artifacts and what the installed version reads. This is maintenance, not security work.
 
 ```
-{{scripts_path}}/airtight doctor --json
-{{scripts_path}}/airtight doctor --fix
+airtight doctor --json
+airtight doctor --fix
 ```
 
 ## What this owns

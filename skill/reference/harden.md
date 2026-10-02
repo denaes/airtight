@@ -7,10 +7,10 @@ The one command that edits. Apply remediations in triage order, verify once, and
 Take the findings from the store rather than re-deriving them:
 
 ```
-{{scripts_path}}/airtight findings list --json
+airtight findings list --json
 ```
 
-If the store is empty, run `{{scripts_path}}/airtight findings sync <target>` first. If the user named specific findings, use those and leave the rest.
+If the store is empty, run `airtight findings sync <target>` first. If the user named specific findings, use those and leave the rest.
 
 **Regressed findings come first, regardless of severity.** Something the team already fixed has come back, which means the fix did not reach where it needed to, and repeating it without understanding why will produce the same result.
 
@@ -37,7 +37,7 @@ For each finding:
 
 ## 4. Verify, once
 
-Re-run the check that produced each finding — `{{scripts_path}}/airtight detect --json <files>` for rule findings — then `{{scripts_path}}/airtight findings sync` to close them in the store. Run the project's tests if there are any.
+Re-run the check that produced each finding — `airtight detect --json <files>` for rule findings — then `airtight findings sync` to close them in the store. Run the project's tests if there are any.
 
 One verification pass. If it surfaces something new, fix that in the same batch and confirm with at most one more round. Do not enter a scan-fix-scan loop; it costs the user money to rediscover what the first pass already said.
 

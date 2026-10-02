@@ -1,12 +1,12 @@
 Manage the edit hook for this project.
 
 ```
-{{command_prefix}}airtight hooks on            install and enable
-{{command_prefix}}airtight hooks off           disable without uninstalling
-{{command_prefix}}airtight hooks status        current state and limits
-{{command_prefix}}airtight hooks ignore-value <rule> "<value>" --reason "<who decided: evidence>"
-{{command_prefix}}airtight hooks ignore-file <glob>     needs the user
-{{command_prefix}}airtight hooks ignore-rule <rule>     needs the user
+/airtight hooks on            install and enable
+/airtight hooks off           disable without uninstalling
+/airtight hooks status        current state and limits
+/airtight hooks ignore-value <rule> "<value>" --reason "<who decided: evidence>"
+/airtight hooks ignore-file <glob>     needs the user
+/airtight hooks ignore-rule <rule>     needs the user
 ```
 
 ## What the hook does

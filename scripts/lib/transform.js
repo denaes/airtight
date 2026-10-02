@@ -1,7 +1,7 @@
 // Per-provider transform: skill/ in, dist/<provider>/<configDir>/ out.
 
-import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { FIELD_RENAMES, placeholdersFor } from './providers.js';
 import { STANDALONE } from './hook-manifests.js';
 import {
@@ -96,9 +96,20 @@ function emitOpenAIMetadata(skillOut, data) {
   ].join('\n'));
 }
 
+export function syncDegradedAgents(skillDir) {
+  const agentFiles = readdirSync(join(skillDir, 'agents')).filter((f) => f.endsWith('.md'));
+  const degradedDir = join(skillDir, 'reference', 'degraded');
+  mkdirSync(degradedDir, { recursive: true });
+  for (const file of agentFiles) {
+    const { raw: aRaw, body: aBody } = splitFrontmatter(readFileSync(join(skillDir, 'agents', file), 'utf8'));
+    writeFileSync(join(degradedDir, file.replace(/^airtight-/, '')),
+      DEGRADED_PREAMBLE + aBody.trimStart());
+  }
+}
+
 // -------------------------------------------------------------------- main
 
-export function transform(skillDir, distDir, config, { version }) {
+export function transform(skillDir, distDir, config, { version, symlinks = false }) {
   const outRoot = join(distDir, config.provider, config.configDir);
   const skillOut = join(outRoot, 'skills', SKILL_NAME);
   const scriptsPath = `${config.configDir}/skills/${SKILL_NAME}/scripts`;
@@ -120,24 +131,22 @@ export function transform(skillDir, distDir, config, { version }) {
   }
   write(join(skillOut, 'SKILL.md'), renderFrontmatter(fm) + render(body, config, scriptsPath).trimStart());
 
-  for (const file of readdirSync(join(skillDir, 'reference')).filter((f) => f.endsWith('.md'))) {
-    write(join(skillOut, 'reference', file),
-      render(readFileSync(join(skillDir, 'reference', file), 'utf8'), config, scriptsPath));
+  if (symlinks) {
+    const refTarget = relative(skillOut, join(skillDir, 'reference'));
+    symlinkSync(refTarget, join(skillOut, 'reference'));
+    const scriptsTarget = relative(skillOut, join(skillDir, 'scripts'));
+    symlinkSync(scriptsTarget, join(skillOut, 'scripts'));
+  } else {
+    cpSync(join(skillDir, 'reference'), join(skillOut, 'reference'), { recursive: true });
+    cpSync(join(skillDir, 'scripts'), join(skillOut, 'scripts'), { recursive: true });
   }
 
-  // Scripts are copied verbatim: the launcher and the bundle are not templated.
-  cpSync(join(skillDir, 'scripts'), join(skillOut, 'scripts'), { recursive: true });
-
-  // Agents in this provider's format, plus an inline fallback for each. The
-  // fallback ships to every provider, including ones that do support
-  // sub-agents, because a user can decline them.
+  // Agents in this provider's format
   const agentFiles = readdirSync(join(skillDir, 'agents')).filter((f) => f.endsWith('.md'));
   for (const file of agentFiles) {
     const { raw: aRaw, body: aBody } = splitFrontmatter(readFileSync(join(skillDir, 'agents', file), 'utf8'));
     const aData = parseFrontmatter(aRaw);
     if (config.agentFormat !== 'none') emitAgent(config, scriptsPath, outRoot, file, aData, aBody);
-    write(join(skillOut, 'reference', 'degraded', file.replace(/^airtight-/, '')),
-      DEGRADED_PREAMBLE + render(aBody, config, scriptsPath).trimStart());
   }
 
   if (config.writeOpenAIMetadata) emitOpenAIMetadata(skillOut, data);

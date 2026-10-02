@@ -6,10 +6,13 @@
 `reference/`, `agents/`, and `scripts/`. `engine/` is the only authoring
 surface for the engine, and `engine/rules/*.yaml` for the rules.
 
-`.claude/`, `plugin/`, `.claude-plugin/`, and `skill/scripts/engine/` are
-**generated and committed**. They are tracked so a git clone and a plugin
-install both work without a build step. Do not edit them, and do not gitignore
-them.
+Harness directories (`.claude/`, `.cursor/`, `.agent/`, etc.), `plugin/`,
+`.claude-plugin/`, and `skill/scripts/engine/` are **tracked in git**.
+To eliminate hundreds of duplicate files and multi-megabyte engine bundles,
+tracked harnesses symlink `reference` and `scripts` back to canonical
+`skill/reference` and `skill/scripts`, while `plugin/` remains fully materialized
+for standalone Claude plugin distribution. Do not edit them directly.
+(On Windows, enable Developer Mode or clone with `git clone -c core.symlinks=true <url>`).
 
 ```bash
 npm run build            # rules, engine bundle, dist/ — safe during development

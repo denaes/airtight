@@ -4,7 +4,7 @@ The build pipeline is the most actively exploited surface in the industry right 
 
 ## Run
 
-`${CLAUDE_SKILL_DIR}/scripts/airtight detect --json --pack ci --pack dep .`
+`airtight detect --json --pack ci --pack dep .`
 
 Then read the workflows yourself for the things no rule catches:
 

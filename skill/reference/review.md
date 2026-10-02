@@ -24,7 +24,7 @@ Spawn both, then wait for both.
 
 > Return: entry points and who can reach them; the authorization model as implemented and where it is inconsistent; data flows from untrusted input to dangerous sinks with the intermediate steps named; drift from CONTROLS.md; business-logic and abuse paths; 3-6 priority findings each with a concrete exploit path or an explicit statement that the path is unproven; 2-3 things the codebase does well.
 
-**Assessment B — deterministic evidence.** Run `{{scripts_path}}/airtight detect --json <target>` and, if a control register exists, `{{scripts_path}}/airtight controls verify`.
+**Assessment B — deterministic evidence.** Run `airtight detect --json <target>` and, if a control register exists, `airtight controls verify`.
 
 > Return: findings JSON with counts by priority; controls failing or broken; rules that could not run and why; any finding you believe is a false positive, with the reason.
 
@@ -87,11 +87,11 @@ Two or three things done well, specifically. Not filler: telling someone their t
 Two or three things you could not determine from the code and a human can answer in a sentence. "Is /internal/metrics reachable from outside the VPC?" is worth more than another tentative finding.
 ```
 
-Close with **Recommended actions**: the ordered next commands. Only recommend from `{{command_prefix}}airtight audit`, `deps`, `harden`, `infra`, `init`, `review`, `secrets`, `supply-chain`, `threat-model`. End with `{{command_prefix}}airtight harden <target>` when there is anything to fix.
+Close with **Recommended actions**: the ordered next commands. Only recommend from `/airtight audit`, `deps`, `harden`, `infra`, `init`, `review`, `secrets`, `supply-chain`, `threat-model`. End with `/airtight harden <target>` when there is anything to fix.
 
 ### Persist
 
-After delivering in chat, run `{{scripts_path}}/airtight findings sync <target>` so the findings enter the store with their lifecycle. Report the one-line result. If the sync fails, say so and move on; the review is not invalidated by a bookkeeping failure.
+After delivering in chat, run `airtight findings sync <target>` so the findings enter the store with their lifecycle. Report the one-line result. If the sync fails, say so and move on; the review is not invalidated by a bookkeeping failure.
 
 ### The way this command fails
 

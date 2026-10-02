@@ -10,12 +10,12 @@
 // generated diff in a feature branch conflicts with every other branch.
 
 import {
-  cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
+  cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, symlinkSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROVIDERS, providerList } from './lib/providers.js';
-import { transform } from './lib/transform.js';
+import { transform, syncDegradedAgents } from './lib/transform.js';
 import { splitFrontmatter, parseFrontmatter } from './lib/utils.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,8 +46,13 @@ const PROJECT_SCRIPTS = '.claude/skills/airtight/scripts';
 function stagePlugin(claudeOut, version, pkg) {
   const plugin = join(ROOT, 'plugin');
   rmSync(plugin, { recursive: true, force: true });
-  mkdirSync(plugin, { recursive: true });
-  cpSync(join(claudeOut, 'skills'), join(plugin, 'skills'), { recursive: true });
+  mkdirSync(join(plugin, 'skills', 'airtight'), { recursive: true });
+  mkdirSync(join(plugin, 'agents'), { recursive: true });
+
+  // Copy SKILL.md and materialize reference & scripts from skill/ so plugin is 100% self-contained
+  cpSync(join(claudeOut, 'skills', 'airtight', 'SKILL.md'), join(plugin, 'skills', 'airtight', 'SKILL.md'));
+  cpSync(join(SKILL, 'reference'), join(plugin, 'skills', 'airtight', 'reference'), { recursive: true });
+  cpSync(join(SKILL, 'scripts'), join(plugin, 'skills', 'airtight', 'scripts'), { recursive: true });
   cpSync(join(claudeOut, 'agents'), join(plugin, 'agents'), { recursive: true });
 
   // SKILL.md and its references get the host-substituted skill dir.
@@ -235,6 +240,7 @@ function main() {
   const commands = Object.keys(readJson(join(SKILL, 'scripts', 'command-metadata.json')));
 
   rmSync(DIST, { recursive: true, force: true });
+  syncDegradedAgents(SKILL);
   const built = [];
   for (const config of providerList()) {
     const result = transform(SKILL, DIST, config, { version });
@@ -251,7 +257,7 @@ function main() {
   validateCounts(rules.length, commands.length);
 
   if (SYNC) {
-    for (const { config, result } of built) {
+    for (const { config } of built) {
       // Copy the whole provider tree rather than named subdirectories, so
       // commands/, hooks/ and any future sibling arrive without the sync
       // needing to know about them.
@@ -262,13 +268,28 @@ function main() {
         // the user's own files, and .github in particular holds workflows.
         for (const sub of readdirSync(from)) {
           if (sub === 'skills') {
-            rmSync(join(to, sub, 'airtight'), { recursive: true, force: true });
-            mkdirSync(join(to, sub), { recursive: true });
-            cpSync(join(from, sub, 'airtight'), join(to, sub, 'airtight'), { recursive: true });
+            const airtightTo = join(to, sub, 'airtight');
+            rmSync(airtightTo, { recursive: true, force: true });
+            mkdirSync(airtightTo, { recursive: true });
+
+            // Copy SKILL.md
+            cpSync(join(from, sub, 'airtight', 'SKILL.md'), join(airtightTo, 'SKILL.md'));
+
+            // Symlink reference/ and scripts/ in tracked harness
+            const refTarget = relative(airtightTo, join(SKILL, 'reference'));
+            symlinkSync(refTarget, join(airtightTo, 'reference'));
+            const scriptsTarget = relative(airtightTo, join(SKILL, 'scripts'));
+            symlinkSync(scriptsTarget, join(airtightTo, 'scripts'));
+
+            // Copy any extra files/subdirs in skills/airtight (e.g. agents/ for codex)
+            for (const item of readdirSync(join(from, sub, 'airtight'))) {
+              if (item === 'SKILL.md' || item === 'reference' || item === 'scripts') continue;
+              cpSync(join(from, sub, 'airtight', item), join(airtightTo, item), { recursive: true });
+            }
           } else {
             rmSync(join(to, sub), { recursive: true, force: true });
             mkdirSync(to, { recursive: true });
-            cpSync(from, to, { recursive: true });
+            cpSync(join(from, sub), join(to, sub), { recursive: true });
           }
         }
       }

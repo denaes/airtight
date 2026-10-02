@@ -71,7 +71,7 @@ Mark status truthfully: `enforced`, `partial`, `planned`, or `not-applicable`. A
 
 ## 5. Offer the hook, then stop
 
-Offer `{{command_prefix}}airtight hooks on` in one line and recommend a first command based on what the repo contains. Do not run a scan as part of init. The user asked to be set up, not assessed.
+Offer `/airtight hooks on` in one line and recommend a first command based on what the repo contains. Do not run a scan as part of init. The user asked to be set up, not assessed.
 
 ## The way this command fails
 

@@ -2,7 +2,7 @@ Find committed credentials in the working tree and in git history, and produce a
 
 ## Run
 
-1. `${CLAUDE_SKILL_DIR}/scripts/airtight detect --json --pack secret .`
+1. `airtight detect --json --pack secret .`
 2. History matters more than the working tree. A credential deleted in a later commit is still in the clone every contributor already has:
    ```
    git log --all --full-history -p -S'<prefix>' -- <path>

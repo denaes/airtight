@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, statSync, lstatSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { ROOT } from './helpers.mjs';
 import { providerList, placeholdersFor } from '../scripts/lib/providers.js';
@@ -292,4 +292,17 @@ test('.pre-commit-hooks.yaml is valid and targets airtight detect', () => {
   assert.ok(hook);
   assert.match(hook.entry, /airtight detect/);
 });
+
+test('tracked harnesses use symlinks for reference and scripts rather than duplicate copies', () => {
+  for (const p of providerList()) {
+    const airtightDir = resolve(ROOT, p.configDir, 'skills/airtight');
+    const ref = join(airtightDir, 'reference');
+    const scripts = join(airtightDir, 'scripts');
+    assert.ok(lstatSync(ref).isSymbolicLink(), `${p.provider}: reference is not a symlink`);
+    assert.ok(lstatSync(scripts).isSymbolicLink(), `${p.provider}: scripts is not a symlink`);
+    assert.ok(existsSync(join(ref, 'audit.md')), `${p.provider}: reference symlink does not resolve`);
+    assert.ok(existsSync(join(scripts, 'airtight')), `${p.provider}: scripts symlink does not resolve`);
+  }
+});
+
 

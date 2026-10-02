@@ -4,9 +4,9 @@ Audit is broad and shallow. `review` is narrow and deep. When someone asks "is t
 
 ## Run
 
-1. `{{scripts_path}}/airtight detect --json .`, or scoped to the target when one was given.
-2. `{{scripts_path}}/airtight controls verify` when a control register exists.
-3. `{{scripts_path}}/airtight findings sync .` after reporting, so the results enter the store.
+1. `airtight detect --json .`, or scoped to the target when one was given.
+2. `airtight controls verify` when a control register exists.
+3. `airtight findings sync .` after reporting, so the results enter the store.
 
 Read the JSON. Do not re-derive it by reading files the engine already read.
 
@@ -57,7 +57,7 @@ Every finding you judged incorrect, with the reason and the waiver command that 
 What was **not** scanned and why: languages with no pack yet, files skipped as too large or binary, domains with no rules. An audit that does not state its coverage implies total coverage, which is the most consequential thing a security report can get wrong.
 ```
 
-Close with **Recommended actions** in order. Only recommend from `{{command_prefix}}airtight deps`, `harden`, `infra`, `init`, `review`, `secrets`, `supply-chain`, `threat-model`. End with `{{command_prefix}}airtight harden` when anything is fixable.
+Close with **Recommended actions** in order. Only recommend from `/airtight deps`, `harden`, `infra`, `init`, `review`, `secrets`, `supply-chain`, `threat-model`. End with `/airtight harden` when anything is fixable.
 
 **NEVER**:
 - Report a finding without saying what it means *for this project*.

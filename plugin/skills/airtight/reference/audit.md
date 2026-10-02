@@ -4,9 +4,9 @@ Audit is broad and shallow. `review` is narrow and deep. When someone asks "is t
 
 ## Run
 
-1. `${CLAUDE_SKILL_DIR}/scripts/airtight detect --json .`, or scoped to the target when one was given.
-2. `${CLAUDE_SKILL_DIR}/scripts/airtight controls verify` when a control register exists.
-3. `${CLAUDE_SKILL_DIR}/scripts/airtight findings sync .` after reporting, so the results enter the store.
+1. `airtight detect --json .`, or scoped to the target when one was given.
+2. `airtight controls verify` when a control register exists.
+3. `airtight findings sync .` after reporting, so the results enter the store.
 
 Read the JSON. Do not re-derive it by reading files the engine already read.
 

@@ -2,7 +2,7 @@ Review infrastructure as code: Terraform, Kubernetes manifests, Dockerfiles, and
 
 ## Run
 
-`${CLAUDE_SKILL_DIR}/scripts/airtight detect --json --pack terraform --pack k8s --pack container .`
+`airtight detect --json --pack terraform --pack k8s --pack container .`
 
 ## What the rules cannot see
 

@@ -24,7 +24,7 @@ Spawn both, then wait for both.
 
 > Return: entry points and who can reach them; the authorization model as implemented and where it is inconsistent; data flows from untrusted input to dangerous sinks with the intermediate steps named; drift from CONTROLS.md; business-logic and abuse paths; 3-6 priority findings each with a concrete exploit path or an explicit statement that the path is unproven; 2-3 things the codebase does well.
 
-**Assessment B — deterministic evidence.** Run `${CLAUDE_SKILL_DIR}/scripts/airtight detect --json <target>` and, if a control register exists, `${CLAUDE_SKILL_DIR}/scripts/airtight controls verify`.
+**Assessment B — deterministic evidence.** Run `airtight detect --json <target>` and, if a control register exists, `airtight controls verify`.
 
 > Return: findings JSON with counts by priority; controls failing or broken; rules that could not run and why; any finding you believe is a false positive, with the reason.
 
@@ -91,7 +91,7 @@ Close with **Recommended actions**: the ordered next commands. Only recommend fr
 
 ### Persist
 
-After delivering in chat, run `${CLAUDE_SKILL_DIR}/scripts/airtight findings sync <target>` so the findings enter the store with their lifecycle. Report the one-line result. If the sync fails, say so and move on; the review is not invalidated by a bookkeeping failure.
+After delivering in chat, run `airtight findings sync <target>` so the findings enter the store with their lifecycle. Report the one-line result. If the sync fails, say so and move on; the review is not invalidated by a bookkeeping failure.
 
 ### The way this command fails
 

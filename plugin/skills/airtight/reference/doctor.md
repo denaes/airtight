@@ -1,8 +1,8 @@
 Report and repair drift between this project's airtight artifacts and what the installed version reads. This is maintenance, not security work.
 
 ```
-${CLAUDE_SKILL_DIR}/scripts/airtight doctor --json
-${CLAUDE_SKILL_DIR}/scripts/airtight doctor --fix
+airtight doctor --json
+airtight doctor --fix
 ```
 
 ## What this owns

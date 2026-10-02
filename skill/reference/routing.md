@@ -8,7 +8,7 @@ When the user asks which command to use, what a finding means, or how a vulnerab
 
 Read this when the user invokes the skill with no argument. They are asking "what should I do here?" Make the answer specific to this repository, not a reprint of the table.
 
-Setup has already run `{{scripts_path}}/airtight context`. Reason over what it reported:
+Setup has already run `airtight context`. Reason over what it reported:
 
 - **`NO_THREATS_MD`** — the project has no captured security context. Lead with `init`, one line on why: ranking findings without knowing what data is sensitive ranks them by pattern frequency instead of by risk. Still show the rest.
 - **`findings.active` above zero** — lead with the highest-priority open finding by name and location, and `harden` as the action. An existing backlog outranks discovering more.
