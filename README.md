@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.4.0, installable from npm across 18 harnesses. Engine with 191
+> **Status:** v0.4.1, installable from npm across 18 harnesses. Engine with 191
 > rules, findings store, control register, nine commands, edit hook, installer,
 > docs, and a demo. Benchmarked against four real repositories; see
 > [measured against real code](#measured-against-real-code) for what that
@@ -225,7 +225,7 @@ credential in three files is three edits to make but one key to rotate.
 Scan pull requests and push findings to GitHub Code Scanning via the composite action:
 
 ```yaml
-- uses: denaes/airtight@v0.4.0
+- uses: denaes/airtight@v0.4.1
   with:
     paths: '.'
     format: 'sarif'
@@ -255,6 +255,32 @@ Every rule carries a severity, an independent **confidence**, a CWE, and both a
 true-positive and a false-positive fixture corpus. A rule missing either half
 does not merge — the false-positive corpus is what earns a finding the right to
 interrupt someone's edit.
+
+## Why JavaScript?
+
+Airtight is written in pure ECMAScript (ESM) with zero runtime dependencies.
+That is an operational choice, not an aesthetic one:
+
+1. **Sub-millisecond edit hooks.** Airtight's primary interface is an in-editor
+   AI agent hook (Claude Code, Cursor, Windsurf) invoked on every tool call and
+   file edit. Cold-starting native Node.js ESM takes under 15ms. Running through
+   a TypeScript runtime loader (`tsx`, `ts-node`) adds 100–300ms of latency per
+   edit event, turning an invisible guardrail into an annoying bottleneck.
+2. **Fail-open and zero dependencies.** Per `AGENTS.md`, the hook fails open:
+   a broken toolchain must never stop a developer from working. The engine ships
+   with zero runtime dependencies (`dependencies: {}`) and runs anywhere Node
+   $\ge 20$ exists, without transpile steps, tsconfig drift, or source-map
+   misalignment during crashes.
+3. **Instant verification.** With Node's native test runner (`node:test`), the
+   entire test suite (550+ tests covering rules, lockfile parsers, OSV caching,
+   and secret redaction) runs in under two seconds with zero build step.
+4. **Data-driven invariants over compiler types.** Security rules are declared
+   as data (`engine/rules/*.yaml`), validated at build time against eight classes
+   of malformed rules, and proved against dual true-positive and false-positive
+   fixture corpora.
+
+Type checking is enforced where it helps (JSDoc annotations and schema validation)
+without imposing a compiler tax on agent execution.
 
 ## Credits
 
