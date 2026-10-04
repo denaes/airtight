@@ -2,7 +2,7 @@
 
 # Commands
 
-9 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
+11 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
 
 ## Establish
 
@@ -39,6 +39,22 @@ Deterministic sweep across enabled domains, scored per domain
 *When to use:* Documents, does not fix. Use when the user wants the overall security posture or asks for a security check of the whole repository.
 
 [Playbook](../skill/reference/audit.md)
+
+### `/airtight triage [report]`
+
+Ingest, deduplicate, and triage SARIF/Snyk/Trivy reports
+
+*When to use:* Use when the user provides a vulnerability scan export, mentions SARIF or Dependabot alerts, or asks to triage external security scanner results.
+
+[Playbook](../skill/reference/triage.md)
+
+### `/airtight attest [framework]`
+
+Export machine-verified control evidence for SOC 2 / ISO 27001
+
+*When to use:* Verifies automated controls, checks SLA overdue status, and generates proof packages. Use when preparing for a security audit, verifying SOC 2 or ISO compliance, or exporting control evidence.
+
+[Playbook](../skill/reference/attest.md)
 
 ### `/airtight secrets`
 

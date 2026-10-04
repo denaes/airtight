@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  app1:
+    image: alpine
+    network_mode: "host"
+  app2:
+    image: ubuntu
+    network_mode: host
+  app3:
+    image: debian
+    network_mode: 'host'
+  app4:
+    image: busybox
+    network_mode: "host"

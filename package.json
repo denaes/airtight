@@ -24,6 +24,7 @@
     "build:docs": "node scripts/build-docs.mjs",
     "demo": "node scripts/demo.mjs",
     "benchmark": "node scripts/benchmark.mjs",
+    "eval:review": "node scripts/eval-review.mjs",
     "gen:secrets": "node scripts/gen-secrets.mjs",
     "audit:progress": "node scripts/progress-audit.mjs",
     "audit:progress:fix": "node scripts/progress-audit.mjs --fix",

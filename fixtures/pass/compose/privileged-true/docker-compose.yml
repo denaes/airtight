@@ -1,0 +1,9 @@
+version: "3.8"
+services:
+  web:
+    image: nginx:alpine
+    privileged: false
+  worker:
+    image: redis:alpine
+  api:
+    image: node:20-alpine

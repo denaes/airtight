@@ -1,0 +1,54 @@
+id: vuln-04-prompt-injection-rag
+description: "Prompt Injection: Indirect injection via unescaped RAG retrieval chunks"
+metadata:
+  type: vulnerability
+  category: prompt-injection
+  cwe: CWE-77
+  expected_verdict: confirmed
+  rule_blind_reason: "LLM application vulnerability where untrusted vector search passages are directly concatenated into the system prompt"
+vars:
+  target: src/rag/assistant.py
+  language: python
+  code: |
+    from typing import List
+    from openai import OpenAI
+    from src.vector_store import search_knowledge_base
+
+    client = OpenAI()
+
+    def answer_customer_query(user_query: str, customer_id: str) -> str:
+        # Retrieve relevant passages from multi-tenant knowledge base
+        chunks: List[str] = search_knowledge_base(query=user_query, top_k=3)
+        
+        # Defect: Retrieved chunks from third-party or user-submitted documentation
+        # can contain indirect prompt injection instructions.
+        # Direct concatenation without delimiter isolation or instruction hierarchy
+        # enables injected instructions in documents to override system safety rules.
+        context = "\n---\n".join(chunks)
+        
+        prompt = f"""You are a helpful customer support agent for Airtight SaaS.
+    Use only the following context to answer the user request:
+    {context}
+
+    User Question: {user_query}
+    Answer:"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+        return response.choices[0].message.content
+  proposed_finding: |
+    Indirect Prompt Injection in RAG assistant:
+    Passages retrieved from the knowledge base are concatenated directly into the prompt
+    string without delimiter encapsulation, XML boundaries, or role separation.
+    An attacker who injects adversarial instructions into indexed documents can hijack
+    the model's execution context, bypass safety filters, or exfiltrate private data.
+assert:
+  - type: icontains
+    value: "prompt injection"
+  - type: icontains
+    value: "VERDICT: confirmed"
+  - type: not-icontains
+    value: "VERDICT: refuted"

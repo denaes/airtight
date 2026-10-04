@@ -1,0 +1,105 @@
+# Docker Compose pack.
+#
+# Covers privileged containers, host network mode, Docker socket mounts,
+# and root / critical host filesystem mounts in docker-compose service definitions.
+
+- id: compose/privileged-true
+  name: Docker Compose service runs privileged
+  domain: containers
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  owasp: A05:2021
+  files: ['**/docker-compose*.yml', '**/docker-compose*.yaml', '**/compose*.yml', '**/compose*.yaml']
+  parse: yaml
+  for_each: services.*
+  assert:
+    all:
+      - path: privileged
+        equals: true
+  message: Service runs with privileged true
+  why: >-
+    A privileged container has access to all host devices and bypasses almost
+    all Linux kernel isolation mechanisms. An attacker with code execution in a
+    privileged container can trivially escape to the underlying host.
+  fix: >-
+    Remove privileged true and grant only the specific Linux capabilities needed
+    using the cap_add option (such as NET_ADMIN or SYS_PTRACE).
+
+- id: compose/host-network-mode
+  name: Service uses host network mode
+  domain: containers
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  owasp: A05:2021
+  files: ['**/docker-compose*.yml', '**/docker-compose*.yaml', '**/compose*.yml', '**/compose*.yaml']
+  parse: yaml
+  for_each: services.*
+  assert:
+    all:
+      - path: network_mode
+        matches: '^host$'
+  message: Service configures network_mode host
+  why: >-
+    Using host networking disables network isolation between the container and
+    the host. The container can bind to any host port, intercept local network
+    traffic, and access loopback services that assume local-only trust.
+  fix: >-
+    Use a dedicated bridge or overlay network and expose only the specific
+    required ports via the ports configuration.
+
+- id: compose/docker-socket-mount
+  name: Docker socket mounted into container
+  domain: containers
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  owasp: A05:2021
+  files: ['**/docker-compose*.yml', '**/docker-compose*.yaml', '**/compose*.yml', '**/compose*.yaml']
+  parse: yaml
+  for_each: services.*
+  assert:
+    any:
+      - path: 'volumes[*]'
+        matches: '(?:/var)?/run/docker\.sock'
+      - path: 'volumes[*].source'
+        matches: '(?:/var)?/run/docker\.sock'
+  message: Container mounts the Docker daemon control socket
+  why: >-
+    Access to the Docker socket allows any process inside the container to issue
+    arbitrary commands to the host Docker daemon, including creating privileged
+    containers that mount the host filesystem. This is a complete host compromise.
+  fix: >-
+    Avoid mounting the Docker socket into application containers. If container
+    orchestration is required, use a scoped API proxy or isolated rootless
+    container runtime.
+
+- id: compose/root-filesystem-mount
+  name: Root or critical host system path mounted
+  domain: containers
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  owasp: A05:2021
+  files: ['**/docker-compose*.yml', '**/docker-compose*.yaml', '**/compose*.yml', '**/compose*.yaml']
+  parse: yaml
+  for_each: services.*
+  assert:
+    any:
+      - path: 'volumes[*]'
+        matches: '^(?:/|/(?:etc|proc|sys)(?:/.*)?):'
+      - path: 'volumes[*].source'
+        matches: '^(?:/|/(?:etc|proc|sys)(?:/.*)?)$'
+  message: Container mounts host root or sensitive system path
+  why: >-
+    Mounting the host root directory (/) or sensitive host paths (/etc, /proc,
+    /sys) gives the container visibility or write access to the host's operating
+    system files, credentials, and kernel tunables, enabling container escape.
+  fix: >-
+    Mount only dedicated application data directories into the container, and
+    never mount the host root directory, /etc, /proc, or /sys.

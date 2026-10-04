@@ -1,0 +1,33 @@
+# Airtight Model-Layer Security Reviewer & Verifier Evaluation
+# Evaluates Airtight's reasoning agents on complex real-world vulnerabilities and decoys.
+description: "Airtight Model-Layer Security Evaluation (Reviewer & Verifier)"
+
+prompts:
+  - file://../skill/agents/airtight-reviewer.md
+  - file://../skill/agents/airtight-verifier.md
+
+providers:
+  - id: anthropic:messages:claude-3-5-sonnet-20241022
+    config:
+      temperature: 0.1
+  - id: openai:gpt-4o
+    config:
+      temperature: 0.1
+
+defaultTest:
+  options:
+    provider:
+      text:
+        temperature: 0.1
+
+tests:
+  - cases/vuln-01-idor-tenant.yaml
+  - cases/vuln-02-toctou-refund.yaml
+  - cases/vuln-03-ssrf-redirect.yaml
+  - cases/vuln-04-prompt-injection-rag.yaml
+  - cases/vuln-05-server-action-authz.yaml
+  - cases/decoy-01-parameterized-query.yaml
+  - cases/decoy-02-boundary-checked-path.yaml
+  - cases/decoy-03-readonly-csrf.yaml
+  - cases/decoy-04-intentional-public-endpoint.yaml
+  - cases/decoy-05-hmac-timing-safe.yaml

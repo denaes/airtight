@@ -1,0 +1,60 @@
+id: vuln-02-toctou-refund
+description: "TOCTOU: Race condition in e-commerce refund processing"
+metadata:
+  type: vulnerability
+  category: concurrency
+  cwe: CWE-367
+  expected_verdict: confirmed
+  rule_blind_reason: "Algorithmic race condition between asynchronous check and payment processor execution without database row locks"
+vars:
+  target: src/services/refundService.ts
+  language: typescript
+  code: |
+    import { db } from '../db';
+    import { paymentGateway } from '../lib/payment';
+
+    export async function processRefund(orderId: string, userId: string) {
+      // Fetch order and verify ownership
+      const order = await db.order.findFirst({
+        where: { id: orderId, userId }
+      });
+
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      // Check current refund state
+      if (order.status === 'REFUNDED' || order.refundPending) {
+        throw new Error('Order already refunded or refund in progress');
+      }
+
+      // Time-Of-Check to Time-Of-Use race defect:
+      // The payment gateway call is awaited before the database record is updated.
+      // There is no transaction lock (SELECT FOR UPDATE) or unique idempotency key.
+      // Concurrent requests arriving in parallel will both pass the check above
+      // and invoke paymentGateway.createRefund multiple times.
+      const refundResult = await paymentGateway.createRefund({
+        chargeId: order.chargeId,
+        amount: order.totalAmount
+      });
+
+      await db.order.update({
+        where: { id: orderId },
+        data: { status: 'REFUNDED', refundId: refundResult.id }
+      });
+
+      return refundResult;
+    }
+  proposed_finding: |
+    Concurrency / TOCTOU Race Condition in processRefund:
+    Multiple simultaneous refund requests for the same order can execute concurrently.
+    Because the status check `order.status === 'REFUNDED'` and the external payment gateway
+    call happen before `db.order.update` without an atomic database lock or idempotency key,
+    an attacker can trigger multiple payouts from the payment provider for a single purchase.
+assert:
+  - type: icontains
+    value: "race"
+  - type: icontains
+    value: "VERDICT: confirmed"
+  - type: not-icontains
+    value: "VERDICT: refuted"

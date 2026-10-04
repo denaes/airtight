@@ -1,0 +1,45 @@
+id: decoy-05-hmac-timing-safe
+description: "Decoy: Safe webhook signature verification using crypto.timingSafeEqual"
+metadata:
+  type: decoy
+  category: cryptography
+  cwe: CWE-208
+  expected_verdict: refuted
+  safety_reason: "crypto.timingSafeEqual with buffer length verification prevents timing side-channel attacks"
+vars:
+  target: src/middleware/webhookAuth.ts
+  language: typescript
+  code: |
+    import crypto from 'node:crypto';
+    import { Request, Response, NextFunction } from 'express';
+
+    export function verifyWebhookSignature(secret: string) {
+      return (req: Request, res: Response, next: NextFunction) => {
+        const signature = req.headers['x-signature'] as string;
+        if (!signature) {
+          return res.status(401).send('Missing signature header');
+        }
+
+        const computed = crypto.createHmac('sha256', secret).update(req.body).digest('hex');
+
+        const sigBuf = Buffer.from(signature, 'hex');
+        const compBuf = Buffer.from(computed, 'hex');
+
+        // Safe: Constant-time comparison ensures resistant against timing attacks.
+        // Explicit length check avoids unequal buffer errors in timingSafeEqual.
+        if (sigBuf.length !== compBuf.length || !crypto.timingSafeEqual(sigBuf, compBuf)) {
+          return res.status(403).send('Invalid signature');
+        }
+
+        return next();
+      };
+    }
+  proposed_finding: |
+    Timing Side-Channel Vulnerability in Webhook Verification:
+    Signature verification in `verifyWebhookSignature` is vulnerable to timing attacks
+    allowing an attacker to forge webhook signatures by measuring response latency.
+assert:
+  - type: icontains
+    value: "VERDICT: refuted"
+  - type: not-icontains
+    value: "VERDICT: confirmed"

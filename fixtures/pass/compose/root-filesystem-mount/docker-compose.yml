@@ -1,0 +1,8 @@
+version: "3.8"
+services:
+  web:
+    image: nginx:alpine
+    volumes:
+      - ./data:/var/www/html
+      - /app/logs:/logs
+      - /var/log/nginx:/var/log/nginx

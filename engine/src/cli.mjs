@@ -19,6 +19,7 @@ import { loadConfig, buildFilter, loadCustomRules, applySeverityOverrides } from
 import { renderJson, renderText } from './render.mjs';
 import { renderSarif } from './render-sarif.mjs';
 import { generateCycloneDx } from './sbom.mjs';
+import { generateAttackSurfaceMap } from './map.mjs';
 import { detectLockfiles, parseLockfile } from './lockfile.mjs';
 import { queryOsv } from './osv.mjs';
 import * as store from './store.mjs';
@@ -34,6 +35,7 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
   airtight rules                    list loaded rules
+  airtight map [paths...]           map HTTP entry points and nearby sinks
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
@@ -490,6 +492,15 @@ function cmdSbom(argv, io, env) {
   return 0;
 }
 
+function cmdMap(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ['.'];
+  const attackMap = generateAttackSurfaceMap(paths, { root });
+  io.out(JSON.stringify(attackMap, null, 2));
+  return 0;
+}
+
 export function run(argv, io = defaultIo(), env = process.env) {
   const [verb, ...rest] = argv;
   try {
@@ -503,6 +514,7 @@ export function run(argv, io = defaultIo(), env = process.env) {
       case 'engine-probe': io.out(`airtight-engine ${VERSION}`); return 0;
       case 'detect': return cmdDetect(rest, io, env);
       case 'rules': return cmdRules(rest, io, env);
+      case 'map': return cmdMap(rest, io, env);
       case 'findings': return cmdFindings(rest, io, env);
       case 'context': return cmdContext(rest, io, env);
       case 'sbom': return cmdSbom(rest, io, env);

@@ -2,7 +2,7 @@
 
 # Rule reference
 
-191 rules across 11 packs. 131 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+200 rules across 13 packs. 140 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -10,7 +10,9 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 
 | Pack | Rules | Immediate | Covers |
 |---|---:|---:|---|
+| [`ai`](#ai) | 5 | 5 | AI and LLM applications |
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
+| [`compose`](#compose) | 4 | 4 | Docker Compose |
 | [`container`](#container) | 10 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
 | [`go`](#go) | 19 | 16 | Go |
@@ -21,6 +23,71 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 20 | 7 | Terraform |
+
+## ai
+
+AI and LLM applications. 5 rules.
+
+### `ai/client-model-api-key`
+
+Model provider API key exposed in client code
+
+**critical** / confirmed · `P0` · CWE-798 · A07:2021 · fires on edit
+
+Exposing AI model API keys (OpenAI, Anthropic, Gemini) in client-side code via VITE_, NEXT_PUBLIC_, or the window object compiles them directly into user-facing JavaScript bundles, where anyone can extract and abuse them.
+
+**Fix.** Route AI requests through a backend server or API proxy where credentials remain securely stored in server-side environment variables.
+
+<sub>Waive: `airtight hooks ignore-value ai/client-model-api-key "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/client-model-api-key -- <reason>`</sub>
+
+### `ai/llm-to-exec`
+
+LLM output passed to dynamic code execution
+
+**critical** / firm · `P0` · CWE-95 · A03:2021 · fires on edit
+
+Passing unverified model completions directly to eval, exec, or Function allows untrusted or hallucinated model output to execute arbitrary code with the process privileges, leading to Remote Code Execution.
+
+**Fix.** Parse structured output using strict schemas or JSON.parse, validate values against an allowlist, and use deterministic logic instead of runtime code evaluation.
+
+<sub>Waive: `airtight hooks ignore-value ai/llm-to-exec "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/llm-to-exec -- <reason>`</sub>
+
+### `ai/llm-to-sql`
+
+LLM output interpolated into SQL query
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+LLM output interpolated directly into raw SQL queries without parameterization allows prompt injection to alter query syntax, resulting in database compromise and SQL injection.
+
+**Fix.** Use parameterized queries or prepared statements where model output is supplied as parameters rather than concatenated directly into the query string.
+
+<sub>Waive: `airtight hooks ignore-value ai/llm-to-sql "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/llm-to-sql -- <reason>`</sub>
+
+### `ai/mcp-dangerous-tool-exposure`
+
+MCP config exposes raw shell or root directory
+
+**critical** / confirmed · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Exposing raw command shells (bash, sh, cmd) or mounting the root filesystem (/, C:\) to an LLM via the Model Context Protocol gives the model unrestricted execution and access over the host, turning prompt injection into full compromise.
+
+**Fix.** Expose only scoped, domain-specific MCP tools with strict parameters rather than general-purpose shell binaries, and restrict filesystem tools to dedicated sandbox directories.
+
+<sub>Waive: `airtight hooks ignore-value ai/mcp-dangerous-tool-exposure "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/mcp-dangerous-tool-exposure -- <reason>`</sub>
+
+### `ai/rag-untrusted-interpolation`
+
+Untrusted context interpolated into system prompt without delimiters
+
+**high** / firm · `P1` · CWE-74 · A03:2021 · fires on edit
+
+Interpolating raw user data or retrieved context directly into system instructions without boundary delimiters or structural tags enables direct prompt injection attacks, allowing attackers to hijack model behavior.
+
+**Fix.** Enclose untrusted context within distinct delimiters such as XML tags (<context>...</context>) or Markdown fences, and instruct the model to treat content within boundaries strictly as data.
+
+<sub>Waive: `airtight hooks ignore-value ai/rag-untrusted-interpolation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/rag-untrusted-interpolation -- <reason>`</sub>
+
 
 ## ci
 
@@ -121,6 +188,59 @@ Every step, including every third-party action, inherits a token that can push c
 **Fix.** Set `permissions: {contents: read}` at the workflow level and grant individual write scopes only on the jobs that need them.
 
 <sub>Waive: `airtight hooks ignore-value ci/write-all-permissions "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ci/write-all-permissions -- <reason>`</sub>
+
+
+## compose
+
+Docker Compose. 4 rules.
+
+### `compose/docker-socket-mount`
+
+Docker socket mounted into container
+
+**critical** / confirmed · `P0` · CWE-250 · A05:2021 · fires on edit
+
+Access to the Docker socket allows any process inside the container to issue arbitrary commands to the host Docker daemon, including creating privileged containers that mount the host filesystem. This is a complete host compromise.
+
+**Fix.** Avoid mounting the Docker socket into application containers. If container orchestration is required, use a scoped API proxy or isolated rootless container runtime.
+
+<sub>Waive: `airtight hooks ignore-value compose/docker-socket-mount "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line compose/docker-socket-mount -- <reason>`</sub>
+
+### `compose/host-network-mode`
+
+Service uses host network mode
+
+**high** / confirmed · `P1` · CWE-250 · A05:2021 · fires on edit
+
+Using host networking disables network isolation between the container and the host. The container can bind to any host port, intercept local network traffic, and access loopback services that assume local-only trust.
+
+**Fix.** Use a dedicated bridge or overlay network and expose only the specific required ports via the ports configuration.
+
+<sub>Waive: `airtight hooks ignore-value compose/host-network-mode "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line compose/host-network-mode -- <reason>`</sub>
+
+### `compose/privileged-true`
+
+Docker Compose service runs privileged
+
+**critical** / confirmed · `P0` · CWE-250 · A05:2021 · fires on edit
+
+A privileged container has access to all host devices and bypasses almost all Linux kernel isolation mechanisms. An attacker with code execution in a privileged container can trivially escape to the underlying host.
+
+**Fix.** Remove privileged true and grant only the specific Linux capabilities needed using the cap_add option (such as NET_ADMIN or SYS_PTRACE).
+
+<sub>Waive: `airtight hooks ignore-value compose/privileged-true "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line compose/privileged-true -- <reason>`</sub>
+
+### `compose/root-filesystem-mount`
+
+Root or critical host system path mounted
+
+**critical** / confirmed · `P0` · CWE-250 · A05:2021 · fires on edit
+
+Mounting the host root directory (/) or sensitive host paths (/etc, /proc, /sys) gives the container visibility or write access to the host's operating system files, credentials, and kernel tunables, enabling container escape.
+
+**Fix.** Mount only dedicated application data directories into the container, and never mount the host root directory, /etc, /proc, or /sys.
+
+<sub>Waive: `airtight hooks ignore-value compose/root-filesystem-mount "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line compose/root-filesystem-mount -- <reason>`</sub>
 
 
 ## container

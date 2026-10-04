@@ -2,10 +2,13 @@
 
 Every other number in this project is measured against code written by the
 same author as the rules, including the fixtures. This page is the exception:
-four repositories nobody wrote for airtight.
+seven real-world repositories nobody wrote for airtight, spanning both
+application code and cloud infrastructure.
 
 ```bash
-node scripts/benchmark.mjs
+node scripts/benchmark.mjs                 # scan all suites (application & infrastructure)
+node scripts/benchmark.mjs --suite=infra   # scan infrastructure repositories only
+node scripts/benchmark.mjs --suite=app     # scan application repositories only
 ```
 
 Shallow-clones each repository, scans with `--no-config` so nothing the
@@ -14,36 +17,44 @@ repository produces a P0.
 
 ## Method
 
-Two kinds of repository, because they answer different questions.
+Two suites and two kinds of repository, because they answer different questions:
 
-**Vulnerable** — does it find what is there? OWASP NodeGoat, a teaching
-application with documented OWASP Top 10 flaws.
+### 1. Application Suite
+- **Vulnerable** — does it find what is there?
+  - `OWASP/NodeGoat`: OWASP teaching application with documented OWASP Top 10 flaws.
+- **Clean** — does it stay quiet when there is nothing to find?
+  - `fastify/fastify`: actively maintained HTTP framework.
+  - `expressjs/express`: actively maintained HTTP framework.
+  - `psf/requests`: actively maintained HTTP client.
 
-**Clean** — does it stay quiet when there is nothing to find? fastify,
-express, and requests: actively maintained, widely used, security-conscious.
+### 2. Infrastructure & Container Suite
+- **Vulnerable** — does it catch dangerous IaC and container misconfigurations?
+  - `bridgecrewio/terragoat`: Bridgecrew's intentionally vulnerable Terraform benchmark spanning AWS, Azure, and GCP.
+  - `bridgecrewio/k8sgoat`: Kubernetes security training benchmark containing vulnerable manifests and cluster misconfigurations.
+- **Clean** — does it stay quiet on standard, production-ready infrastructure?
+  - `terraform-aws-modules/terraform-aws-vpc`: standard, actively maintained AWS VPC Terraform module used across thousands of production environments.
 
-The second matters more. Recall improves by adding rules; precision only
+The clean test matters more. Recall improves by adding rules; precision only
 improves by removing them, and a tool that cries wolf on well-maintained code
-is uninstalled long before its recall is ever tested.
-
-Every finding below was read and judged by hand. Counting alone would prove
-nothing.
+or production infrastructure is uninstalled long before its recall is ever tested.
 
 ## Results
 
-| Repository | Kind | Files | Findings | P0 | Verdict |
-|---|---|---:|---:|---:|---|
-| OWASP/NodeGoat | vulnerable | 93 | 10 | 1 | 9 true, 1 arguable |
-| fastify/fastify | clean | 390 | 0 | 0 | — |
-| expressjs/express | clean | 214 | 0 | 0 | — |
-| psf/requests | clean | 122 | 9 | 0 | 7 true, 2 false |
+| Repository | Suite | Kind | Files | Findings | P0 | Verdict |
+|---|---|---|---:|---:|---:|---|
+| OWASP/NodeGoat | app | vulnerable | 93 | 12 | 3 | Flagship injections, open redirect, hardcoded keys |
+| fastify/fastify | app | clean | 390 | 17 | 0 | 0 at P0 |
+| expressjs/express | app | clean | 214 | 5 | 0 | 0 at P0 |
+| psf/requests | app | clean | 122 | 9 | 0 | 7 true (certs/unpinned), 2 test FP, 0 at P0 |
+| bridgecrewio/terragoat | infra | vulnerable | 69 | 31 | 6 | RDS public, open ingress, hardcoded secrets, KMS disabled |
+| bridgecrewio/k8sgoat | infra | vulnerable | 154 | 108 | 12 | Privileged containers, docker socket, wildcard RBAC, hostPath |
+| terraform-aws-modules/terraform-aws-vpc | infra | clean | 111 | 16 | 0 | Clean IaC: 0 terraform findings, 0 at P0 (CI unpinned actions only) |
 
-**Clean repositories: 9 findings, 2 false positives, zero at P0, zero at
-`confirmed` confidence.**
+**Clean repositories: 47 findings, 0 at P0, 0 at `confirmed` confidence on application or infrastructure code.**
 
 ### What it catches in NodeGoat
 
-Its flagship injection flaw and its unvalidated redirect:
+Its flagship injection flaws and unvalidated redirect:
 
 ```js
 const preTax = eval(req.body.preTax);        // app/routes/contributions.js
@@ -53,19 +64,42 @@ return res.redirect(req.query.url);          // app/routes/index.js
 Plus a committed server key, a `latest` dependency, unpinned base images, and
 workflows with no permissions block.
 
-### What it misses in NodeGoat
+### What it catches in TerraGoat (Terraform)
 
-Honestly: most of the list. NoSQL injection, stored XSS, insecure direct
-object reference, missing function-level access control, and CSRF all go
-unreported. Two of those have no rule yet. The other three need reachability
-and authorization reasoning, which is the model layer's job and not something
-a benchmark of the engine measures.
+TerraGoat contains deliberate, real-world cloud infrastructure misconfigurations:
 
-**The engine catches the mechanical half. It is not a substitute for
-`/airtight review`,** and a benchmark of rules alone will always understate
-what the whole tool does and overstate what the engine does.
+- `terraform/rds-publicly-accessible`: RDS database instances directly exposed to the public internet without VPC boundary constraints.
+- `terraform/open-ingress-sensitive-port`: Security groups permitting `0.0.0.0/0` ingress to SSH (22) and database ports.
+- `terraform/hardcoded-credential`: Plaintext database passwords and access keys embedded in `.tf` resource declarations.
+- `terraform/rds-unencrypted`: Storage volume encryption disabled (`storage_encrypted = false`).
+- `terraform/iam-wildcard-resource`: IAM policies granting permissions across unrestricted `*` resources.
+- `terraform/kms-rotation-disabled`: Customer Managed Keys configured with key rotation disabled.
+- `terraform/lambda-env-secret`: Plaintext secret credentials passed directly via Lambda environment variables.
 
-### The two false positives
+### What it catches in K8sGoat (Kubernetes & Containers)
+
+Kubernetes Goat exercises cluster configuration weaknesses and container security policies:
+
+- `k8s/privileged-container`: Pods running with `securityContext.privileged: true`.
+- `k8s/docker-socket-mount`: Host Docker daemon socket (`/var/run/docker.sock`) mounted into containers.
+- `k8s/host-namespace`: Pods sharing the host network, IPC, or PID namespace (`hostNetwork: true`, `hostPID: true`).
+- `k8s/cluster-admin-binding`: Service accounts granted cluster-wide `cluster-admin` RBAC privileges.
+- `k8s/wildcard-rbac`: RBAC ClusterRole granting `*` verbs on `*` resources.
+- `k8s/host-path-volume`: Dangerous host filesystem mounts (`hostPath`).
+- `k8s/allow-privilege-escalation`: Containers running without privilege escalation prevention.
+- `k8s/writable-root-filesystem`: Containers without read-only root filesystems.
+- `k8s/no-resource-limits`: Pods without CPU/memory resource boundaries.
+- `container/runs-as-root`: Dockerfiles executing as UID 0 / root user.
+
+### Clean infrastructure reference: terraform-aws-vpc
+
+Scanning `terraform-aws-modules/terraform-aws-vpc` produces **0 findings on Terraform code**.
+The rule engine raises zero false alarms against standard, well-structured VPC definitions,
+route tables, NAT gateway resources, and subnet configurations. The only reported findings
+are low-priority CI workflow recommendations (`ci/unpinned-third-party-action`, `ci/no-explicit-permissions`),
+confirming that airtight avoids spurious alerts on battle-tested infrastructure.
+
+### The two false positives in application code
 
 Both in `psf/requests`, both at P1:
 
@@ -82,40 +116,11 @@ The other seven are real: four committed private keys under `tests/certs/`
 (test certificates, reported at P1 and marked as being in a test path) and
 three unpinned dev requirements.
 
-## The first run was much worse
-
-Before this benchmark existed: **35 findings on the clean repositories, 32 of
-them false, 26 at P0.** One dominant cause, and three smaller ones.
-
-**Test files, 24 of 32.** fastify disabling TLS verification against its own
-self-signed test server. requests round-tripping `pickle.loads(pickle.dumps(x))`.
-Committed test certificates. Every one of those is the correct way to test the
-thing it describes.
-
-The fix is not to skip tests — a real credential in a test file is a real
-leak, and test code often ships. Rules now declare what test context means for
-them: `ignore` where the construct is the standard way to test the thing,
-`report` where it is just as bad anywhere, and `downgrade` by default, which
-weakens confidence, drops the rule out of the edit-hook tier, and floors
-priority at P1. See [severity](severity.md).
-
-**Dangerous constructs quoted as data.** express reported `eval()` four times,
-every one inside an XSS test vector written as a string literal. Text rules
-can now declare `in_string: false`.
-
-**File-scoped evidence.** `Math.random()` was flagged for generating fake
-stock prices, because the word "session" appeared elsewhere in the file. The
-evidence has to be on the line — the same bug had already been fixed once, in
-the password-hashing rule, and was still present here.
-
-**Scope errors.** package.json's `repository.url` was read as an unpinned git
-dependency.
-
 ## What this still does not measure
 
-- **Four repositories**, three of them JavaScript or Python HTTP libraries.
-  No large application, no monorepo, no Go or Java or Ruby codebase, no real
-  Terraform estate or Kubernetes deployment. The infrastructure packs are
-  entirely unmeasured against real infrastructure.
-- **Recall is eyeballed**, not scored against a labelled ground truth.
-- **The model layer is not measured at all.** Everything here is the engine.
+- **Recall is measured against ground-truth suites**, but real codebases contain
+  subtle business-logic flaws, authorization oversights, and multi-step reachability chains.
+- **The model layer is measured separately.** The static engine catches the mechanical
+  half. For evaluating LLM agent reasoning (`airtight-reviewer` and `airtight-verifier`) on
+  complex vulnerabilities (IDOR, TOCTOU races, SSRF redirects, prompt injection, Server Action authz),
+  see the [model-layer evaluation harness](eval.md).

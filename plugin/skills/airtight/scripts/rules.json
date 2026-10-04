@@ -1,5 +1,147 @@
 [
   {
+    "id": "ai/client-model-api-key",
+    "name": "Model provider API key exposed in client code",
+    "domain": "secrets",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-798",
+    "owasp": "A07:2021",
+    "files": [
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.html"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?i)(?:(?:apiKey|api_key)\\s*:\\s*(?:import\\.meta\\.env\\.VITE_|process\\.env\\.NEXT_PUBLIC_|window\\.)|(?:import\\.meta\\.env\\.VITE_|process\\.env\\.NEXT_PUBLIC_|window\\.)[A-Z0-9_]*(?:OPENAI|ANTHROPIC|GEMINI|AI_KEY|LLM_KEY))",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "Model provider API key is exposed in client-side bundle or window object",
+    "why": "Exposing AI model API keys (OpenAI, Anthropic, Gemini) in client-side code via VITE_, NEXT_PUBLIC_, or the window object compiles them directly into user-facing JavaScript bundles, where anyone can extract and abuse them.",
+    "fix": "Route AI requests through a backend server or API proxy where credentials remain securely stored in server-side environment variables."
+  },
+  {
+    "id": "ai/llm-to-exec",
+    "name": "LLM output passed to dynamic code execution",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-95",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.py"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?<![\\w$])(?:eval|exec|new\\s+Function)\\s*\\([^)]*?\\b(?:completion|llm_output|ai_response|model_output|llmOutput|aiResponse|modelOutput|response\\.(?:content|text|choices)|message\\.content)\\b",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)",
+      "in_string": false
+    },
+    "message": "LLM output is passed directly to dynamic code execution",
+    "why": "Passing unverified model completions directly to eval, exec, or Function allows untrusted or hallucinated model output to execute arbitrary code with the process privileges, leading to Remote Code Execution.",
+    "fix": "Parse structured output using strict schemas or JSON.parse, validate values against an allowlist, and use deterministic logic instead of runtime code evaluation."
+  },
+  {
+    "id": "ai/llm-to-sql",
+    "name": "LLM output interpolated into SQL query",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.py"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?i)(?:`[^`]*(?:SELECT\\b[^`]*\\bFROM\\b|INSERT\\s+INTO\\b|UPDATE\\b[^`]*\\bSET\\b|DELETE\\s+FROM\\b)[^`]*\\$\\{[^}]*?\\b(?:completion|response|llm_output|ai_response|model_output|llmOutput|aiResponse|modelOutput|message)[^}]*\\}|f([\"'])(?:(?!\\1).)*(?:SELECT\\b(?:(?!\\1).)*\\bFROM\\b|INSERT\\s+INTO\\b|UPDATE\\b(?:(?!\\1).)*\\bSET\\b|DELETE\\s+FROM\\b)(?:(?!\\1).)*\\{[^}]*?\\b(?:completion|response|llm_output|ai_response|model_output|llmOutput|aiResponse|modelOutput|message)[^}]*\\}(?:(?!\\1).)*\\1|([\"'])(?:(?!\\2).)*(?:SELECT\\b(?:(?!\\2).)*\\bFROM\\b|INSERT\\s+INTO\\b|UPDATE\\b(?:(?!\\2).)*\\bSET\\b|DELETE\\s+FROM\\b)(?:(?!\\2).)*\\2\\s*\\+\\s*(?:completion|response|llm_output|ai_response|model_output|llmOutput|aiResponse|modelOutput))",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "SQL query constructed with unparameterized LLM output",
+    "why": "LLM output interpolated directly into raw SQL queries without parameterization allows prompt injection to alter query syntax, resulting in database compromise and SQL injection.",
+    "fix": "Use parameterized queries or prepared statements where model output is supplied as parameters rather than concatenated directly into the query string."
+  },
+  {
+    "id": "ai/mcp-dangerous-tool-exposure",
+    "name": "MCP config exposes raw shell or root directory",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.json",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/*.js",
+      "**/*.ts"
+    ],
+    "match": {
+      "regex": "(?i)(?:(?:\"command\"|command)\\s*:\\s*[\"'](?:/(?:usr/)?(?:bin/|sbin/))?(?:bash|sh|zsh|cmd(?:\\.exe)?|powershell(?:\\.exe)?)[\"']|(?:\"args\"|args|allowed(?:Directories|Paths))\\s*:\\s*\\[[^\\]]*?[\"'](?:\\/|[A-Za-z]:[\\\\/]*)[\"'])",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "MCP configuration exposes raw shell execution or root filesystem access",
+    "why": "Exposing raw command shells (bash, sh, cmd) or mounting the root filesystem (/, C:\\) to an LLM via the Model Context Protocol gives the model unrestricted execution and access over the host, turning prompt injection into full compromise.",
+    "fix": "Expose only scoped, domain-specific MCP tools with strict parameters rather than general-purpose shell binaries, and restrict filesystem tools to dedicated sandbox directories."
+  },
+  {
+    "id": "ai/rag-untrusted-interpolation",
+    "name": "Untrusted context interpolated into system prompt without delimiters",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-74",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.py"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?i)(?:(?:system(?:Prompt|_prompt|_message)?|role:\\s*[\"']system[\"'][^}]*content)\\s*[:=]\\s*`[^`]*\\$\\{(?:req\\.|user|input|query|context)[^}]*\\}`|system(?:prompt|_prompt|_message)?\\s*=\\s*f[\"'][^\"']*\\{(?:user|input|query|context|req)[^}]*\\})",
+      "not_regex": "(?i)(?:<[a-z_-]+>|\"\"\"|\\[[A-Z_-]+\\])"
+    },
+    "message": "Untrusted user input is interpolated into system prompt without boundary delimiters",
+    "why": "Interpolating raw user data or retrieved context directly into system instructions without boundary delimiters or structural tags enables direct prompt injection attacks, allowing attackers to hijack model behavior.",
+    "fix": "Enclose untrusted context within distinct delimiters such as XML tags (<context>...</context>) or Markdown fences, and instruct the model to treat content within boundaries strictly as data."
+  },
+  {
     "id": "ci/no-explicit-permissions",
     "name": "Workflow does not set an explicit permissions block",
     "domain": "supply-chain",
@@ -238,6 +380,130 @@
     "message": "Workflow token is granted write-all",
     "why": "Every step, including every third-party action, inherits a token that can push code, alter releases, and change repository settings. One compromised action is then a full repository takeover rather than a contained incident.",
     "fix": "Set `permissions: {contents: read}` at the workflow level and grant individual write scopes only on the jobs that need them."
+  },
+  {
+    "id": "compose/docker-socket-mount",
+    "name": "Docker socket mounted into container",
+    "domain": "containers",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-250",
+    "owasp": "A05:2021",
+    "files": [
+      "**/docker-compose*.yml",
+      "**/docker-compose*.yaml",
+      "**/compose*.yml",
+      "**/compose*.yaml"
+    ],
+    "parse": "yaml",
+    "for_each": "services.*",
+    "assert": {
+      "any": [
+        {
+          "path": "volumes[*]",
+          "matches": "(?:/var)?/run/docker\\.sock"
+        },
+        {
+          "path": "volumes[*].source",
+          "matches": "(?:/var)?/run/docker\\.sock"
+        }
+      ]
+    },
+    "message": "Container mounts the Docker daemon control socket",
+    "why": "Access to the Docker socket allows any process inside the container to issue arbitrary commands to the host Docker daemon, including creating privileged containers that mount the host filesystem. This is a complete host compromise.",
+    "fix": "Avoid mounting the Docker socket into application containers. If container orchestration is required, use a scoped API proxy or isolated rootless container runtime."
+  },
+  {
+    "id": "compose/host-network-mode",
+    "name": "Service uses host network mode",
+    "domain": "containers",
+    "severity": "high",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-250",
+    "owasp": "A05:2021",
+    "files": [
+      "**/docker-compose*.yml",
+      "**/docker-compose*.yaml",
+      "**/compose*.yml",
+      "**/compose*.yaml"
+    ],
+    "parse": "yaml",
+    "for_each": "services.*",
+    "assert": {
+      "all": [
+        {
+          "path": "network_mode",
+          "matches": "^host$"
+        }
+      ]
+    },
+    "message": "Service configures network_mode host",
+    "why": "Using host networking disables network isolation between the container and the host. The container can bind to any host port, intercept local network traffic, and access loopback services that assume local-only trust.",
+    "fix": "Use a dedicated bridge or overlay network and expose only the specific required ports via the ports configuration."
+  },
+  {
+    "id": "compose/privileged-true",
+    "name": "Docker Compose service runs privileged",
+    "domain": "containers",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-250",
+    "owasp": "A05:2021",
+    "files": [
+      "**/docker-compose*.yml",
+      "**/docker-compose*.yaml",
+      "**/compose*.yml",
+      "**/compose*.yaml"
+    ],
+    "parse": "yaml",
+    "for_each": "services.*",
+    "assert": {
+      "all": [
+        {
+          "path": "privileged",
+          "equals": true
+        }
+      ]
+    },
+    "message": "Service runs with privileged true",
+    "why": "A privileged container has access to all host devices and bypasses almost all Linux kernel isolation mechanisms. An attacker with code execution in a privileged container can trivially escape to the underlying host.",
+    "fix": "Remove privileged true and grant only the specific Linux capabilities needed using the cap_add option (such as NET_ADMIN or SYS_PTRACE)."
+  },
+  {
+    "id": "compose/root-filesystem-mount",
+    "name": "Root or critical host system path mounted",
+    "domain": "containers",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-250",
+    "owasp": "A05:2021",
+    "files": [
+      "**/docker-compose*.yml",
+      "**/docker-compose*.yaml",
+      "**/compose*.yml",
+      "**/compose*.yaml"
+    ],
+    "parse": "yaml",
+    "for_each": "services.*",
+    "assert": {
+      "any": [
+        {
+          "path": "volumes[*]",
+          "matches": "^(?:/|/(?:etc|proc|sys)(?:/.*)?):"
+        },
+        {
+          "path": "volumes[*].source",
+          "matches": "^(?:/|/(?:etc|proc|sys)(?:/.*)?)$"
+        }
+      ]
+    },
+    "message": "Container mounts host root or sensitive system path",
+    "why": "Mounting the host root directory (/) or sensitive host paths (/etc, /proc, /sys) gives the container visibility or write access to the host's operating system files, credentials, and kernel tunables, enabling container escape.",
+    "fix": "Mount only dedicated application data directories into the container, and never mount the host root directory, /etc, /proc, or /sys."
   },
   {
     "id": "container/add-from-url",

@@ -1,0 +1,40 @@
+id: decoy-03-readonly-csrf
+description: "Decoy: Read-only analytics endpoint without CSRF protection"
+metadata:
+  type: decoy
+  category: csrf
+  cwe: CWE-352
+  expected_verdict: refuted
+  safety_reason: "GET request is idempotent and read-only per RFC 7231; CSRF applies only to state-changing operations"
+vars:
+  target: src/routes/analytics.ts
+  language: typescript
+  code: |
+    import { Router, Request, Response } from 'express';
+    import { requireAuth } from '../middleware/auth';
+    import { db } from '../db';
+
+    export const analyticsRouter = Router();
+
+    // GET /api/v1/analytics/overview
+    analyticsRouter.get('/overview', requireAuth, async (req: Request, res: Response) => {
+      const tenantId = req.user!.tenantId;
+
+      // Pure aggregation query; performs no database updates or side-effects
+      const stats = await db.analytics.aggregate({
+        where: { tenantId },
+        _count: { id: true },
+        _sum: { totalViews: true }
+      });
+
+      return res.json({ stats });
+    });
+  proposed_finding: |
+    Cross-Site Request Forgery (CSRF) in GET /api/v1/analytics/overview:
+    The authenticated endpoint does not validate a CSRF token or anti-forgery header,
+    allowing third-party sites to trigger requests on behalf of the user.
+assert:
+  - type: icontains
+    value: "VERDICT: refuted"
+  - type: not-icontains
+    value: "VERDICT: confirmed"

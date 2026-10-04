@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.1] - 2026-10-02
 
+### Added
+- **Attack Surface Mapping (`airtight map`)**: Added `airtight map [paths...]` command statically inventorying HTTP route endpoints across 8 frameworks (Express, Fastify, Next.js App Router, Flask, FastAPI, Django, Gin, Spring) and correlating dangerous sinks (SQL, eval, exec, SSRF, file I/O) within route scope.
+- **AI & LLM Application Security Pack (`ai/`)**: Added 5 deterministic rules detecting prompt injection in RAG templates, model output passed to `eval`/`exec`/SQL, open MCP servers exposing raw shell commands or root filesystems, and client-side model API key leaks.
+- **Docker Compose Security Pack (`compose/`)**: Added 4 rules detecting `privileged: true`, `network_mode: host`, docker socket mounts (`/var/run/docker.sock`), and host root filesystem volume mounts. Total compiled rule count expanded to 200 rules (140 immediate tier).
+- **Framework Knowledge Cards & Vulnerability Checklists**: Added 6 on-demand framework cards (`skill/reference/frameworks/*.md`) and 5 deep-dive vulnerability checklists (`skill/reference/classes/*.md`: IDOR/tenancy, SSRF, OAuth/OIDC, financial races, LLM security).
+- **New Skill Commands**: Added `airtight triage` (ingesting and verifying external SARIF, Snyk, Dependabot reports) and `airtight attest` (generating machine-verified SOC 2 / ISO 27001 evidence).
+- **Infrastructure Benchmarks**: Expanded `scripts/benchmark.mjs` to measure real-world infrastructure repositories (`bridgecrewio/terragoat`, `bridgecrewio/k8sgoat`, and clean reference `terraform-aws-vpc`).
+- **Model-Layer Eval Harness & Promptfoo Integration**: Created `eval/promptfoo.yaml` and seeded evaluation cases (`eval/cases/`) with 5 real rule-blind vulnerabilities and 5 safe decoys, runnable via `npm run eval:review` or `npx promptfoo eval`.
+
 ### Changed
 - **Harness Symlinking & De-duplication**:
   - Eliminated 286 redundant markdown files and over 300,000 lines of duplicated code across tracked agent harnesses.

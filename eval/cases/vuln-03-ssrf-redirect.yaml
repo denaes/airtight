@@ -1,0 +1,63 @@
+id: vuln-03-ssrf-redirect
+description: "SSRF: HTTP 302 redirect bypasses initial IP allowlist"
+metadata:
+  type: vulnerability
+  category: ssrf
+  cwe: CWE-918
+  expected_verdict: confirmed
+  rule_blind_reason: "Pre-request URL validation passes on public domain, but HTTP client follows redirect to internal link-local IP"
+vars:
+  target: src/controllers/preview.ts
+  language: typescript
+  code: |
+    import { Request, Response } from 'express';
+    import axios from 'axios';
+    import ipaddr from 'ipaddr.js';
+    import { URL } from 'node:url';
+
+    function isAllowedUrl(targetUrl: string): boolean {
+      try {
+        const parsed = new URL(targetUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+        if (ipaddr.isValid(parsed.hostname)) {
+          const addr = ipaddr.parse(parsed.hostname);
+          return addr.range() === 'unicast'; // Rejects 127.0.0.1, 10.0.0.0/8, 169.254.169.254 directly
+        }
+        return true; // Hostname domain is permitted
+      } catch {
+        return false;
+      }
+    }
+
+    export async function proxyPreview(req: Request, res: Response) {
+      const { url } = req.body;
+      if (!url || !isAllowedUrl(url)) {
+        return res.status(400).json({ error: 'URL not allowed' });
+      }
+
+      // Defect: axios follows HTTP 301/302 redirects by default (maxRedirects: 5).
+      // An attacker supplies a URL pointing to attacker.com/redirect which issues:
+      // HTTP/1.1 302 Found
+      // Location: http://169.254.169.254/latest/meta-data/iam/security-credentials/
+      // The initial check passes, but the redirect reaches the AWS metadata service.
+      const response = await axios.get(url, {
+        timeout: 5000,
+        responseType: 'arraybuffer'
+      });
+
+      res.set('Content-Type', response.headers['content-type']);
+      return res.send(response.data);
+    }
+  proposed_finding: |
+    Server-Side Request Forgery (SSRF) via HTTP Redirect in proxyPreview:
+    Although `isAllowedUrl` checks the initial hostname, `axios.get` follows HTTP redirects
+    by default without re-validating the target of each redirect. An attacker can supply
+    an external URL that returns a 302 redirect pointing to internal cloud metadata (169.254.169.254)
+    or private microservices.
+assert:
+  - type: icontains
+    value: "redirect"
+  - type: icontains
+    value: "VERDICT: confirmed"
+  - type: not-icontains
+    value: "VERDICT: refuted"

@@ -1,0 +1,34 @@
+id: decoy-04-intentional-public-endpoint
+description: "Decoy: Intentional public JWKS key discovery endpoint without authentication"
+metadata:
+  type: decoy
+  category: access-control
+  cwe: CWE-306
+  expected_verdict: refuted
+  safety_reason: "OAuth/OIDC JWKS endpoint is intentionally public for token verification by design per RFC 7517"
+vars:
+  target: src/routes/discovery.ts
+  language: typescript
+  code: |
+    import { Router, Request, Response } from 'express';
+    import { getPublicSigningKeys } from '../crypto/keys';
+
+    export const discoveryRouter = Router();
+
+    // Standard OpenID Connect JWKS endpoint
+    // Public keys must be unauthenticated so third parties and resource servers can verify JWT signatures.
+    discoveryRouter.get('/.well-known/jwks.json', (req: Request, res: Response) => {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Content-Type', 'application/json');
+      const keys = getPublicSigningKeys(); // Returns public keys only; private keys are never included
+      return res.json({ keys });
+    });
+  proposed_finding: |
+    Missing Authentication on Cryptographic Endpoint:
+    `GET /.well-known/jwks.json` exposes key material without authentication middleware,
+    allowing unauthenticated users to access cryptographic infrastructure.
+assert:
+  - type: icontains
+    value: "VERDICT: refuted"
+  - type: not-icontains
+    value: "VERDICT: confirmed"

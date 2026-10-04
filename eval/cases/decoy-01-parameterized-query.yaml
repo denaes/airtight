@@ -1,0 +1,36 @@
+id: decoy-01-parameterized-query
+description: "Decoy: Safe parameterized raw query using Prisma.sql tagged template"
+metadata:
+  type: decoy
+  category: sql-injection
+  cwe: CWE-89
+  expected_verdict: refuted
+  safety_reason: "Prisma.sql tagged template literal generates parameterized SQL with bind variables ($1, $2), not string concatenation"
+vars:
+  target: src/db/users.ts
+  language: typescript
+  code: |
+    import { PrismaClient, Prisma } from '@prisma/client';
+
+    const prisma = new PrismaClient();
+
+    export async function findUserBySearch(searchEmail: string, tenantId: string) {
+      // Prisma.sql is a tagged template literal that turns interpolations into
+      // parameter placeholders ($1, $2), guaranteeing safety against SQL injection.
+      const query = Prisma.sql`
+        SELECT id, email, created_at
+        FROM users
+        WHERE tenant_id = ${tenantId}
+          AND email = ${searchEmail}
+      `;
+      return await prisma.$queryRaw(query);
+    }
+  proposed_finding: |
+    SQL Injection in findUserBySearch:
+    User-controlled `searchEmail` is interpolated directly into a raw SQL query string
+    using template literal `${searchEmail}`, allowing arbitrary SQL injection.
+assert:
+  - type: icontains
+    value: "VERDICT: refuted"
+  - type: not-icontains
+    value: "VERDICT: confirmed"

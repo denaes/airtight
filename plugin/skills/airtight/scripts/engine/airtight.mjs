@@ -4003,10 +4003,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep4, value } = collItem;
+        const { start, key, sep: sep5, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep4?.[0],
+          next: key ?? sep5?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -4020,7 +4020,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep4) {
+          if (!keyProps.anchor && !keyProps.tag && !sep5) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -4044,7 +4044,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep4 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep5 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -4060,7 +4060,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep4, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep5, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -4151,7 +4151,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep4 = "";
+        let sep5 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -4165,13 +4165,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep4 + cb;
-              sep4 = "";
+                comment += sep5 + cb;
+              sep5 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep4 += source;
+                sep5 += source;
               hasSpace = true;
               break;
             default:
@@ -4214,18 +4214,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep4, value } = collItem;
+        const { start, key, sep: sep5, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep4?.[0],
+          next: key ?? sep5?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep4 && !value) {
+          if (!props.anchor && !props.tag && !sep5 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -4279,8 +4279,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap2 && !sep4 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep4, null, props, onError);
+        if (!isMap2 && !sep5 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep5, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -4292,7 +4292,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep4 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep5 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -4303,8 +4303,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap2 && !props.found && ctx.options.strict) {
-              if (sep4)
-                for (const st of sep4) {
+              if (sep5)
+                for (const st of sep5) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -4321,7 +4321,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep4, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep5, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -4501,7 +4501,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep4 = "";
+      let sep5 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -4518,24 +4518,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep4 + indent.slice(trimIndent) + content;
-          sep4 = "\n";
+          value += sep5 + indent.slice(trimIndent) + content;
+          sep5 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep4 === " ")
-            sep4 = "\n";
-          else if (!prevMoreIndented && sep4 === "\n")
-            sep4 = "\n\n";
-          value += sep4 + indent.slice(trimIndent) + content;
-          sep4 = "\n";
+          if (sep5 === " ")
+            sep5 = "\n";
+          else if (!prevMoreIndented && sep5 === "\n")
+            sep5 = "\n\n";
+          value += sep5 + indent.slice(trimIndent) + content;
+          sep5 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep4 === "\n")
+          if (sep5 === "\n")
             value += "\n";
           else
-            sep4 = "\n";
+            sep5 = "\n";
         } else {
-          value += sep4 + content;
-          sep4 = " ";
+          value += sep5 + content;
+          sep5 = " ";
           prevMoreIndented = false;
         }
       }
@@ -4718,25 +4718,25 @@ var require_resolve_flow_scalar = __commonJS({
         trimBoth = /^[ \t]+|[ \t]+$/g;
       }
       let res = match[1].replace(trimEnd, "");
-      let sep4 = " ";
+      let sep5 = " ";
       let pos = line.lastIndex;
       while (match = line.exec(source)) {
         const lm = match[1].replace(trimBoth, "");
         if (lm === "") {
-          if (sep4 === "\n")
-            res += sep4;
+          if (sep5 === "\n")
+            res += sep5;
           else
-            sep4 = "\n";
+            sep5 = "\n";
         } else {
-          res += sep4 + lm;
-          sep4 = " ";
+          res += sep5 + lm;
+          sep5 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep4 + (match?.[1] ?? "");
+      return res + sep5 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -5546,14 +5546,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep4, value }) {
+    function stringifyItem({ start, key, sep: sep5, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep4)
-        for (const st of sep4)
+      if (sep5)
+        for (const st of sep5)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -6720,18 +6720,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep4;
+          let sep5;
           if (scalar.end) {
-            sep4 = scalar.end;
-            sep4.push(this.sourceToken);
+            sep5 = scalar.end;
+            sep5.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep4 = [this.sourceToken];
+            sep5 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep4 }]
+            items: [{ start, key: scalar, sep: sep5 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -6884,15 +6884,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep4 = it.sep;
-                  sep4.push(this.sourceToken);
+                  const sep5 = it.sep;
+                  sep5.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep4 }]
+                    items: [{ start: start2, key, sep: sep5 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -7086,13 +7086,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep4 = fc.end.splice(1, fc.end.length);
-            sep4.push(this.sourceToken);
+            const sep5 = fc.end.splice(1, fc.end.length);
+            sep5.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep4 }]
+              items: [{ start, key: fc, sep: sep5 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -7372,8 +7372,8 @@ var require_dist = __commonJS({
 
 // engine/src/cli.mjs
 import { execFileSync } from "node:child_process";
-import { readFileSync as readFileSync11, realpathSync as realpathSync2, statSync as statSync6, readdirSync as readdirSync4, existsSync as existsSync7 } from "node:fs";
-import { dirname as dirname6, join as join10, resolve as resolve5 } from "node:path";
+import { readFileSync as readFileSync12, realpathSync as realpathSync2, statSync as statSync7, readdirSync as readdirSync5, existsSync as existsSync7 } from "node:fs";
+import { dirname as dirname6, join as join11, resolve as resolve6 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // engine/src/findings.mjs
@@ -8972,7 +8972,7 @@ var LOCKFILE_FILENAMES = /* @__PURE__ */ new Set([
 ]);
 function detectLockfiles(root) {
   const found = [];
-  function walk2(dir) {
+  function walk3(dir) {
     let entries;
     try {
       entries = readdirSync3(dir, { withFileTypes: true });
@@ -8982,7 +8982,7 @@ function detectLockfiles(root) {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (SKIP_DIRS2.has(entry.name)) continue;
-        walk2(join3(dir, entry.name));
+        walk3(join3(dir, entry.name));
       } else if (entry.isFile()) {
         if (LOCKFILE_FILENAMES.has(entry.name)) {
           found.push(join3(dir, entry.name));
@@ -8990,7 +8990,7 @@ function detectLockfiles(root) {
       }
     }
   }
-  walk2(resolve2(root));
+  walk3(resolve2(root));
   return found;
 }
 function parsePackageLock(content, filePath) {
@@ -9368,22 +9368,487 @@ function generateCycloneDx({
   return asObject ? bom : JSON.stringify(bom, null, 2);
 }
 
+// engine/src/map.mjs
+import { readdirSync as readdirSync4, readFileSync as readFileSync5, statSync as statSync3 } from "node:fs";
+import { join as join4, relative as relative3, resolve as resolve3, sep as sep3 } from "node:path";
+var SKIP_DIRS3 = /* @__PURE__ */ new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  ".next",
+  ".nuxt",
+  ".cache",
+  "coverage",
+  "vendor",
+  "target",
+  ".venv",
+  "venv",
+  "__pycache__",
+  ".tox",
+  ".terraform",
+  ".gradle",
+  ".idea",
+  ".airtight"
+]);
+var SKIP_FILE2 = /\.(min\.(js|css)|map|lock\.hcl)$|^\.DS_Store$/;
+var CODE_EXTS = /* @__PURE__ */ new Set([
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".jsx",
+  ".py",
+  ".go",
+  ".java",
+  ".kt"
+]);
+function toPosix2(p) {
+  return sep3 === "/" ? p : p.split(sep3).join("/");
+}
+function isBinary2(buf) {
+  const n = Math.min(buf.length, 8192);
+  for (let i = 0; i < n; i += 1) if (buf[i] === 0) return true;
+  return false;
+}
+function* walk2(root, dir = root) {
+  let entries;
+  try {
+    entries = readdirSync4(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join4(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS3.has(entry.name)) continue;
+      yield* walk2(root, full);
+    } else if (entry.isFile()) {
+      if (SKIP_FILE2.test(entry.name)) continue;
+      yield full;
+    }
+  }
+}
+var SINK_PATTERNS = [
+  {
+    type: "sql",
+    regex: /(?:\b(?:db|conn|connection|client|pool|session|cursor|jdbcTemplate|em)\.(?:query|execute|rawQuery|queryRaw|executeRaw|executeUpdate|executeQuery|Query|QueryRow|Exec|createNativeQuery)\s*\(|\b(?:knex|prisma|sequelize)\.raw\s*\(|`[^`]*(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^`]*`|["'](?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^"']*["'])/i
+  },
+  {
+    type: "exec",
+    regex: /(?:\b(?:child_process\.)?(?:exec|execSync|spawn|spawnSync|execFile|execFileSync)\s*\(|\bsubprocess\.(?:run|Popen|call|check_output|check_call)\s*\(|\bos\.(?:system|popen|spawn[a-z]*)\s*\(|\bexec\.Command(?:Context)?\s*\(|\bRuntime\.getRuntime\(\)\.exec\s*\(|\bnew\s+ProcessBuilder\s*\()/
+  },
+  {
+    type: "eval",
+    regex: /(?:(?<![\w$])(?:eval|Function)\s*\(|\bvm\.(?:runInContext|runInNewContext|runInThisContext)\s*\(|(?<![\w$.])exec\s*\([^)]*\))/
+  },
+  {
+    type: "ssrf",
+    regex: /(?:(?<![\w$])(?:fetch|superagent|got)\s*\(|\baxios(?:\.(?:get|post|put|delete|patch|request))?\s*\(|\b(?:http|https)\.(?:get|request)\s*\(|\brequests\.(?:get|post|put|delete|patch|request)\s*\(|\burllib\.request\.urlopen\s*\(|\bhttpx\.(?:get|post|put|delete|patch|request)\s*\(|\bhttp\.(?:Get|Post|Head|PostForm|NewRequest(?:WithContext)?)\s*\(|\bHttpClient\.newHttpClient\s*\(|\brestTemplate\.(?:getForObject|getForEntity|postForObject|postForEntity|exchange)\s*\()/
+  },
+  {
+    type: "file",
+    regex: /(?:\bfs(?:\.promises)?\.(?:readFile|readFileSync|writeFile|writeFileSync|createReadStream|createWriteStream|appendFile|appendFileSync)\s*\(|(?<![\w$])open\s*\([^)]*['"][rwa]|(?<![\w$])aiofiles\.open\s*\(|\bos\.(?:ReadFile|WriteFile|Open|OpenFile|Create)\s*\(|\bio(?:util)?\.(?:ReadFile|WriteFile)\s*\(|\bFiles\.(?:readAllBytes|readAllLines|readString|write|writeString|newInputStream|newOutputStream)\s*\(|\bnew\s+(?:FileInputStream|FileOutputStream|FileReader|FileWriter)\s*\()/
+  }
+];
+function detectSinksInLines(lines) {
+  const sinks = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const lineNo = i + 1;
+    for (const { type, regex } of SINK_PATTERNS) {
+      if (regex.test(line)) {
+        sinks.push({
+          type,
+          line: lineNo,
+          snippet: line.trim()
+        });
+      }
+    }
+  }
+  return sinks;
+}
+function parseExpressRoutes(content, lines, relPath) {
+  if (content.includes("fastify") && !content.includes("express")) return [];
+  const routes = [];
+  const routeRe = /\b(app|router|[a-zA-Z0-9_$]*(?:Router|App|Server))\.(get|post|put|delete|patch|use|all)\s*\(\s*(['"`])([^'"`]+)\3(?:\s*,\s*([a-zA-Z0-9_$]+))?/g;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    routeRe.lastIndex = 0;
+    let m;
+    while ((m = routeRe.exec(line)) !== null) {
+      const method = m[2].toUpperCase();
+      const path = m[4];
+      const handlerName = m[5] || "anonymous";
+      routes.push({
+        framework: "express",
+        method,
+        path,
+        file: relPath,
+        line: i + 1,
+        handlerName
+      });
+    }
+  }
+  return routes;
+}
+function parseFastifyRoutes(content, lines, relPath) {
+  const routes = [];
+  let varName = "fastify";
+  if (content.includes("fastify")) {
+    const mInst = /(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:await\s+)?(?:fastify\s*\(|require\(['"]fastify['"]\)\()/i.exec(content);
+    if (mInst) varName = mInst[1];
+  }
+  const prefixPattern = varName === "fastify" ? "fastify" : `(?:fastify|${varName})`;
+  const simpleRe = new RegExp(`\\b${prefixPattern}\\.(get|post|put|delete|patch|all)\\s*\\(\\s*(['"\`])([^'"\`]+)\\2(?:\\s*,\\s*([a-zA-Z0-9_$]+))?`, "g");
+  const routeMethodRe = new RegExp(`\\b${prefixPattern}\\.route\\s*\\(\\s*\\{`);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    simpleRe.lastIndex = 0;
+    let m;
+    while ((m = simpleRe.exec(line)) !== null) {
+      routes.push({
+        framework: "fastify",
+        method: m[1].toUpperCase(),
+        path: m[3],
+        file: relPath,
+        line: i + 1,
+        handlerName: m[4] || "anonymous"
+      });
+    }
+    if (routeMethodRe.test(line)) {
+      let method = "GET";
+      let path = "/";
+      let handler = "anonymous";
+      const maxJ = Math.min(lines.length, i + 10);
+      for (let j = i; j < maxJ; j += 1) {
+        const sub = lines[j];
+        const mMethod = /method\s*:\s*['"`]([A-Za-z]+)['"`]/.exec(sub) || /method\s*:\s*\[\s*['"`]([A-Za-z]+)['"`]/.exec(sub);
+        if (mMethod) method = mMethod[1].toUpperCase();
+        const mUrl = /(?:url|path)\s*:\s*['"`]([^'"`]+)['"`]/.exec(sub);
+        if (mUrl) path = mUrl[1];
+        const mHandler = /handler\s*:\s*([a-zA-Z0-9_$]+)/.exec(sub);
+        if (mHandler) handler = mHandler[1];
+        if (sub.includes("}")) break;
+      }
+      routes.push({
+        framework: "fastify",
+        method,
+        path,
+        file: relPath,
+        line: i + 1,
+        handlerName: handler
+      });
+    }
+  }
+  return routes;
+}
+function parseNextJsRoutes(content, lines, relPath) {
+  const match = /(?:^|\/)(?:src\/)?app(\/.*)?\/route\.(?:ts|js|tsx|jsx)$/.exec(relPath);
+  if (!match) return [];
+  let routePath = match[1] || "/";
+  if (!routePath.startsWith("/")) routePath = "/" + routePath;
+  const routes = [];
+  const exportFuncRe = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+  const exportConstRe = /export\s+const\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const m = exportFuncRe.exec(line) || exportConstRe.exec(line);
+    if (m) {
+      routes.push({
+        framework: "nextjs",
+        method: m[1].toUpperCase(),
+        path: routePath,
+        file: relPath,
+        line: i + 1,
+        handlerName: m[1]
+      });
+    }
+  }
+  return routes;
+}
+function parseFlaskRoutes(lines, relPath) {
+  const routes = [];
+  const routeRe = /@([a-zA-Z0-9_]+)\.route\s*\(\s*(['"])([^'"]+)\2(?:\s*,\s*methods\s*=\s*\[([^\]]+)\])?\s*\)/;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const m = routeRe.exec(line);
+    if (m) {
+      const path = m[3];
+      const rawMethods = m[4];
+      let handlerName = "anonymous";
+      for (let j = i + 1; j < Math.min(lines.length, i + 6); j += 1) {
+        const defMatch = /(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(/.exec(lines[j]);
+        if (defMatch) {
+          handlerName = defMatch[1];
+          break;
+        }
+      }
+      const methods = rawMethods ? [...rawMethods.matchAll(/['"]([A-Za-z]+)['"]/g)].map((x) => x[1].toUpperCase()) : ["GET"];
+      for (const method of methods) {
+        routes.push({
+          framework: "flask",
+          method,
+          path,
+          file: relPath,
+          line: i + 1,
+          handlerName
+        });
+      }
+    }
+  }
+  return routes;
+}
+function parseFastApiRoutes(lines, relPath) {
+  const routes = [];
+  const routeRe = /@([a-zA-Z0-9_]+)\.(get|post|put|delete|patch|options|head)\s*\(\s*(['"])([^'"]+)\3\s*\)/;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const m = routeRe.exec(line);
+    if (m) {
+      const method = m[2].toUpperCase();
+      const path = m[4];
+      let handlerName = "anonymous";
+      for (let j = i + 1; j < Math.min(lines.length, i + 6); j += 1) {
+        const defMatch = /(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(/.exec(lines[j]);
+        if (defMatch) {
+          handlerName = defMatch[1];
+          break;
+        }
+      }
+      routes.push({
+        framework: "fastapi",
+        method,
+        path,
+        file: relPath,
+        line: i + 1,
+        handlerName
+      });
+    }
+  }
+  return routes;
+}
+function parseDjangoRoutes(lines, relPath) {
+  if (!/(?:^|\/)[a-zA-Z0-9_]*urls.*\.py$/.test(relPath)) return [];
+  const routes = [];
+  const djangoRe = /\b(?:path|re_path)\s*\(\s*r?(['"])([^'"]*)\1\s*,\s*([a-zA-Z0-9_.]+(?:\.as_view\(\))?)/g;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    djangoRe.lastIndex = 0;
+    let m;
+    while ((m = djangoRe.exec(line)) !== null) {
+      routes.push({
+        framework: "django",
+        method: "ALL",
+        path: m[2],
+        file: relPath,
+        line: i + 1,
+        handlerName: m[3]
+      });
+    }
+  }
+  return routes;
+}
+function parseGinRoutes(lines, relPath) {
+  const routes = [];
+  const ginRe = /\b([a-zA-Z0-9_]+)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|Group)\s*\(\s*(["'])([^"']+)\3(?:\s*,\s*([a-zA-Z0-9_.]+))?/g;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    ginRe.lastIndex = 0;
+    let m;
+    while ((m = ginRe.exec(line)) !== null) {
+      const verb = m[2];
+      const method = verb === "Group" ? "GROUP" : verb.toUpperCase();
+      const path = m[4];
+      const handlerName = m[5] || "anonymous";
+      routes.push({
+        framework: "gin",
+        method,
+        path,
+        file: relPath,
+        line: i + 1,
+        handlerName
+      });
+    }
+  }
+  return routes;
+}
+function parseSpringRoutes(lines, relPath) {
+  const routes = [];
+  const mappingRe = /@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*(?:\(\s*(?:(?:value|path)\s*=\s*)?(?:\{?\s*)?(["'])([^"']*)\2)?/;
+  let classLine = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/\b(?:public\s+|private\s+|protected\s+)?class\s+[A-Za-z0-9_]+/.test(lines[i])) {
+      classLine = i + 1;
+      break;
+    }
+  }
+  let classPrefix = "";
+  const searchLimit = classLine > 0 ? classLine : Math.min(lines.length, 50);
+  for (let i = 0; i < searchLimit; i += 1) {
+    const line = lines[i];
+    const m = /@RequestMapping\s*\(\s*(?:(?:value|path)\s*=\s*)?(["'])([^"']*)\1/.exec(line);
+    if (m) {
+      classPrefix = m[2];
+      break;
+    }
+  }
+  const startIdx = classLine > 0 ? classLine : 0;
+  for (let i = startIdx; i < lines.length; i += 1) {
+    const line = lines[i];
+    const m = mappingRe.exec(line);
+    if (m) {
+      const annotation = m[1];
+      let subPath = m[3] ?? "";
+      let method = "GET";
+      if (annotation === "PostMapping") method = "POST";
+      else if (annotation === "PutMapping") method = "PUT";
+      else if (annotation === "DeleteMapping") method = "DELETE";
+      else if (annotation === "PatchMapping") method = "PATCH";
+      else if (annotation === "RequestMapping") {
+        const mMethod = /method\s*=\s*RequestMethod\.([A-Za-z]+)/.exec(line);
+        method = mMethod ? mMethod[1].toUpperCase() : "ALL";
+      }
+      let fullPath = subPath;
+      if (classPrefix) {
+        fullPath = (classPrefix.endsWith("/") ? classPrefix.slice(0, -1) : classPrefix) + (subPath.startsWith("/") ? subPath : "/" + subPath);
+      }
+      if (!fullPath) fullPath = "/";
+      let handlerName = "anonymous";
+      for (let j = i + 1; j < Math.min(lines.length, i + 6); j += 1) {
+        const mMethodDef = /(?:public|protected|private)?\s*(?:[\w<>\[\],\s]+\s+)+([a-zA-Z0-9_]+)\s*\(/.exec(lines[j]);
+        if (mMethodDef && !lines[j].includes("class ")) {
+          handlerName = mMethodDef[1];
+          break;
+        }
+      }
+      routes.push({
+        framework: "spring",
+        method,
+        path: fullPath,
+        file: relPath,
+        line: i + 1,
+        handlerName
+      });
+    }
+  }
+  return routes;
+}
+function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
+  const targetPaths = paths ? Array.isArray(paths) ? paths : [paths] : ["."];
+  const filesToScan = /* @__PURE__ */ new Set();
+  for (const p of targetPaths) {
+    const absPath = resolve3(root, p);
+    let st;
+    try {
+      st = statSync3(absPath);
+    } catch {
+      continue;
+    }
+    if (st.isDirectory()) {
+      for (const f of walk2(absPath)) {
+        filesToScan.add(f);
+      }
+    } else if (st.isFile()) {
+      filesToScan.add(absPath);
+    }
+  }
+  const allRoutes = [];
+  for (const absPath of filesToScan) {
+    const relPath = toPosix2(relative3(root, absPath));
+    const extMatch = /\.[^.]+$/.exec(relPath);
+    const ext = extMatch ? extMatch[0].toLowerCase() : "";
+    if (!CODE_EXTS.has(ext)) continue;
+    let buf;
+    try {
+      const st = statSync3(absPath);
+      if (st.size > 2097152) continue;
+      buf = readFileSync5(absPath);
+    } catch {
+      continue;
+    }
+    if (isBinary2(buf)) continue;
+    const content = buf.toString("utf8");
+    const lines = content.split("\n");
+    let fileRoutes = [];
+    if ([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"].includes(ext)) {
+      fileRoutes.push(...parseNextJsRoutes(content, lines, relPath));
+      fileRoutes.push(...parseExpressRoutes(content, lines, relPath));
+      fileRoutes.push(...parseFastifyRoutes(content, lines, relPath));
+    }
+    if (ext === ".py") {
+      fileRoutes.push(...parseFlaskRoutes(lines, relPath));
+      fileRoutes.push(...parseFastApiRoutes(lines, relPath));
+      fileRoutes.push(...parseDjangoRoutes(lines, relPath));
+    }
+    if (ext === ".go") {
+      fileRoutes.push(...parseGinRoutes(lines, relPath));
+    }
+    if ([".java", ".kt"].includes(ext)) {
+      fileRoutes.push(...parseSpringRoutes(lines, relPath));
+    }
+    if (fileRoutes.length === 0) continue;
+    const fileSinks = detectSinksInLines(lines);
+    fileRoutes.sort((a, b) => a.line - b.line);
+    for (let rIdx = 0; rIdx < fileRoutes.length; rIdx += 1) {
+      const currentRoute = fileRoutes[rIdx];
+      let nextRoute;
+      for (let k = rIdx + 1; k < fileRoutes.length; k += 1) {
+        if (fileRoutes[k].line !== currentRoute.line) {
+          nextRoute = fileRoutes[k];
+          break;
+        }
+      }
+      let prevRoute;
+      for (let k = rIdx - 1; k >= 0; k -= 1) {
+        if (fileRoutes[k].line !== currentRoute.line) {
+          prevRoute = fileRoutes[k];
+          break;
+        }
+      }
+      const startLine = prevRoute ? currentRoute.line : 1;
+      const endLine = nextRoute ? nextRoute.line - 1 : lines.length;
+      currentRoute.sinks = fileSinks.filter((s) => s.line >= startLine && s.line <= endLine);
+    }
+    allRoutes.push(...fileRoutes);
+  }
+  allRoutes.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+  const frameworks = [...new Set(allRoutes.map((r) => r.framework))].sort();
+  const uniqueSinks = /* @__PURE__ */ new Set();
+  for (const r of allRoutes) {
+    for (const s of r.sinks) {
+      uniqueSinks.add(`${r.file}:${s.line}:${s.type}`);
+    }
+  }
+  const totalSinksNearRoutes = uniqueSinks.size;
+  return {
+    routes: allRoutes,
+    summary: {
+      totalRoutes: allRoutes.length,
+      frameworks,
+      totalSinksNearRoutes
+    }
+  };
+}
+
 // engine/src/osv.mjs
-import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync5, writeFileSync } from "node:fs";
-import { dirname as dirname2, join as join4, relative as relative3, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync6, writeFileSync } from "node:fs";
+import { dirname as dirname2, join as join5, relative as relative4, resolve as resolve4 } from "node:path";
 function resolveCacheFile(cacheDir) {
   if (!cacheDir) {
-    return join4(process.cwd(), ".airtight", "cache", "osv.json");
+    return join5(process.cwd(), ".airtight", "cache", "osv.json");
   }
   if (cacheDir.endsWith(".json")) {
-    return resolve3(cacheDir);
+    return resolve4(cacheDir);
   }
-  return join4(resolve3(cacheDir), "osv.json");
+  return join5(resolve4(cacheDir), "osv.json");
 }
 function readCache(filePath) {
   try {
     if (existsSync2(filePath)) {
-      const data = JSON.parse(readFileSync5(filePath, "utf8"));
+      const data = JSON.parse(readFileSync6(filePath, "utf8"));
       if (data && typeof data === "object") return data;
     }
   } catch {
@@ -9544,7 +10009,7 @@ async function queryOsv(dependencies, { cacheDir, offline = false, timeoutMs = 3
     const cacheKey2 = `${dep.ecosystem}:${dep.name}@${dep.version}`;
     const vulns = cache2[cacheKey2];
     if (!Array.isArray(vulns) || vulns.length === 0) continue;
-    let relFile = dep.lockfile ? relative3(process.cwd(), resolve3(dep.lockfile)) : "lockfile";
+    let relFile = dep.lockfile ? relative4(process.cwd(), resolve4(dep.lockfile)) : "lockfile";
     relFile = relFile.replace(/\\/g, "/");
     for (const vuln of vulns) {
       if (!vuln || !vuln.id) continue;
@@ -9592,18 +10057,18 @@ async function queryOsv(dependencies, { cacheDir, offline = false, timeoutMs = 3
 }
 
 // engine/src/store.mjs
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, existsSync as existsSync3, statSync as statSync3 } from "node:fs";
-import { dirname as dirname3, join as join5 } from "node:path";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, existsSync as existsSync3, statSync as statSync4 } from "node:fs";
+import { dirname as dirname3, join as join6 } from "node:path";
 var STORE_PATH = ".airtight/findings.ndjson";
 var ACTIVE = /* @__PURE__ */ new Set(["open", "verified", "regressed"]);
 function isActive(record) {
   return ACTIVE.has(record.status);
 }
 function load(root) {
-  const path = join5(root, STORE_PATH);
+  const path = join6(root, STORE_PATH);
   if (!existsSync3(path)) return /* @__PURE__ */ new Map();
   const out = /* @__PURE__ */ new Map();
-  for (const line of readFileSync6(path, "utf8").split("\n")) {
+  for (const line of readFileSync7(path, "utf8").split("\n")) {
     if (!line.trim()) continue;
     try {
       const rec = JSON.parse(line);
@@ -9615,13 +10080,13 @@ function load(root) {
 }
 function loadBaseline(pathOrRoot) {
   let filePath = pathOrRoot;
-  if (existsSync3(filePath) && statSync3(filePath).isDirectory()) {
-    filePath = join5(pathOrRoot, STORE_PATH);
+  if (existsSync3(filePath) && statSync4(filePath).isDirectory()) {
+    filePath = join6(pathOrRoot, STORE_PATH);
   }
   if (!existsSync3(filePath)) {
     throw new Error(`baseline file not found: ${pathOrRoot}`);
   }
-  const content = readFileSync6(filePath, "utf8").trim();
+  const content = readFileSync7(filePath, "utf8").trim();
   const baselineIds = /* @__PURE__ */ new Set();
   if (content.startsWith("[") || content.startsWith("{")) {
     try {
@@ -9654,7 +10119,7 @@ function filterBaseline(findings, baselineIds) {
   });
 }
 function save(root, records) {
-  const path = join5(root, STORE_PATH);
+  const path = join6(root, STORE_PATH);
   mkdirSync2(dirname3(path), { recursive: true });
   const lines = [...records.values()].sort((a, b) => a.id.localeCompare(b.id)).map((r) => JSON.stringify(r));
   writeFileSync2(path, lines.length ? `${lines.join("\n")}
@@ -9746,18 +10211,18 @@ function summarize(store) {
 }
 
 // engine/src/context.mjs
-import { existsSync as existsSync5, readFileSync as readFileSync8, statSync as statSync4 } from "node:fs";
-import { join as join7 } from "node:path";
+import { existsSync as existsSync5, readFileSync as readFileSync9, statSync as statSync5 } from "node:fs";
+import { join as join8 } from "node:path";
 
 // engine/src/controls.mjs
-import { readFileSync as readFileSync7, existsSync as existsSync4 } from "node:fs";
-import { join as join6 } from "node:path";
+import { readFileSync as readFileSync8, existsSync as existsSync4 } from "node:fs";
+import { join as join7 } from "node:path";
 var CONTROLS_PATH = ".airtight/controls.json";
 function loadControls(root) {
-  const path = join6(root, CONTROLS_PATH);
+  const path = join7(root, CONTROLS_PATH);
   if (!existsSync4(path)) return { schemaVersion: 1, controls: [] };
   try {
-    const parsed = JSON.parse(readFileSync7(path, "utf8"));
+    const parsed = JSON.parse(readFileSync8(path, "utf8"));
     return { schemaVersion: parsed.schemaVersion ?? 1, controls: parsed.controls ?? [] };
   } catch (err) {
     throw new Error(`${CONTROLS_PATH} is not valid JSON: ${err.message}`);
@@ -9856,7 +10321,7 @@ function detectStack(root, ignoreFiles = []) {
     else if (base === "go.mod") stack.go = true;
     else if (/\.ya?ml$/.test(rel) && !rel.startsWith(".github/")) {
       try {
-        const head = readFileSync8(abs, "utf8").slice(0, 2048);
+        const head = readFileSync9(abs, "utf8").slice(0, 2048);
         if (/^\s*apiVersion:/m.test(head) && /^\s*kind:/m.test(head)) stack.kubernetes = true;
       } catch {
       }
@@ -9865,18 +10330,18 @@ function detectStack(root, ignoreFiles = []) {
   return stack;
 }
 function readIfPresent(root, name) {
-  const path = join7(root, name);
+  const path = join8(root, name);
   try {
-    return statSync4(path).isFile() ? readFileSync8(path, "utf8") : null;
+    return statSync5(path).isFile() ? readFileSync9(path, "utf8") : null;
   } catch {
     return null;
   }
 }
 function hookActive(root) {
-  const settings = join7(root, ".claude", "settings.json");
+  const settings = join8(root, ".claude", "settings.json");
   if (!existsSync5(settings)) return false;
   try {
-    return readFileSync8(settings, "utf8").includes("airtight");
+    return readFileSync9(settings, "utf8").includes("airtight");
   } catch {
     return false;
   }
@@ -9996,8 +10461,8 @@ ${JSON.stringify({
 }
 
 // engine/src/hook.mjs
-import { readFileSync as readFileSync9, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync5, realpathSync } from "node:fs";
-import { dirname as dirname4, join as join8, relative as relative4, resolve as resolve4, sep as sep3 } from "node:path";
+import { readFileSync as readFileSync10, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync6, realpathSync } from "node:fs";
+import { dirname as dirname4, join as join9, relative as relative5, resolve as resolve5, sep as sep4 } from "node:path";
 var ENVELOPE = "[airtight@1]";
 var CACHE_PATH = ".airtight/hook.cache.json";
 var MAX_SESSIONS = 8;
@@ -10057,14 +10522,14 @@ function payload(text, eventName, harness) {
 }
 function loadCache(root) {
   try {
-    return JSON.parse(readFileSync9(join8(root, CACHE_PATH), "utf8"));
+    return JSON.parse(readFileSync10(join9(root, CACHE_PATH), "utf8"));
   } catch {
     return { sessions: {} };
   }
 }
 function saveCache(root, cache2) {
   try {
-    if (!statSync5(join8(root, ".airtight")).isDirectory()) return;
+    if (!statSync6(join9(root, ".airtight")).isDirectory()) return;
   } catch {
     return;
   }
@@ -10073,8 +10538,8 @@ function saveCache(root, cache2) {
     for (const id of ids.slice(0, ids.length - MAX_SESSIONS)) delete cache2.sessions[id];
   }
   try {
-    mkdirSync3(dirname4(join8(root, CACHE_PATH)), { recursive: true });
-    writeFileSync3(join8(root, CACHE_PATH), JSON.stringify(cache2));
+    mkdirSync3(dirname4(join9(root, CACHE_PATH)), { recursive: true });
+    writeFileSync3(join9(root, CACHE_PATH), JSON.stringify(cache2));
   } catch {
   }
 }
@@ -10154,10 +10619,10 @@ function clampToBudget(text, maxChars) {
 }
 function loadRules(env, root) {
   const here = dirname4(new URL(import.meta.url).pathname);
-  for (const path of [env.AIRTIGHT_RULES, join8(here, "..", "rules.json"), join8(here, "..", "build", "rules.json")]) {
+  for (const path of [env.AIRTIGHT_RULES, join9(here, "..", "rules.json"), join9(here, "..", "build", "rules.json")]) {
     if (!path) continue;
     try {
-      return compileAll(JSON.parse(readFileSync9(path, "utf8")));
+      return compileAll(JSON.parse(readFileSync10(path, "utf8")));
     } catch {
     }
   }
@@ -10191,15 +10656,15 @@ function runHook(io, env, stdinText) {
   } else {
     rels = [];
     for (const p of resolveTargets(input)) {
-      const abs = resolve4(root, p);
+      const abs = resolve5(root, p);
       if (!insideProject(root, abs)) continue;
-      const rel = relative4(root, abs).split(sep3).join("/");
+      const rel = relative5(root, abs).split(sep4).join("/");
       if (rel.startsWith("..")) continue;
       if (GENERATED.test(`/${rel}`) || GENERATED_FILE.test(rel)) continue;
       if (!isScannable(rel)) continue;
       if (matchesAny(rel, config.detector?.ignoreFiles ?? [])) continue;
       try {
-        if (statSync5(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
+        if (statSync6(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
       } catch {
         continue;
       }
@@ -10215,7 +10680,7 @@ function runHook(io, env, stdinText) {
   const active = stop ? rules : immediateTier(rules);
   const { findings, vault } = scanFiles({
     root,
-    files: rels.map((r) => join8(root, r)),
+    files: rels.map((r) => join9(root, r)),
     rules: active,
     config,
     isSuppressed: buildFilter(config)
@@ -10277,15 +10742,15 @@ This write introduced a confirmed critical finding. Fix it before continuing.`);
 }
 function readStdin() {
   try {
-    return readFileSync9(0, "utf8");
+    return readFileSync10(0, "utf8");
   } catch {
     return "";
   }
 }
 
 // engine/src/hooks-admin.mjs
-import { readFileSync as readFileSync10, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname5, join as join9 } from "node:path";
+import { readFileSync as readFileSync11, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync6 } from "node:fs";
+import { dirname as dirname5, join as join10 } from "node:path";
 var SETTINGS = ".claude/settings.json";
 var CONFIG = ".airtight/config.json";
 var LAUNCHER = "${CLAUDE_PROJECT_DIR}/.claude/skills/airtight/scripts/airtight";
@@ -10301,7 +10766,7 @@ var MANIFEST = {
 };
 function readJson(path, fallback) {
   try {
-    return JSON.parse(readFileSync10(path, "utf8"));
+    return JSON.parse(readFileSync11(path, "utf8"));
   } catch {
     return fallback;
   }
@@ -10313,7 +10778,7 @@ function writeJson(path, value) {
 }
 var isOurs = (entry) => JSON.stringify(entry).includes("airtight");
 function install(root) {
-  const path = join9(root, SETTINGS);
+  const path = join10(root, SETTINGS);
   const settings = readJson(path, {});
   settings.hooks ??= {};
   for (const [event, entries] of Object.entries(MANIFEST)) {
@@ -10323,7 +10788,7 @@ function install(root) {
   return path;
 }
 function uninstall(root) {
-  const path = join9(root, SETTINGS);
+  const path = join10(root, SETTINGS);
   if (!existsSync6(path)) return null;
   const settings = readJson(path, {});
   if (!settings.hooks) return null;
@@ -10336,7 +10801,7 @@ function uninstall(root) {
   return path;
 }
 function status(root) {
-  const settings = readJson(join9(root, SETTINGS), {});
+  const settings = readJson(join10(root, SETTINGS), {});
   const events = Object.keys(MANIFEST).filter((e) => (settings.hooks?.[e] ?? []).some(isOurs));
   const config = loadConfig(root);
   const d = config.detector ?? {};
@@ -10353,7 +10818,7 @@ function status(root) {
   };
 }
 function mutateConfig(root, fn) {
-  const path = join9(root, CONFIG);
+  const path = join10(root, CONFIG);
   const config = readJson(path, { detector: { ignoreRules: [], ignoreFiles: [], ignoreValues: [] } });
   config.detector ??= {};
   config.detector.ignoreRules ??= [];
@@ -10364,7 +10829,7 @@ function mutateConfig(root, fn) {
   return path;
 }
 function setEnabled(root, enabled) {
-  const path = join9(root, CONFIG);
+  const path = join10(root, CONFIG);
   const config = readJson(path, {});
   config.hook = { ...config.hook ?? {}, enabled };
   writeJson(path, config);
@@ -10409,6 +10874,7 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
   airtight rules                    list loaded rules
+  airtight map [paths...]           map HTTP entry points and nearby sinks
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
@@ -10434,12 +10900,12 @@ Options
 `;
 function checkStaleRules(bundlePath) {
   try {
-    const rulesDir = join10(HERE, "..", "rules");
+    const rulesDir = join11(HERE, "..", "rules");
     if (!existsSync7(rulesDir)) return;
-    const bundleStat = statSync6(bundlePath);
-    const yamlFiles = readdirSync4(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+    const bundleStat = statSync7(bundlePath);
+    const yamlFiles = readdirSync5(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const f of yamlFiles) {
-      const yamlStat = statSync6(join10(rulesDir, f));
+      const yamlStat = statSync7(join11(rulesDir, f));
       if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
         process.stderr.write(
           `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules
@@ -10454,12 +10920,12 @@ function checkStaleRules(bundlePath) {
 function loadRules2(env) {
   const candidates = [
     env.AIRTIGHT_RULES,
-    join10(HERE, "..", "rules.json"),
-    join10(HERE, "..", "build", "rules.json")
+    join11(HERE, "..", "rules.json"),
+    join11(HERE, "..", "build", "rules.json")
   ].filter(Boolean);
   for (const path of candidates) {
     try {
-      const data = JSON.parse(readFileSync11(path, "utf8"));
+      const data = JSON.parse(readFileSync12(path, "utf8"));
       checkStaleRules(path);
       return compileAll(data);
     } catch (err) {
@@ -10495,9 +10961,9 @@ function getChangedFilesSince(root, ref) {
     });
     const set = new Set(
       `${diffOut}
-${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve5(root, p)).filter((p) => {
+${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve6(root, p)).filter((p) => {
         try {
-          return statSync6(p).isFile();
+          return statSync7(p).isFile();
         } catch {
           return false;
         }
@@ -10549,14 +11015,14 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.flags.since) {
     const changed = getChangedFilesSince(root, opts.flags.since);
     if (opts.paths.length) {
-      const targetPaths = opts.paths.map((p) => resolve5(root, p));
+      const targetPaths = opts.paths.map((p) => resolve6(root, p));
       files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith("/") ? t : `${t}/`)));
     } else {
       files = changed;
     }
   } else {
     const paths = opts.paths.length ? opts.paths : defaultPaths;
-    files = collectTargets(root, paths.map((p) => resolve5(root, p)));
+    files = collectTargets(root, paths.map((p) => resolve6(root, p)));
   }
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
   let findings = scanned.findings;
@@ -10566,7 +11032,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       const allDeps = [];
       for (const lf of lockfiles) {
         try {
-          const content = readFileSync11(lf, "utf8");
+          const content = readFileSync12(lf, "utf8");
           const parsed = parseLockfile(lf, content);
           if (parsed?.dependencies?.length) {
             allDeps.push(...parsed.dependencies);
@@ -10576,7 +11042,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       }
       if (allDeps.length > 0) {
         const advisories = queryOsv(allDeps, {
-          cacheDir: join10(root, ".airtight", "cache", "osv.json"),
+          cacheDir: join11(root, ".airtight", "cache", "osv.json"),
           offline: false
         });
         for (const adv of advisories) {
@@ -10593,7 +11059,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   }
   let baselineIgnored = 0;
   if (opts.flags.baseline) {
-    const baselineIds = loadBaseline(resolve5(root, opts.flags.baseline));
+    const baselineIds = loadBaseline(resolve6(root, opts.flags.baseline));
     const totalBefore = findings.length;
     findings = filterBaseline(findings, baselineIds);
     baselineIgnored = totalBefore - findings.length;
@@ -10840,9 +11306,17 @@ ${results.length} control(s): ${results.length - failing - broken - unverifiable
 function cmdSbom(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
-  const target = opts.paths.length ? resolve5(root, opts.paths[0]) : root;
+  const target = opts.paths.length ? resolve6(root, opts.paths[0]) : root;
   const sbom = generateCycloneDx({ root: target });
   io.out(sbom);
+  return 0;
+}
+function cmdMap(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ["."];
+  const attackMap = generateAttackSurfaceMap(paths, { root });
+  io.out(JSON.stringify(attackMap, null, 2));
   return 0;
 }
 function run(argv, io = defaultIo(), env = process.env) {
@@ -10866,6 +11340,8 @@ function run(argv, io = defaultIo(), env = process.env) {
         return cmdDetect(rest, io, env);
       case "rules":
         return cmdRules(rest, io, env);
+      case "map":
+        return cmdMap(rest, io, env);
       case "findings":
         return cmdFindings(rest, io, env);
       case "context":

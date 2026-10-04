@@ -1,0 +1,50 @@
+id: vuln-01-idor-tenant
+description: "IDOR: Missing tenant isolation filter in document lookup"
+metadata:
+  type: vulnerability
+  category: idor
+  cwe: CWE-639
+  expected_verdict: confirmed
+  rule_blind_reason: "Prisma query uses standard ORM methods and parameterized lookup, but lacks tenant scoping in where clause"
+vars:
+  target: src/routes/documents.ts
+  language: typescript
+  code: |
+    import { Router, Request, Response } from 'express';
+    import { db } from '../lib/db';
+    import { requireAuth } from '../middleware/auth';
+
+    export const documentRouter = Router();
+
+    // GET /api/documents/:id
+    documentRouter.get('/:id', requireAuth, async (req: Request, res: Response) => {
+      const user = req.user!; // Valid session containing user.id and user.tenantId
+      const documentId = req.params.id;
+
+      // Defect: The lookup queries by primary key (id) without filtering by tenantId.
+      // An authenticated user in Organization A can view confidential documents
+      // belonging to Organization B simply by supplying Organization B's document ID.
+      const doc = await db.document.findUnique({
+        where: { id: documentId },
+        include: { attachments: true, auditLogs: true }
+      });
+
+      if (!doc) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      return res.json({ document: doc });
+    });
+  proposed_finding: |
+    IDOR / Horizontal Privilege Escalation in GET /api/documents/:id.
+    An authenticated user can retrieve sensitive documents belonging to other tenants
+    by supplying their document UUID in the route parameter. The database query
+    `db.document.findUnique({ where: { id: documentId } })` does not filter by `user.tenantId`,
+    allowing cross-tenant data access.
+assert:
+  - type: icontains
+    value: "tenant"
+  - type: icontains
+    value: "VERDICT: confirmed"
+  - type: not-icontains
+    value: "VERDICT: refuted"

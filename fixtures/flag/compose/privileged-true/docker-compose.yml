@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  app1:
+    image: alpine
+    privileged: true
+  app2:
+    image: ubuntu
+    privileged: true
+  app3:
+    image: debian
+    privileged: true
+  app4:
+    image: busybox
+    privileged: true

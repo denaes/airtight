@@ -1,0 +1,7 @@
+[
+  { "command": "node", "args": ["server.js"] },
+  { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-postgres"] },
+  { "args": ["./workspace"] },
+  { "allowedDirectories": ["/Users/project/data"] },
+  { "tools": ["search", "read_file"] }
+]

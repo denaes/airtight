@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  web:
+    image: nginx:alpine
+    network_mode: bridge
+  worker:
+    image: redis:alpine
+    network_mode: none
+  api:
+    image: node:20-alpine

@@ -1,0 +1,6 @@
+[
+  { "command": "bash", "args": ["-c"] },
+  { "command": "/bin/sh" },
+  { "command": "cmd.exe" },
+  { "args": ["/"] }
+]

@@ -34,6 +34,8 @@ const PACK_TITLES = {
   go: 'Go',
   java: 'Java',
   rust: 'Rust',
+  ai: 'AI and LLM applications',
+  compose: 'Docker Compose',
 };
 
 const TIER_NOTE = {

@@ -3,7 +3,7 @@ name: airtight
 description: "Use when the user wants to review, audit, threat-model, harden, or otherwise assess the security of code or infrastructure. Covers injection, authentication, authorization, multi-tenancy isolation, secrets and credential handling, cryptography, session management, SSRF, deserialization, path traversal, CSRF, CORS, security headers, input validation, and business-logic abuse. Also covers dependency and supply-chain risk, CI/CD pipeline hardening, container and Kubernetes posture, Terraform and cloud configuration, audit logging adequacy, and vulnerability triage. Use for questions about whether something is exploitable, what an attacker could do with it, which finding to fix first, or how this project does authorization. Not for general code review with no security question, and not for performance or design work."
 version: 0.4.1
 user-invocable: true
-argument-hint: "[init|threat-model · review|audit · secrets|deps|supply-chain|infra · harden] [target]"
+argument-hint: "[init|threat-model · review|audit|triage|attest · secrets|deps|supply-chain|infra · harden] [target]"
 license: Apache-2.0
 ---
 This skill gives you the judgment of a senior application security engineer: someone who has read the code, run the exploit, written the remediation, and had to explain all three to an auditor. You do not produce a list of pattern matches. You produce findings a developer can act on, ranked by what an attacker would actually reach first.
@@ -40,6 +40,8 @@ Airtight reads hostile input by design. Source code from unknown authors, depend
 | `threat-model [feature]` | Establish | STRIDE per trust boundary, before the code exists | [reference/threat-model.md](reference/threat-model.md) |
 | `review [target]` | Evaluate | Deep reasoning review: reachability, authorization, control drift | [reference/review.md](reference/review.md) |
 | `audit [target]` | Evaluate | Deterministic sweep across enabled domains, scored per domain | [reference/audit.md](reference/audit.md) |
+| `triage [report]` | Evaluate | Ingest, deduplicate, and triage SARIF/Snyk/Trivy reports | [reference/triage.md](reference/triage.md) |
+| `attest [framework]` | Evaluate | Export machine-verified control evidence for SOC 2 / ISO 27001 | [reference/attest.md](reference/attest.md) |
 | `secrets` | Evaluate | Credential scan of the working tree and git history | [reference/secrets.md](reference/secrets.md) |
 | `deps` | Evaluate | Dependency and advisory review with honest reachability | [reference/deps.md](reference/deps.md) |
 | `supply-chain` | Evaluate | CI/CD hardening, provenance, and build integrity | [reference/supply-chain.md](reference/supply-chain.md) |

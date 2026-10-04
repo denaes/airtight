@@ -167,7 +167,7 @@ function parse(argv) {
 }
 
 const ENGINE_VERBS = new Set([
-  'detect', 'rules', 'findings', 'controls', 'context',
+  'detect', 'rules', 'map', 'findings', 'controls', 'context',
   'hook', 'hooks', 'engine-probe', 'sbom',
 ]);
 
@@ -215,6 +215,7 @@ Harness management
 Analysis and posture
   npx airtight detect [paths]   scan for security findings (default: .)
   npx airtight rules            list loaded rules
+  npx airtight map [paths]      map HTTP entry points and nearby sinks
   npx airtight sbom [paths]     generate CycloneDX 1.5 SBOM from lockfiles
   npx airtight findings <sub>   sync | list | accept | overdue
   npx airtight controls <sub>   verify | coverage

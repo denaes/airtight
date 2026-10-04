@@ -1,0 +1,46 @@
+id: decoy-02-boundary-checked-path
+description: "Decoy: Safe boundary-checked path resolution preventing traversal"
+metadata:
+  type: decoy
+  category: path-traversal
+  cwe: CWE-22
+  expected_verdict: refuted
+  safety_reason: "Explicit startswith check against storage root prevents directory traversal outside authorized folder"
+vars:
+  target: src/handlers/download.ts
+  language: typescript
+  code: |
+    import path from 'node:path';
+    import fs from 'node:fs';
+    import { Request, Response } from 'express';
+
+    const STORAGE_ROOT = path.resolve('/var/app/storage/uploads');
+
+    export function downloadFile(req: Request, res: Response) {
+      const userPath = req.query.file as string;
+      if (!userPath) {
+        return res.status(400).send('Missing file parameter');
+      }
+
+      const targetPath = path.resolve(STORAGE_ROOT, userPath);
+
+      // Boundary check: ensure the resolved absolute path starts with STORAGE_ROOT
+      if (!targetPath.startsWith(STORAGE_ROOT + path.sep)) {
+        return res.status(403).send('Access denied: path traversal attempt');
+      }
+
+      if (!fs.existsSync(targetPath)) {
+        return res.status(404).send('File not found');
+      }
+
+      return res.sendFile(targetPath);
+    }
+  proposed_finding: |
+    Path Traversal in downloadFile:
+    User-controlled `req.query.file` is passed to `path.resolve` and read via `res.sendFile`.
+    An attacker can pass `../../etc/passwd` to read arbitrary system files.
+assert:
+  - type: icontains
+    value: "VERDICT: refuted"
+  - type: not-icontains
+    value: "VERDICT: confirmed"

@@ -37,6 +37,8 @@ Airtight reads hostile input by design. Source code from unknown authors, depend
 | `threat-model [feature]` | Establish | STRIDE per trust boundary, before the code exists | [reference/threat-model.md](reference/threat-model.md) |
 | `review [target]` | Evaluate | Deep reasoning review: reachability, authorization, control drift | [reference/review.md](reference/review.md) |
 | `audit [target]` | Evaluate | Deterministic sweep across enabled domains, scored per domain | [reference/audit.md](reference/audit.md) |
+| `triage [report]` | Evaluate | Ingest, deduplicate, and triage SARIF/Snyk/Trivy reports | [reference/triage.md](reference/triage.md) |
+| `attest [framework]` | Evaluate | Export machine-verified control evidence for SOC 2 / ISO 27001 | [reference/attest.md](reference/attest.md) |
 | `secrets` | Evaluate | Credential scan of the working tree and git history | [reference/secrets.md](reference/secrets.md) |
 | `deps` | Evaluate | Dependency and advisory review with honest reachability | [reference/deps.md](reference/deps.md) |
 | `supply-chain` | Evaluate | CI/CD hardening, provenance, and build integrity | [reference/supply-chain.md](reference/supply-chain.md) |

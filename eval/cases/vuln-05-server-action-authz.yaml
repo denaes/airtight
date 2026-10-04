@@ -1,0 +1,46 @@
+id: vuln-05-server-action-authz
+description: "Broken Authorization: Next.js Server Action missing session authentication"
+metadata:
+  type: vulnerability
+  category: broken-authz
+  cwe: CWE-862
+  expected_verdict: confirmed
+  rule_blind_reason: "Next.js Server Actions expose public POST endpoints that bypass layout authentication without explicit session checks"
+vars:
+  target: app/actions/projects.ts
+  language: typescript
+  code: |
+    'use server';
+
+    import { db } from '@/lib/db';
+    import { revalidatePath } from 'next/cache';
+
+    // Defect: In Next.js App Router, functions marked 'use server' become callable public RPC endpoints.
+    // Client-side UI hiding (e.g. hiding the delete button from non-admins) provides no security.
+    // This action directly mutates the database without validating the caller's session or permissions.
+    export async function deleteProject(projectId: string) {
+      // Missing authorization verification:
+      // const session = await auth();
+      // if (!session?.user?.isAdmin) {
+      //   throw new Error('Unauthorized');
+      // }
+
+      await db.project.delete({
+        where: { id: projectId }
+      });
+
+      revalidatePath('/dashboard/projects');
+      return { success: true };
+    }
+  proposed_finding: |
+    Missing Authorization in Next.js Server Action `deleteProject`:
+    The exported 'use server' function can be invoked directly by any unauthenticated
+    client via HTTP POST. It performs destructive database operations without verifying
+    session identity or user authorization, allowing arbitrary users to delete projects.
+assert:
+  - type: icontains
+    value: "authorization"
+  - type: icontains
+    value: "VERDICT: confirmed"
+  - type: not-icontains
+    value: "VERDICT: refuted"

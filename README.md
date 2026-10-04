@@ -3,8 +3,8 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.4.1, installable from npm across 18 harnesses. Engine with 191
-> rules, findings store, control register, nine commands, edit hook, installer,
+> **Status:** v0.4.1, installable from npm across 18 harnesses. Engine with 200
+> rules, findings store, control register, 11 commands, edit hook, installer,
 > docs, and a demo. Benchmarked against four real repositories; see
 > [measured against real code](#measured-against-real-code) for what that
 > covers and what it does not.
@@ -98,14 +98,14 @@ hand — [full method and results](docs/benchmark.md), reproducible with
 
 Four repositories is a start, not a coverage claim. Three of them are
 JavaScript or Python HTTP libraries, so the Terraform and Kubernetes packs —
-38 of the 191 rules — have not been run against real infrastructure. Recall is
+38 of the 200 rules — have not been run against real infrastructure. Recall is
 judged by reading, not scored against labelled ground truth, and this measures
 the engine only, not the model layer. [What the benchmark does and does not
 cover](docs/benchmark.md#what-this-still-does-not-measure).
 
 ## Commands
 
-`skill/` is the source of truth. Nine commands in three categories:
+`skill/` is the source of truth. 11 commands in three categories:
 
 | Command | Category | Does |
 |---|---|---|
@@ -117,6 +117,8 @@ cover](docs/benchmark.md#what-this-still-does-not-measure).
 | `deps` | Evaluate | Advisories with honest reachability reporting |
 | `supply-chain` | Evaluate | CI triggers, token scope, action pinning, provenance |
 | `infra` | Evaluate | Terraform, Kubernetes, containers |
+| `triage` | Evaluate | Reconcile external scanner reports (SARIF, Snyk, Dependabot) |
+| `attest` | Evaluate | Machine-verified control evidence for SOC 2 / ISO 27001 |
 | `harden` | Fix | The only command that edits |
 
 Both subagents are read-only by construction, and there is a test that fails if
@@ -139,6 +141,8 @@ prevent.
 | `go` | 19 | text | SQL injection, shell exec, TLS verification, temporary files, XXE, SSRF |
 | `java` | 18 | text | Command execution, SQL concat, XXE parsers, path traversal, LDAP, SSRF |
 | `rust` | 8 | text | Command injection, SQL formatting, insecure temporary files, weak RNG |
+| `ai` | 5 | text | LLM output to execution, unparameterized SQL, RAG interpolation, dangerous MCP tools, client API keys |
+| `compose` | 4 | yaml | Privileged mode, host network mode, docker socket mounts, root filesystem mounts |
 
 ## The edit hook
 

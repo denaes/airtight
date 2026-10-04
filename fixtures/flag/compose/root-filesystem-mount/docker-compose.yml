@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  agent1:
+    image: alpine
+    volumes:
+      - /:/host:ro
+  agent2:
+    image: ubuntu
+    volumes:
+      - /etc:/host/etc:ro
+  agent3:
+    image: debian
+    volumes:
+      - /proc:/host/proc
+  agent4:
+    image: busybox
+    volumes:
+      - /sys:/host/sys:ro
