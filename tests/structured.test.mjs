@@ -102,3 +102,22 @@ test('path segments resolve maps, arrays, indices and wildcards', () => {
   assert.deepEqual(resolvePath(doc, 'jobs.a.steps[1].uses').map((h) => h.value), ['two']);
   assert.deepEqual(resolvePath(doc, 'jobs.missing.steps[*]'), [], 'a missing path yields nothing, not an error');
 });
+
+test('YAML entity expansion bomb (billion laughs) is mitigated without memory exhaustion', () => {
+  const bomb = `
+a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]
+b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]
+c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]
+d: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]
+e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d]
+f: &f [*e,*e,*e,*e,*e,*e,*e,*e,*e]
+g: &g [*f,*f,*f,*f,*f,*f,*f,*f,*f]
+h: &h [*g,*g,*g,*g,*g,*g,*g,*g,*g]
+i: &i [*h,*h,*h,*h,*h,*h,*h,*h,*h]
+`;
+  const start = Date.now();
+  const { documents } = parseStructured(bomb);
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed < 200, `YAML bomb handled in ${elapsed}ms`);
+  assert.equal(documents.length, 1);
+});

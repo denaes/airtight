@@ -8098,13 +8098,15 @@ function parseDockerfile(source) {
 
 // engine/src/parse/structured.mjs
 var import_yaml = __toESM(require_dist(), 1);
-function toPlain(node, toLine, doc, seen) {
+function toPlain(node, toLine, doc, seen, state = { aliasCount: 0 }) {
   if (node === null || node === void 0) return null;
   if ((0, import_yaml.isAlias)(node)) {
+    state.aliasCount += 1;
+    if (state.aliasCount > 100) return null;
     if (seen.has(node)) return null;
     seen.add(node);
     try {
-      return toPlain(node.resolve(doc), toLine, doc, seen);
+      return toPlain(node.resolve(doc), toLine, doc, seen, state);
     } catch {
       return null;
     } finally {
@@ -8116,12 +8118,12 @@ function toPlain(node, toLine, doc, seen) {
     const out = {};
     for (const item of node.items) {
       const key = (0, import_yaml.isScalar)(item.key) ? String(item.key.value) : String(item.key);
-      out[key] = toPlain(item.value, toLine, doc, seen);
+      out[key] = toPlain(item.value, toLine, doc, seen, state);
     }
     return annotate(out, line);
   }
   if ((0, import_yaml.isSeq)(node)) {
-    return annotate(node.items.map((item) => toPlain(item, toLine, doc, seen)), line);
+    return annotate(node.items.map((item) => toPlain(item, toLine, doc, seen, state)), line);
   }
   if ((0, import_yaml.isScalar)(node)) return node.value;
   return null;
@@ -8130,14 +8132,14 @@ function parseStructured(source) {
   const toLine = lineIndexer(source);
   let docs;
   try {
-    docs = (0, import_yaml.parseAllDocuments)(source, { logLevel: "silent" });
+    docs = (0, import_yaml.parseAllDocuments)(source, { logLevel: "silent", maxAliasCount: 100 });
   } catch {
     return { documents: [], parseError: true };
   }
   const documents = [];
   for (const doc of docs) {
     if (doc.errors?.length) continue;
-    const plain = toPlain(doc.contents, toLine, doc, /* @__PURE__ */ new Set());
+    const plain = toPlain(doc.contents, toLine, doc, /* @__PURE__ */ new Set(), { aliasCount: 0 });
     if (plain !== null) documents.push(plain);
   }
   return { documents, parseError: false };
