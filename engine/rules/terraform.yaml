@@ -621,3 +621,130 @@
     Set sqs_managed_sse_enabled = true for Amazon SQS-managed keys (SSE-SQS), or
     specify kms_master_key_id with a customer-managed or AWS-managed KMS key.
 
+- id: terraform/gcp-open-firewall
+  name: GCP firewall permits unrestricted ingress to sensitive port
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: google_compute_firewall
+      - path: attrs.source_ranges[*]
+        matches: '^(0\.0\.0\.0/0|::/0)$'
+      - path: blocks[*].type
+        equals: allow
+      - path: blocks[*].attrs.ports[*]
+        matches: '^(22|3389)$'
+  message: GCP compute firewall rule exposes sensitive port (22/3389) to 0.0.0.0/0
+  why: >-
+    Permitting ingress traffic from 0.0.0.0/0 or ::/0 to administrative ports
+    such as SSH (22) or RDP (3389) allows untrusted internet hosts to reach
+    management interfaces, exposing systems to password brute-force and remote exploit attacks.
+  fix: >-
+    Restrict source_ranges to authorized management IP ranges, or connect through
+    Identity-Aware Proxy (IAP) TCP forwarding rather than exposing ports directly.
+
+- id: terraform/gcp-sql-unencrypted
+  name: Cloud SQL instance allows unencrypted connections or open network access
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-311
+  owasp: A02:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: type
+        equals: ip_configuration
+      - path: address
+        matches: 'google_sql_database_instance'
+    any:
+      - path: attrs.require_ssl
+        equals: false
+      - path: blocks[*].attrs.value
+        matches: '^(0\.0\.0\.0/0|::/0)$'
+      - path: attrs.authorized_networks[*].value
+        matches: '^(0\.0\.0\.0/0|::/0)$'
+  message: Cloud SQL ip_configuration disables SSL enforcement or allows authorized networks from 0.0.0.0/0
+  why: >-
+    Disabling SSL requirements transmits database authentication tokens and
+    data in plaintext over network paths. Permitting 0.0.0.0/0 in authorized networks
+    exposes the database listener directly to automated internet-wide port scans.
+  fix: >-
+    Set require_ssl = true in ip_configuration, remove 0.0.0.0/0 from authorized_networks,
+    and enforce private IP access using Cloud SQL Auth Proxy or VPC Peering.
+
+- id: terraform/azure-nsg-open-port
+  name: Azure NSG rule allows internet ingress on administrative port
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: address
+        matches: 'azurerm_network_security_(rule|group)'
+      - path: attrs.access
+        matches: '(?i)^allow$'
+      - path: attrs.direction
+        matches: '(?i)^inbound$'
+      - path: attrs.source_address_prefix
+        matches: '^(\*|0\.0\.0\.0/0|Internet)$'
+    any:
+      - path: attrs.destination_port_range
+        matches: '^(\*|22|23|135|139|445|1433|1521|3306|3389|5432|5984|6379|9200|9300|11211|27017|27018)$'
+      - path: attrs.destination_port_ranges[*]
+        matches: '^(\*|22|23|135|139|445|1433|1521|3306|3389|5432|5984|6379|9200|9300|11211|27017|27018)$'
+  message: Azure network security rule allows inbound traffic from * to sensitive port
+  why: >-
+    Allowing inbound connections from any source address (*) to administrative or
+    database ports (such as SSH 22, RDP 3389, or PostgreSQL 5432) exposes host services
+    to brute-force attacks and exploitation from the public internet.
+  fix: >-
+    Restrict source_address_prefix to specific corporate IP CIDRs, application subnets,
+    or use Azure Bastion / Just-In-Time (JIT) VM access instead of public NSG rules.
+
+- id: terraform/azure-disk-unencrypted
+  name: Azure managed disk unencrypted or encryption disabled
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-311
+  owasp: A02:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: azurerm_managed_disk
+      - path: blocks[*].attrs.enabled
+        not_matches: '^true$'
+      - path: attrs.disk_encryption_set_id
+        not_matches: '.'
+  message: Azure managed disk has encryption settings disabled or missing
+  why: >-
+    Managed disks without explicit encryption settings or customer-managed disk encryption
+    sets risk storing virtual machine volume data in plaintext or without required key governance,
+    violating data security compliance standards and baseline confidentiality.
+  fix: >-
+    Add an encryption_settings block with enabled = true, or reference a customer-managed
+    Disk Encryption Set using disk_encryption_set_id.
+
+

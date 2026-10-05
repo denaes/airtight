@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pass-limits-deploy
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.25
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pass-limits-sts
+spec:
+  template:
+    spec:
+      containers:
+        - name: db
+          image: postgres:15
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pass-limits-pod
+spec:
+  containers:
+    - name: worker
+      image: redis:7
+      resources:
+        limits:
+          cpu: 250m
+          memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pass-limits-svc
+spec:
+  ports:
+    - port: 80
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pass-limits-config
+data:
+  mode: production

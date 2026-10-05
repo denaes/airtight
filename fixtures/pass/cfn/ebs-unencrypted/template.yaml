@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Encrypted EBS volumes and other resources
+
+Resources:
+  PassVolumeEncrypted:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: us-east-1a
+      Size: 100
+      Encrypted: true
+
+  PassVolumeEncryptedWithKms:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: us-east-1b
+      Size: 200
+      Encrypted: true
+      KmsKeyId: arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
+
+  PassVolumeEncryptedString:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: us-east-1c
+      Size: 50
+      Encrypted: 'true'
+
+  PassEc2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-12345678
+      InstanceType: t3.micro
+
+  PassS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: safe-backup-bucket

@@ -1,0 +1,167 @@
+# CloudFormation and SAM pack.
+#
+# Covers AWS CloudFormation templates and SAM definitions in YAML, JSON, and
+# .template formats. Rules inspect Resources and their security-critical properties.
+
+- id: cfn/s3-public-access
+  name: S3 bucket allows public access
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  files: ['**/*.yaml', '**/*.yml', '**/*.json', '**/*.template']
+  parse: yaml
+  for_each: Resources.*
+  assert:
+    all:
+      - path: Type
+        equals: AWS::S3::Bucket
+    any:
+      - path: Properties.AccessControl
+        matches: '^(PublicRead|PublicReadWrite)$'
+      - path: Properties.PublicAccessBlockConfiguration
+        present: false
+      - path: Properties.PublicAccessBlockConfiguration.BlockPublicAcls
+        equals: false
+      - path: Properties.PublicAccessBlockConfiguration.BlockPublicPolicy
+        equals: false
+      - path: Properties.PublicAccessBlockConfiguration.IgnorePublicAcls
+        equals: false
+      - path: Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets
+        equals: false
+  message: S3 bucket allows public access or disables public access block
+  why: >-
+    Publicly accessible S3 buckets expose data to unauthenticated internet users
+    and allow unauthorized read or write access. Enabling PublicAccessBlockConfiguration
+    and avoiding public ACLs prevents accidental data exposure.
+  fix: >-
+    Remove public ACLs (PublicRead, PublicReadWrite) and configure PublicAccessBlockConfiguration
+    with BlockPublicAcls, BlockPublicPolicy, IgnorePublicAcls, and RestrictPublicBuckets set to true.
+
+- id: cfn/security-group-ingress-open
+  name: Security group ingress opens sensitive port to the internet
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  files: ['**/*.yaml', '**/*.yml', '**/*.json', '**/*.template']
+  parse: yaml
+  for_each: Resources.*.Properties.SecurityGroupIngress[*]
+  assert:
+    all:
+      - path: CidrIp
+        equals: '0.0.0.0/0'
+    any:
+      - path: FromPort
+        matches: '^(22|3389|5432|3306|1433)$'
+      - path: ToPort
+        matches: '^(22|3389|5432|3306|1433)$'
+  message: Security group ingress allows 0.0.0.0/0 on sensitive port
+  why: >-
+    Opening administrative (22 SSH, 3389 RDP) or database (5432 Postgres, 3306 MySQL, 1433 MSSQL)
+    ports to 0.0.0.0/0 exposes infrastructure to automated internet scanning, brute-force attacks,
+    and exploit attempts.
+  fix: >-
+    Restrict the ingress rule CidrIp to specific authorized IP ranges or VPC CIDR blocks, or
+    connect securely via AWS Systems Manager Session Manager or a bastion host.
+
+- id: cfn/iam-wildcard-action
+  name: IAM policy allows wildcard action
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml', '**/*.json', '**/*.template']
+  parse: yaml
+  for_each: Resources.*
+  assert:
+    all:
+      - path: Type
+        equals: AWS::IAM::Policy
+      - path: '**.Effect'
+        matches: '(?i)^Allow$'
+    any:
+      - path: '**.Action'
+        matches: '^\*$'
+      - path: '**.Action[*]'
+        matches: '^\*$'
+  message: IAM policy grants wildcard action '*' with Effect Allow
+  why: >-
+    Granting Action '*' with Allow grants administrative privileges across all AWS services,
+    violating the principle of least privilege and allowing complete account compromise if the
+    principal is compromised.
+  fix: >-
+    Restrict the policy action list to the specific API calls required by the workload and scope
+    the Resource ARN accordingly.
+
+- id: cfn/ebs-unencrypted
+  name: EBS volume is not encrypted
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-311
+  files: ['**/*.yaml', '**/*.yml', '**/*.json', '**/*.template']
+  parse: yaml
+  for_each: Resources.*
+  assert:
+    all:
+      - path: Type
+        equals: AWS::EC2::Volume
+      - path: Properties.Encrypted
+        not_equals: true
+  message: EBS volume has encryption disabled or omitted
+  why: >-
+    Unencrypted EBS volumes expose stored data, snapshots, and attached block devices to
+    unauthorized read access in the event of snapshot exposure or volume detachment.
+  fix: >-
+    Set Encrypted: true on the AWS::EC2::Volume resource and optionally specify a KMS key with KmsKeyId.
+
+- id: cfn/rds-publicly-accessible
+  name: RDS database instance is publicly accessible
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  files: ['**/*.yaml', '**/*.yml', '**/*.json', '**/*.template']
+  parse: yaml
+  for_each: Resources.*
+  assert:
+    all:
+      - path: Type
+        equals: AWS::RDS::DBInstance
+      - path: Properties.PubliclyAccessible
+        equals: true
+  message: RDS instance sets PubliclyAccessible to true
+  why: >-
+    Configuring an RDS instance to be publicly accessible assigns it a public IP address accessible
+    from the internet, increasing the attack surface to unauthorized credential probing and network-level attacks.
+  fix: >-
+    Set PubliclyAccessible to false and place the database within private VPC subnets accessed via internal routing or VPC peering.
+
+- id: cfn/cloudtrail-multi-region-disabled
+  name: CloudTrail multi-region logging is disabled
+  domain: infrastructure
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-778
+  files: ['**/*.yaml', '**/*.yml', '**/*.json', '**/*.template']
+  parse: yaml
+  for_each: Resources.*
+  assert:
+    all:
+      - path: Type
+        equals: AWS::CloudTrail::Trail
+      - path: Properties.IsMultiRegionTrail
+        equals: false
+  message: CloudTrail trail sets IsMultiRegionTrail to false
+  why: >-
+    Disabling multi-region trails leaves activity in inactive AWS regions unmonitored. Attackers
+    frequently target unused regions to deploy malicious workloads or avoid security monitoring.
+  fix: >-
+    Set IsMultiRegionTrail to true on the AWS::CloudTrail::Trail resource to record events across all AWS regions.

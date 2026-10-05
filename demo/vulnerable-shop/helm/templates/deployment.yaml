@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-helm-deployment
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: web
+          image: demo-app:latest
+          securityContext:
+            privileged: true

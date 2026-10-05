@@ -824,3 +824,50 @@
   message: redirect() directly takes search parameters without relative path validation
   why: "Passing query parameter values directly to redirect() without verifying they are relative paths (starting with a single '/') allows attackers to redirect users to malicious third-party phishing domains."
   fix: "Validate that the redirect target starts with '/' and not '//', or validate against an allowlist of safe redirect paths."
+- id: js/nuxt-read-body-injection
+  name: Nuxt readBody payload injected into database query, command, or file write
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-94
+  owasp: A03:2021
+  files:
+    - "**/*.ts"
+    - "**/*.js"
+    - "**/*.mjs"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '(?:\b(?:db|conn|connection|client|pool|prisma|knex)\.(?:\$?(?:queryRawUnsafe|executeRawUnsafe)|query|execute|raw)|(?<![\w$.])(?:exec|execSync)|\bfs(?:\.promises)?\.(?:writeFile|writeFileSync|appendFile|appendFileSync))\s*\(\s*(?:`[^`]*\$\{[^}]*\breadBody|(["''])(?:(?!\1).)*\1\s*\+[^;\n]*\breadBody|[^;\n]*\breadBody[^;\n]*\+\s*(["''])(?:(?!\2).)*\2)'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: readBody() payload is directly interpolated or concatenated into a database query, shell command, or filesystem path
+  why: Nitro server handlers parse request bodies without schema validation. Directly interpolating or concatenating readBody properties into SQL statements, exec calls, or file paths leads directly to SQL injection, remote command execution, or arbitrary file overwrite.
+  fix: Validate and sanitize request payloads using readValidatedBody with a schema library (e.g. Zod), use parameterized SQL queries, avoid shells for process execution (execFile), and validate file paths against an allowlist.
+- id: js/sveltekit-server-load-leak
+  name: SvelteKit server load returns sensitive records without tenancy or authorization check
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-200
+  owasp: A01:2021
+  files:
+    - "**/+page.server.ts"
+    - "**/+page.server.js"
+    - "**/+layout.server.ts"
+    - "**/+layout.server.js"
+    - "**/*.ts"
+    - "**/*.js"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '\b(?:db|prisma|client|pool)\.(?:[a-zA-Z0-9_$]+\.)?(?:findMany\s*\(\s*\)|query\s*\(\s*(["''])(?:(?!\1).)*\bSELECT\s+(?:(?!\1).)*\bFROM\s+(?:users|accounts|api_keys|secrets|billing|profiles|orders|customers)\b)'
+    require_regex: '^(?=[\s\S]*\bexport\s+(?:const\s+load\b|(?:async\s+)?function\s+load\b))(?![\s\S]*\b(?:locals\.(?:user|session|auth|admin|getSession)|session\.user|requireAuth|checkAuth|ensureUser|isAuthorized|hasRole)\b)'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: Server load function returns sensitive records without checking user session or applying a tenant filter
+  why: SvelteKit server load functions execute on the server and serialize their return values directly to the client browser. Querying sensitive database tables without verifying event.locals session authentication or scoping records to the authenticated tenant leaks private records across user boundaries.
+  fix: Authenticate the caller using event.locals (or a session guard) and filter queries by the authenticated user's ID or organization ID (e.g. WHERE user_id = locals.user.id).
+

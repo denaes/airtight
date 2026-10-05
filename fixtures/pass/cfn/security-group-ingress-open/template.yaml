@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security groups with safe ingress rules
+
+Resources:
+  PassSgPrivateSsh:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Scoped SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/8
+
+  PassSgPrivateRdp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Scoped RDP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 192.168.1.0/24
+
+  PassSgWebHttp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  PassSgWebHttps:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public HTTPS
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  PassSgDbSgSource:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database from app security group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: sg-0123456789abcdef0

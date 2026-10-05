@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudTrail trails with multi-region disabled
+
+Resources:
+  FlagTrailDisabledBoolean:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: flag-trail-disabled
+      IsLogging: true
+      IsMultiRegionTrail: false
+      S3BucketName: audit-logs-bucket
+
+  FlagTrailDisabledString:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: flag-trail-string
+      IsLogging: true
+      IsMultiRegionTrail: 'false'
+      S3BucketName: audit-logs-bucket
+
+  FlagTrailDisabledWithValidation:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: flag-trail-validation
+      IsLogging: true
+      EnableLogFileValidation: true
+      IsMultiRegionTrail: false
+      S3BucketName: audit-logs-bucket
+
+  FlagTrailDisabledMinimal:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      IsMultiRegionTrail: false
+      S3BucketName: minimal-audit-logs

@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flag-nolimits-deploy
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.25
+        - name: logger
+          image: fluentd:v1.16
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flag-nolimits-sts
+spec:
+  template:
+    spec:
+      containers:
+        - name: db
+          image: postgres:15
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flag-nolimits-job
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          image: migrate:latest

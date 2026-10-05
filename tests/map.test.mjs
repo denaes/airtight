@@ -549,3 +549,144 @@ export async function onRequest(context) {
   });
 });
 
+test('generateAttackSurfaceMap detects Nuxt 3 routes, methods, and sinks', () => {
+  withTempProject((root) => {
+    mkdirSync(join(root, 'server/api/users'), { recursive: true });
+    mkdirSync(join(root, 'server/routes/auth'), { recursive: true });
+
+    // File with method suffix .get.ts and SQL sink
+    writeFileSync(join(root, 'server/api/users/[id].get.ts'), `
+export default defineEventHandler(async (event) => {
+  const id = getRouterParam(event, 'id');
+  const user = await db.query('SELECT * FROM users WHERE id = ' + id); // airtight-disable-line js/sql-string-concat
+  return user;
+});
+    `);
+
+    // File with inspected HTTP method event.node.req.method and exec sink
+    writeFileSync(join(root, 'server/routes/auth/login.ts'), `
+import { execSync } from 'node:child_process';
+
+export default defineEventHandler(async (event) => {
+  if (event.node.req.method === 'POST') {
+    const body = await readBody(event);
+    execSync('echo ' + body.username); // airtight-disable-line js/child-process-interpolation
+    return { ok: true };
+  }
+});
+    `);
+
+    // Generic route with default ALL method
+    writeFileSync(join(root, 'server/api/status.ts'), `
+export default defineEventHandler((event) => {
+  return { status: 'healthy' };
+});
+    `);
+
+    // File with method suffix .post.ts
+    writeFileSync(join(root, 'server/routes/deploy.post.ts'), `
+export default defineEventHandler(async (event) => {
+  return { deployed: true };
+});
+    `);
+
+    const result = generateAttackSurfaceMap(['server'], { root });
+    assert.equal(result.summary.totalRoutes, 4);
+    assert.deepEqual(result.summary.frameworks, ['nuxt']);
+    assert.equal(result.summary.totalSinksNearRoutes, 2);
+
+    const userGet = result.routes.find((r) => r.path === '/api/users/:id');
+    assert.ok(userGet);
+    assert.equal(userGet.method, 'GET');
+    assert.equal(userGet.sinks.length, 1);
+    assert.equal(userGet.sinks[0].type, 'sql');
+
+    const authLogin = result.routes.find((r) => r.path === '/auth/login');
+    assert.ok(authLogin);
+    assert.equal(authLogin.method, 'POST');
+    assert.equal(authLogin.sinks.length, 1);
+    assert.equal(authLogin.sinks[0].type, 'exec');
+
+    const statusRoute = result.routes.find((r) => r.path === '/api/status');
+    assert.ok(statusRoute);
+    assert.equal(statusRoute.method, 'ALL');
+
+    const deployRoute = result.routes.find((r) => r.path === '/deploy');
+    assert.ok(deployRoute);
+    assert.equal(deployRoute.method, 'POST');
+  });
+});
+
+test('generateAttackSurfaceMap detects SvelteKit routes, methods, and sinks', () => {
+  withTempProject((root) => {
+    mkdirSync(join(root, 'src/routes/api/users/[id]'), { recursive: true });
+    mkdirSync(join(root, 'src/routes/dashboard'), { recursive: true });
+
+    // +server.ts exporting HTTP verbs and containing sinks
+    writeFileSync(join(root, 'src/routes/api/users/[id]/+server.ts'), `
+import { json } from '@sveltejs/kit';
+
+export async function GET({ params }) {
+  const data = await fetch('https://internal.api/users/' + params.id);
+  return json(await data.json());
+}
+
+export const POST = async ({ request }) => {
+  const body = await request.json();
+  eval(body.code); // airtight-disable-line js/eval-dynamic
+  return json({ success: true });
+};
+
+export async function DELETE({ params }) {
+  return new Response(null, { status: 204 });
+}
+    `);
+
+    // +page.server.ts exporting load and actions with a SQL sink
+    writeFileSync(join(root, 'src/routes/dashboard/+page.server.ts'), `
+export async function load({ params }) {
+  const items = await db.query('SELECT * FROM items');
+  return { items };
+}
+
+export const actions = {
+  default: async ({ request }) => {
+    return { ok: true };
+  }
+};
+    `);
+
+    const result = generateAttackSurfaceMap(['src'], { root });
+    assert.equal(result.summary.totalRoutes, 5);
+    assert.deepEqual(result.summary.frameworks, ['sveltekit']);
+    assert.equal(result.summary.totalSinksNearRoutes, 3);
+
+    const getRoute = result.routes.find((r) => r.path === '/api/users/:id' && r.method === 'GET');
+    assert.ok(getRoute);
+    assert.equal(getRoute.handlerName, 'GET');
+    assert.equal(getRoute.sinks.length, 1);
+    assert.equal(getRoute.sinks[0].type, 'ssrf');
+
+    const postRoute = result.routes.find((r) => r.path === '/api/users/:id' && r.method === 'POST');
+    assert.ok(postRoute);
+    assert.equal(postRoute.handlerName, 'POST');
+    assert.equal(postRoute.sinks.length, 1);
+    assert.equal(postRoute.sinks[0].type, 'eval');
+
+    const deleteRoute = result.routes.find((r) => r.path === '/api/users/:id' && r.method === 'DELETE');
+    assert.ok(deleteRoute);
+    assert.equal(deleteRoute.handlerName, 'DELETE');
+
+    const loadRoute = result.routes.find((r) => r.path === '/dashboard' && r.method === 'GET');
+    assert.ok(loadRoute);
+    assert.equal(loadRoute.handlerName, 'load');
+    assert.equal(loadRoute.sinks.length, 1);
+    assert.equal(loadRoute.sinks[0].type, 'sql');
+
+    const actionRoute = result.routes.find((r) => r.path === '/dashboard' && r.method === 'POST');
+    assert.ok(actionRoute);
+    assert.equal(actionRoute.handlerName, 'actions');
+  });
+});
+
+

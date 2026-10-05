@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Secure S3 buckets with public access blocked
+
+Resources:
+  PassBucketPrivate:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: pass-bucket-private
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  PassBucketOwnerFullControl:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: pass-bucket-owner-full-control
+      AccessControl: BucketOwnerFullControl
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  PassBucketLogDelivery:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: pass-bucket-log-delivery
+      AccessControl: LogDeliveryWrite
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  PassBucketDefaultAclWithBlocks:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: pass-bucket-default-acl
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  PassQueueOtherResource:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: pass-secure-queue

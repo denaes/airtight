@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: RDS instances configured with public accessibility
+
+Resources:
+  FlagRdsPostgresPublic:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      PubliclyAccessible: true
+
+  FlagRdsMysqlPublic:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.small
+      Engine: mysql
+      PubliclyAccessible: true
+
+  FlagRdsStringTrue:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.medium
+      Engine: mariadb
+      PubliclyAccessible: 'true'
+
+  FlagRdsOraclePublic:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.m5.large
+      Engine: oracle-ee
+      PubliclyAccessible: true

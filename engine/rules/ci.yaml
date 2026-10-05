@@ -207,3 +207,63 @@
     run that triggered it may have been produced by an untrusted fork. This is
     pull_request_target's problem wearing a different trigger.
   fix: Download and treat artifacts from the triggering run as untrusted data, and do not check out or execute its code.
+
+- id: ci/workflow-run-artifact-poisoning
+  name: Privileged workflow_run workflow downloads untrusted artifacts
+  domain: supply-chain
+  severity: high
+  confidence: firm
+  tests: report
+  tier: immediate
+  cwe: CWE-829
+  owasp: A08:2021
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      - path: $.on.workflow_run
+        present: true
+    any:
+      - path: uses
+        matches: '^(actions/download-artifact|dawidd6/action-download-artifact)'
+      - path: with.run-id
+        matches: 'github\.event\.workflow_run'
+      - path: with.run_id
+        matches: 'github\.event\.workflow_run'
+      - path: run
+        matches: 'gh\s+run\s+download'
+  message: Workflow triggered by workflow_run downloads untrusted artifacts from triggering run
+  why: >-
+    Workflows triggered by workflow_run execute in the context of the default branch
+    with access to repository secrets and write tokens. Downloading artifacts produced
+    by an untrusted fork's pull request workflow allows malicious code execution in a privileged runner.
+  fix: >-
+    Avoid downloading artifacts in workflow_run, or cryptographically verify signatures
+    and strictly parse only plain data without executing scripts or binaries from artifacts.
+
+- id: ci/untrusted-github-context-injection
+  name: Attacker-controlled GitHub context interpolated into shell command
+  domain: supply-chain
+  severity: critical
+  confidence: confirmed
+  tests: report
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/.github/workflows/*.yml', '**/.github/workflows/*.yaml']
+  parse: yaml
+  for_each: jobs.*.steps[*]
+  assert:
+    all:
+      - path: run
+        matches: '\$\{\{\s*github\.(head_ref|event\.(issue\.body|pull_request\.body|comment\.body))'
+  message: A run step interpolates untrusted github context directly into shell execution
+  why: >-
+    Direct interpolation of ${{ github.head_ref }} or ${{ github.event.issue.body }} into a
+    shell script runs before shell parsing, allowing an attacker to inject shell metacharacters
+    (such as semicolons or backticks) and execute arbitrary commands.
+  fix: >-
+    Assign the context variable to an intermediate environment variable in env: and
+    reference it in the script using shell variable syntax (e.g. "$BODY" or "$HEAD_REF").
+

@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM policies with wildcard Action
+
+Resources:
+  FlagPolicyWildcardString:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: flag-policy-string
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+
+  FlagPolicyWildcardList:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: flag-policy-list
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - '*'
+            Resource: '*'
+
+  FlagPolicyMixedActionsWithWildcard:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: flag-policy-mixed
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - '*'
+            Resource: '*'
+
+  FlagPolicySingleStatementObject:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: flag-policy-single-obj
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Action: '*'
+          Resource: '*'

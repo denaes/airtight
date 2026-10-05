@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Scoped IAM policies without universal wildcard actions
+
+Resources:
+  PassPolicySingleAction:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: pass-policy-single
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource: arn:aws:s3:::mybucket/*
+
+  PassPolicyMultipleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: pass-policy-multiple
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: arn:aws:s3:::mybucket/*
+
+  PassPolicyExplicitDenyWildcard:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: pass-policy-deny
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Action: '*'
+            Resource: '*'
+
+  PassPolicyServicePrefixWildcard:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: pass-policy-service-prefix
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource: arn:aws:s3:::mybucket/*
+
+  PassOtherResource:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: pass-queue

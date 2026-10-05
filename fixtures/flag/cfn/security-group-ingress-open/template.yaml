@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security groups with sensitive ports open to 0.0.0.0/0
+
+Resources:
+  FlagSgSsh:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  FlagSgRdp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open RDP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+
+  FlagSgPostgres:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open Postgres
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+
+  FlagSgMysql:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open MySQL
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+
+  FlagSgMssql:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open MSSQL
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1433
+          ToPort: 1433
+          CidrIp: 0.0.0.0/0

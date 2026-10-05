@@ -1,0 +1,93 @@
+# Helm pack.
+#
+# Inspects Kubernetes Helm templates and chart values files for security misconfigurations.
+# Scoped to chart template directories and values files.
+
+- id: helm/privileged-container
+  name: Helm container runs in privileged mode
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/templates/**/*.yaml', '**/templates/**/*.yml', '**/values.yaml', '**/values.yml']
+  parse: yaml
+  for_each: '**.securityContext'
+  assert:
+    all:
+      - path: privileged
+        equals: true
+  message: Helm chart container or values sets securityContext.privileged = true
+  why: >-
+    Privileged containers disable Linux container isolation boundaries and grant access to host
+    devices, allowing trivial container breakout to the underlying Kubernetes host node.
+  fix: >-
+    Set securityContext.privileged to false in the container spec or values.yaml, and grant only
+    the specific Linux capabilities required via capabilities.add.
+
+- id: helm/host-network
+  name: Helm pod uses host network namespace
+  domain: infrastructure
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-653
+  files: ['**/templates/**/*.yaml', '**/templates/**/*.yml', '**/values.yaml', '**/values.yml']
+  parse: yaml
+  assert:
+    all:
+      - path: '**.hostNetwork'
+        equals: true
+      - path: kind
+        matches: '^(Deployment|StatefulSet|DaemonSet|Job|CronJob|Pod)$'
+  message: Helm pod specification sets hostNetwork to true
+  why: >-
+    Sharing the host network namespace exposes all network interfaces and traffic on the host
+    node to the container, bypassing network policies and exposing node-local services.
+  fix: >-
+    Remove hostNetwork: true or set it to false, allowing Kubernetes CNI to manage container network isolation.
+
+- id: helm/no-resource-limits
+  name: Helm container declares no resource limits
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  tier: deep
+  cwe: CWE-770
+  files: ['**/templates/**/*.yaml', '**/templates/**/*.yml', '**/values.yaml', '**/values.yml']
+  parse: yaml
+  for_each: '**.containers[*]'
+  assert:
+    all:
+      - path: $.kind
+        matches: '^(Deployment|StatefulSet|DaemonSet|Job|CronJob|Pod)$'
+      - path: resources.limits
+        present: false
+  message: Helm template container does not declare resources.limits
+  why: >-
+    Containers running without resource limits can consume unlimited host CPU and memory,
+    causing resource starvation, node instability, and denial of service for co-located workloads.
+  fix: >-
+    Define resources.limits for cpu and memory in the container specification to constrain resource consumption.
+
+- id: helm/cluster-admin-binding
+  name: Helm role binding grants cluster-admin
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-250
+  files: ['**/templates/**/*.yaml', '**/templates/**/*.yml', '**/values.yaml', '**/values.yml']
+  parse: yaml
+  assert:
+    all:
+      - path: roleRef.name
+        equals: cluster-admin
+      - path: kind
+        matches: '^(ClusterRoleBinding|RoleBinding)$'
+  message: Role binding grants the cluster-admin superuser role
+  why: >-
+    Binding a service account or user to cluster-admin grants unrestricted superuser privileges
+    across the entire Kubernetes cluster, creating an immediate privilege escalation risk.
+  fix: >-
+    Create and bind a custom ClusterRole or Role scoped strictly to the resources and API verbs required by the workload.

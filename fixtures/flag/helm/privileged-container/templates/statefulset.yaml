@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flag-helm-sts
+spec:
+  template:
+    spec:
+      containers:
+        - name: database
+          image: postgres:15
+          securityContext:
+            privileged: true

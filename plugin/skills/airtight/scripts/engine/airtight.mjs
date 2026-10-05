@@ -9769,6 +9769,162 @@ function parseCloudflareRoutes(content, lines, relPath) {
   }
   return routes;
 }
+function parseNuxtRoutes(content, lines, relPath) {
+  const match = /(?:^|\/)(?:src\/)?server\/(api|routes)\/(.+)\.(?:ts|js|mjs|cjs)$/.exec(relPath);
+  if (!match) return [];
+  const defineHandlerRe = /\b(?:defineEventHandler|eventHandler)\s*\(/;
+  let handlerLine = -1;
+  let handlerName = "defineEventHandler";
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (defineHandlerRe.test(line)) {
+      handlerLine = i + 1;
+      const mNamed = /(?:export\s+default\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_$]+)/.exec(line);
+      if (mNamed) {
+        handlerName = mNamed[1];
+      }
+      break;
+    }
+  }
+  if (handlerLine === -1) return [];
+  let sub = match[2];
+  let fileMethod = null;
+  const methodSuffixMatch = /\.(get|post|put|delete|patch|head|options)$/i.exec(sub);
+  if (methodSuffixMatch) {
+    fileMethod = methodSuffixMatch[1].toUpperCase();
+    sub = sub.slice(0, -methodSuffixMatch[0].length);
+  }
+  if (sub === "index") {
+    sub = "";
+  } else if (sub.endsWith("/index")) {
+    sub = sub.slice(0, -6);
+  }
+  sub = sub.replace(/\[\.\.\.([a-zA-Z0-9_$]+)\]/g, ":$1*");
+  sub = sub.replace(/\[([a-zA-Z0-9_$]+)\]/g, ":$1");
+  let routePath = "";
+  if (match[1] === "api") {
+    routePath = "/api" + (sub ? sub.startsWith("/") ? sub : "/" + sub : "");
+  } else {
+    routePath = sub ? sub.startsWith("/") ? sub : "/" + sub : "/";
+  }
+  if (!routePath.startsWith("/")) routePath = "/" + routePath;
+  routePath = routePath.replace(/\/+/g, "/");
+  const routes = [];
+  if (fileMethod) {
+    routes.push({
+      framework: "nuxt",
+      method: fileMethod,
+      path: routePath,
+      file: relPath,
+      line: handlerLine,
+      handlerName
+    });
+  } else {
+    const detectedMethods = [];
+    const eqRe = /(?:event\.node\.req\.method|getMethod\s*\(\s*event\s*\))\s*===?\s*['"`](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)['"`]/i;
+    const caseRe = /case\s+['"`](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)['"`]\s*:/i;
+    const neqRe = /(?:event\.node\.req\.method|getMethod\s*\(\s*event\s*\))\s*!==?\s*['"`](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)['"`]/i;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const mEq = eqRe.exec(line) || caseRe.exec(line);
+      if (mEq) {
+        detectedMethods.push({ method: mEq[1].toUpperCase(), line: i + 1 });
+      }
+    }
+    if (detectedMethods.length === 0) {
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        const mNeq = neqRe.exec(line);
+        if (mNeq) {
+          detectedMethods.push({ method: mNeq[1].toUpperCase(), line: i + 1 });
+        }
+      }
+    }
+    if (detectedMethods.length > 0) {
+      const seen = /* @__PURE__ */ new Set();
+      for (const dm of detectedMethods) {
+        if (seen.has(dm.method)) continue;
+        seen.add(dm.method);
+        routes.push({
+          framework: "nuxt",
+          method: dm.method,
+          path: routePath,
+          file: relPath,
+          line: dm.line,
+          handlerName
+        });
+      }
+    } else {
+      routes.push({
+        framework: "nuxt",
+        method: "ALL",
+        path: routePath,
+        file: relPath,
+        line: handlerLine,
+        handlerName
+      });
+    }
+  }
+  return routes;
+}
+function parseSvelteKitRoutes(content, lines, relPath) {
+  const serverMatch = /(?:^|\/)(?:src\/)?routes(?:\/(.*))?\/\+server\.(?:ts|js)$/.exec(relPath);
+  const pageMatch = /(?:^|\/)(?:src\/)?routes(?:\/(.*))?\/\+page\.server\.(?:ts|js)$/.exec(relPath);
+  if (!serverMatch && !pageMatch) return [];
+  const rawSub = (serverMatch ? serverMatch[1] : pageMatch[1]) ?? "";
+  let sub = rawSub;
+  sub = sub.replace(/(?:^|\/)\([^)]+\)/g, "");
+  sub = sub.replace(/\[\.\.\.([a-zA-Z0-9_$]+)\]/g, ":$1*");
+  sub = sub.replace(/\[([a-zA-Z0-9_$]+)\]/g, ":$1");
+  let routePath = sub ? sub.startsWith("/") ? sub : "/" + sub : "/";
+  routePath = routePath.replace(/\/+/g, "/");
+  const routes = [];
+  if (serverMatch) {
+    const exportFuncRe = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+    const exportConstRe = /export\s+const\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const m = exportFuncRe.exec(line) || exportConstRe.exec(line);
+      if (m) {
+        routes.push({
+          framework: "sveltekit",
+          method: m[1].toUpperCase(),
+          path: routePath,
+          file: relPath,
+          line: i + 1,
+          handlerName: m[1]
+        });
+      }
+    }
+  } else if (pageMatch) {
+    const exportLoadRe = /export\s+(?:async\s+)?function\s+load\b|export\s+const\s+load\b/;
+    const exportActionsRe = /export\s+(?:async\s+)?function\s+actions\b|export\s+const\s+actions\b/;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (exportLoadRe.test(line)) {
+        routes.push({
+          framework: "sveltekit",
+          method: "GET",
+          path: routePath,
+          file: relPath,
+          line: i + 1,
+          handlerName: "load"
+        });
+      }
+      if (exportActionsRe.test(line)) {
+        routes.push({
+          framework: "sveltekit",
+          method: "POST",
+          path: routePath,
+          file: relPath,
+          line: i + 1,
+          handlerName: "actions"
+        });
+      }
+    }
+  }
+  return routes;
+}
 function parseFlaskRoutes(lines, relPath) {
   const routes = [];
   const routeRe = /@([a-zA-Z0-9_]+)\.route\s*\(\s*(['"])([^'"]+)\2(?:\s*,\s*methods\s*=\s*\[([^\]]+)\])?\s*\)/;
@@ -9975,6 +10131,8 @@ function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
     let fileRoutes = [];
     if ([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"].includes(ext)) {
       fileRoutes.push(...parseNextJsRoutes(content, lines, relPath));
+      fileRoutes.push(...parseNuxtRoutes(content, lines, relPath));
+      fileRoutes.push(...parseSvelteKitRoutes(content, lines, relPath));
       fileRoutes.push(...parseNestJsRoutes(content, lines, relPath));
       fileRoutes.push(...parseCloudflareRoutes(content, lines, relPath));
       fileRoutes.push(...parseExpressRoutes(content, lines, relPath));

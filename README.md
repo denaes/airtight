@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.5.0, installable from npm across 18 harnesses. Engine with 218
+> **Status:** v0.5.0, installable from npm across 18 harnesses. Engine with 236
 > rules, findings store, control register, 11 commands, edit hook, installer,
 > docs, and a demo. Benchmarked against 10 real repositories; see
 > [docs/benchmark.md](docs/benchmark.md) for what that
@@ -135,11 +135,11 @@ prevent.
 |---|---:|---|---|
 | `secret` | 15 | text, js | Provider token formats, private keys, tracked `.env`, entropy |
 | `container` | 11 | dockerfile | Root user, mutable tags, baked credentials, pipe-to-shell |
-| `ci` | 8 | yaml | `pull_request_target`, script injection, unpinned actions, token scope |
+| `ci` | 10 | yaml | `pull_request_target`, script injection, unpinned actions, token scope |
 | `dep` | 12 | text | Install scripts, wildcard versions, plaintext registries, unpinned git refs |
-| `terraform` | 24 | hcl | Open ingress, wildcard IAM, public storage, unencrypted state |
+| `terraform` | 28 | hcl | Open ingress, wildcard IAM, public storage, unencrypted state |
 | `k8s` | 21 | yaml | Privileged pods, host namespaces, wildcard RBAC, runtime socket mounts |
-| `js` | 34 | text | Injection sinks, TLS/CORS misconfiguration, prototype pollution, JWT verification, body limits |
+| `js` | 36 | text | Injection sinks, TLS/CORS misconfiguration, prototype pollution, JWT verification, body limits |
 | `py` | 34 | text | Deserialization, `shell=True`, SQL injection, SSRF, JWT verification, deprecated SSL |
 | `go` | 19 | text | SQL injection, shell exec, TLS verification, temporary files, XXE, SSRF |
 | `java` | 18 | text | Command execution, SQL concat, XXE parsers, path traversal, LDAP, SSRF |
@@ -147,6 +147,8 @@ prevent.
 | `ai` | 5 | text | LLM output to execution, unparameterized SQL, RAG interpolation, dangerous MCP tools, client API keys |
 | `compose` | 5 | yaml | Privileged mode, host network mode, docker socket mounts, root filesystem mounts |
 | `cloudflare` | 4 | text | Plaintext secrets in wrangler, worker SSRF, D1 SQL concatenation, CORS wildcard |
+| `cfn` | 6 | yaml | Public S3 buckets, open security group ingress, wildcard IAM, unencrypted EBS, public RDS, disabled CloudTrail |
+| `helm` | 4 | yaml | Privileged containers, host network namespace, missing resource limits, cluster-admin bindings |
 
 ## The edit hook
 

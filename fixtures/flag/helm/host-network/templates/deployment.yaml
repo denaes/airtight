@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flag-hostnet-deploy
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: app
+          image: nginx:1.25
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: flag-hostnet-ds
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: agent
+          image: agent:2.0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flag-hostnet-sts
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: db
+          image: postgres:15
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: flag-hostnet-pod
+spec:
+  hostNetwork: true
+  containers:
+    - name: probe
+      image: busybox:1.36

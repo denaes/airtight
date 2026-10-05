@@ -2,7 +2,7 @@
 
 # Rule reference
 
-218 rules across 14 packs. 155 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+236 rules across 16 packs. 172 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -11,19 +11,21 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | Pack | Rules | Immediate | Covers |
 |---|---:|---:|---|
 | [`ai`](#ai) | 5 | 5 | AI and LLM applications |
-| [`ci`](#ci) | 8 | 5 | CI and build pipeline |
+| [`cfn`](#cfn) | 6 | 6 | cfn |
+| [`ci`](#ci) | 10 | 7 | CI and build pipeline |
 | [`cloudflare`](#cloudflare) | 4 | 4 | cloudflare |
 | [`compose`](#compose) | 5 | 4 | Docker Compose |
 | [`container`](#container) | 11 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
 | [`go`](#go) | 19 | 16 | Go |
+| [`helm`](#helm) | 4 | 3 | helm |
 | [`java`](#java) | 18 | 17 | Java |
-| [`js`](#js) | 34 | 23 | JavaScript and TypeScript |
+| [`js`](#js) | 36 | 25 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 21 | 10 | Kubernetes |
 | [`py`](#py) | 34 | 28 | Python |
 | [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
-| [`terraform`](#terraform) | 24 | 11 | Terraform |
+| [`terraform`](#terraform) | 28 | 15 | Terraform |
 
 ## ai
 
@@ -90,9 +92,86 @@ Interpolating raw user data or retrieved context directly into system instructio
 <sub>Waive: `airtight hooks ignore-value ai/rag-untrusted-interpolation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/rag-untrusted-interpolation -- <reason>`</sub>
 
 
+## cfn
+
+cfn. 6 rules.
+
+### `cfn/cloudtrail-multi-region-disabled`
+
+CloudTrail multi-region logging is disabled
+
+**medium** / confirmed · `P2` · CWE-778 · fires on edit
+
+Disabling multi-region trails leaves activity in inactive AWS regions unmonitored. Attackers frequently target unused regions to deploy malicious workloads or avoid security monitoring.
+
+**Fix.** Set IsMultiRegionTrail to true on the AWS::CloudTrail::Trail resource to record events across all AWS regions.
+
+<sub>Waive: `airtight hooks ignore-value cfn/cloudtrail-multi-region-disabled "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cfn/cloudtrail-multi-region-disabled -- <reason>`</sub>
+
+### `cfn/ebs-unencrypted`
+
+EBS volume is not encrypted
+
+**high** / confirmed · `P1` · CWE-311 · fires on edit
+
+Unencrypted EBS volumes expose stored data, snapshots, and attached block devices to unauthorized read access in the event of snapshot exposure or volume detachment.
+
+**Fix.** Set Encrypted: true on the AWS::EC2::Volume resource and optionally specify a KMS key with KmsKeyId.
+
+<sub>Waive: `airtight hooks ignore-value cfn/ebs-unencrypted "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cfn/ebs-unencrypted -- <reason>`</sub>
+
+### `cfn/iam-wildcard-action`
+
+IAM policy allows wildcard action
+
+**high** / firm · `P1` · CWE-250 · fires on edit
+
+Granting Action '*' with Allow grants administrative privileges across all AWS services, violating the principle of least privilege and allowing complete account compromise if the principal is compromised.
+
+**Fix.** Restrict the policy action list to the specific API calls required by the workload and scope the Resource ARN accordingly.
+
+<sub>Waive: `airtight hooks ignore-value cfn/iam-wildcard-action "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cfn/iam-wildcard-action -- <reason>`</sub>
+
+### `cfn/rds-publicly-accessible`
+
+RDS database instance is publicly accessible
+
+**critical** / confirmed · `P0` · CWE-284 · fires on edit
+
+Configuring an RDS instance to be publicly accessible assigns it a public IP address accessible from the internet, increasing the attack surface to unauthorized credential probing and network-level attacks.
+
+**Fix.** Set PubliclyAccessible to false and place the database within private VPC subnets accessed via internal routing or VPC peering.
+
+<sub>Waive: `airtight hooks ignore-value cfn/rds-publicly-accessible "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cfn/rds-publicly-accessible -- <reason>`</sub>
+
+### `cfn/s3-public-access`
+
+S3 bucket allows public access
+
+**critical** / confirmed · `P0` · CWE-284 · fires on edit
+
+Publicly accessible S3 buckets expose data to unauthenticated internet users and allow unauthorized read or write access. Enabling PublicAccessBlockConfiguration and avoiding public ACLs prevents accidental data exposure.
+
+**Fix.** Remove public ACLs (PublicRead, PublicReadWrite) and configure PublicAccessBlockConfiguration with BlockPublicAcls, BlockPublicPolicy, IgnorePublicAcls, and RestrictPublicBuckets set to true.
+
+<sub>Waive: `airtight hooks ignore-value cfn/s3-public-access "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cfn/s3-public-access -- <reason>`</sub>
+
+### `cfn/security-group-ingress-open`
+
+Security group ingress opens sensitive port to the internet
+
+**critical** / confirmed · `P0` · CWE-284 · fires on edit
+
+Opening administrative (22 SSH, 3389 RDP) or database (5432 Postgres, 3306 MySQL, 1433 MSSQL) ports to 0.0.0.0/0 exposes infrastructure to automated internet scanning, brute-force attacks, and exploit attempts.
+
+**Fix.** Restrict the ingress rule CidrIp to specific authorized IP ranges or VPC CIDR blocks, or connect securely via AWS Systems Manager Session Manager or a bastion host.
+
+<sub>Waive: `airtight hooks ignore-value cfn/security-group-ingress-open "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cfn/security-group-ingress-open -- <reason>`</sub>
+
+
 ## ci
 
-CI and build pipeline. 8 rules.
+CI and build pipeline. 10 rules.
 
 ### `ci/no-explicit-permissions`
 
@@ -165,6 +244,30 @@ A tag or branch can be repointed by whoever owns the repository, at any time and
 **Fix.** Pin to the full 40-character commit SHA, with the human-readable version in a trailing comment. Dependabot updates SHA pins.
 
 <sub>Waive: `airtight hooks ignore-value ci/unpinned-third-party-action "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ci/unpinned-third-party-action -- <reason>`</sub>
+
+### `ci/untrusted-github-context-injection`
+
+Attacker-controlled GitHub context interpolated into shell command
+
+**critical** / confirmed · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Direct interpolation of ${{ github.head_ref }} or ${{ github.event.issue.body }} into a shell script runs before shell parsing, allowing an attacker to inject shell metacharacters (such as semicolons or backticks) and execute arbitrary commands.
+
+**Fix.** Assign the context variable to an intermediate environment variable in env: and reference it in the script using shell variable syntax (e.g. "$BODY" or "$HEAD_REF").
+
+<sub>Waive: `airtight hooks ignore-value ci/untrusted-github-context-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ci/untrusted-github-context-injection -- <reason>`</sub>
+
+### `ci/workflow-run-artifact-poisoning`
+
+Privileged workflow_run workflow downloads untrusted artifacts
+
+**high** / firm · `P1` · CWE-829 · A08:2021 · fires on edit
+
+Workflows triggered by workflow_run execute in the context of the default branch with access to repository secrets and write tokens. Downloading artifacts produced by an untrusted fork's pull request workflow allows malicious code execution in a privileged runner.
+
+**Fix.** Avoid downloading artifacts in workflow_run, or cryptographically verify signatures and strictly parse only plain data without executing scripts or binaries from artifacts.
+
+<sub>Waive: `airtight hooks ignore-value ci/workflow-run-artifact-poisoning "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ci/workflow-run-artifact-poisoning -- <reason>`</sub>
 
 ### `ci/workflow-run-checkout`
 
@@ -828,6 +931,59 @@ Joining an archive entry's filename directly to a destination directory without 
 <sub>Waive: `airtight hooks ignore-value go/zip-slip "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line go/zip-slip -- <reason>`</sub>
 
 
+## helm
+
+helm. 4 rules.
+
+### `helm/cluster-admin-binding`
+
+Helm role binding grants cluster-admin
+
+**critical** / firm · `P0` · CWE-250 · fires on edit
+
+Binding a service account or user to cluster-admin grants unrestricted superuser privileges across the entire Kubernetes cluster, creating an immediate privilege escalation risk.
+
+**Fix.** Create and bind a custom ClusterRole or Role scoped strictly to the resources and API verbs required by the workload.
+
+<sub>Waive: `airtight hooks ignore-value helm/cluster-admin-binding "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line helm/cluster-admin-binding -- <reason>`</sub>
+
+### `helm/host-network`
+
+Helm pod uses host network namespace
+
+**high** / confirmed · `P1` · CWE-653 · fires on edit
+
+Sharing the host network namespace exposes all network interfaces and traffic on the host node to the container, bypassing network policies and exposing node-local services.
+
+**Fix.** Remove hostNetwork: true or set it to false, allowing Kubernetes CNI to manage container network isolation.
+
+<sub>Waive: `airtight hooks ignore-value helm/host-network "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line helm/host-network -- <reason>`</sub>
+
+### `helm/no-resource-limits`
+
+Helm container declares no resource limits
+
+**medium** / firm · `P2` · CWE-770 · end of turn
+
+Containers running without resource limits can consume unlimited host CPU and memory, causing resource starvation, node instability, and denial of service for co-located workloads.
+
+**Fix.** Define resources.limits for cpu and memory in the container specification to constrain resource consumption.
+
+<sub>Waive: `airtight hooks ignore-value helm/no-resource-limits "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line helm/no-resource-limits -- <reason>`</sub>
+
+### `helm/privileged-container`
+
+Helm container runs in privileged mode
+
+**critical** / confirmed · `P0` · CWE-250 · fires on edit
+
+Privileged containers disable Linux container isolation boundaries and grant access to host devices, allowing trivial container breakout to the underlying Kubernetes host node.
+
+**Fix.** Set securityContext.privileged to false in the container spec or values.yaml, and grant only the specific Linux capabilities required via capabilities.add.
+
+<sub>Waive: `airtight hooks ignore-value helm/privileged-container "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line helm/privileged-container -- <reason>`</sub>
+
+
 ## java
 
 Java. 18 rules.
@@ -1051,7 +1207,7 @@ Allowing external entity resolution or disabling secure processing enables XML E
 
 ## js
 
-JavaScript and TypeScript. 34 rules.
+JavaScript and TypeScript. 36 rules.
 
 ### `js/child-process-interpolation`
 
@@ -1317,6 +1473,18 @@ Passing raw request objects directly into NoSQL query filters allows attackers t
 
 <sub>Waive: `airtight hooks ignore-value js/nosql-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nosql-injection -- <reason>`</sub>
 
+### `js/nuxt-read-body-injection`
+
+Nuxt readBody payload injected into database query, command, or file write
+
+**critical** / firm · `P0` · CWE-94 · A03:2021 · fires on edit
+
+Nitro server handlers parse request bodies without schema validation. Directly interpolating or concatenating readBody properties into SQL statements, exec calls, or file paths leads directly to SQL injection, remote command execution, or arbitrary file overwrite.
+
+**Fix.** Validate and sanitize request payloads using readValidatedBody with a schema library (e.g. Zod), use parameterized SQL queries, avoid shells for process execution (execFile), and validate file paths against an allowlist.
+
+<sub>Waive: `airtight hooks ignore-value js/nuxt-read-body-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nuxt-read-body-injection -- <reason>`</sub>
+
 ### `js/open-redirect`
 
 Redirect target taken from request input
@@ -1424,6 +1592,18 @@ Reading private keys or cloud credentials from standard host locations is the pr
 **Fix.** Never read host credentials directly in application code. Inject credentials via approved environment variables or secret vaults.
 
 <sub>Waive: `airtight hooks ignore-value js/steal-credential-file "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/steal-credential-file -- <reason>`</sub>
+
+### `js/sveltekit-server-load-leak`
+
+SvelteKit server load returns sensitive records without tenancy or authorization check
+
+**high** / firm · `P1` · CWE-200 · A01:2021 · fires on edit
+
+SvelteKit server load functions execute on the server and serialize their return values directly to the client browser. Querying sensitive database tables without verifying event.locals session authentication or scoping records to the authenticated tenant leaks private records across user boundaries.
+
+**Fix.** Authenticate the caller using event.locals (or a session guard) and filter queries by the authenticated user's ID or organization ID (e.g. WHERE user_id = locals.user.id).
+
+<sub>Waive: `airtight hooks ignore-value js/sveltekit-server-load-leak "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/sveltekit-server-load-leak -- <reason>`</sub>
 
 ### `js/tls-verification-disabled`
 
@@ -2420,7 +2600,31 @@ A live Stripe secret key can move real money and read customer payment records.
 
 ## terraform
 
-Terraform. 24 rules.
+Terraform. 28 rules.
+
+### `terraform/azure-disk-unencrypted`
+
+Azure managed disk unencrypted or encryption disabled
+
+**high** / confirmed · `P1` · CWE-311 · A02:2021 · fires on edit
+
+Managed disks without explicit encryption settings or customer-managed disk encryption sets risk storing virtual machine volume data in plaintext or without required key governance, violating data security compliance standards and baseline confidentiality.
+
+**Fix.** Add an encryption_settings block with enabled = true, or reference a customer-managed Disk Encryption Set using disk_encryption_set_id.
+
+<sub>Waive: `airtight hooks ignore-value terraform/azure-disk-unencrypted "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/azure-disk-unencrypted -- <reason>`</sub>
+
+### `terraform/azure-nsg-open-port`
+
+Azure NSG rule allows internet ingress on administrative port
+
+**critical** / firm · `P0` · CWE-284 · A01:2021 · fires on edit
+
+Allowing inbound connections from any source address (*) to administrative or database ports (such as SSH 22, RDP 3389, or PostgreSQL 5432) exposes host services to brute-force attacks and exploitation from the public internet.
+
+**Fix.** Restrict source_address_prefix to specific corporate IP CIDRs, application subnets, or use Azure Bastion / Just-In-Time (JIT) VM access instead of public NSG rules.
+
+<sub>Waive: `airtight hooks ignore-value terraform/azure-nsg-open-port "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/azure-nsg-open-port -- <reason>`</sub>
 
 ### `terraform/azure-storage-public`
 
@@ -2469,6 +2673,30 @@ The Kubernetes API is the control plane for everything in the cluster, and expos
 **Fix.** Set endpoint_private_access = true, and restrict public_access_cidrs to your own ranges if public access is required.
 
 <sub>Waive: `airtight hooks ignore-value terraform/eks-public-endpoint "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/eks-public-endpoint -- <reason>`</sub>
+
+### `terraform/gcp-open-firewall`
+
+GCP firewall permits unrestricted ingress to sensitive port
+
+**critical** / confirmed · `P0` · CWE-284 · A01:2021 · fires on edit
+
+Permitting ingress traffic from 0.0.0.0/0 or ::/0 to administrative ports such as SSH (22) or RDP (3389) allows untrusted internet hosts to reach management interfaces, exposing systems to password brute-force and remote exploit attacks.
+
+**Fix.** Restrict source_ranges to authorized management IP ranges, or connect through Identity-Aware Proxy (IAP) TCP forwarding rather than exposing ports directly.
+
+<sub>Waive: `airtight hooks ignore-value terraform/gcp-open-firewall "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/gcp-open-firewall -- <reason>`</sub>
+
+### `terraform/gcp-sql-unencrypted`
+
+Cloud SQL instance allows unencrypted connections or open network access
+
+**high** / confirmed · `P1` · CWE-311 · A02:2021 · fires on edit
+
+Disabling SSL requirements transmits database authentication tokens and data in plaintext over network paths. Permitting 0.0.0.0/0 in authorized networks exposes the database listener directly to automated internet-wide port scans.
+
+**Fix.** Set require_ssl = true in ip_configuration, remove 0.0.0.0/0 from authorized_networks, and enforce private IP access using Cloud SQL Auth Proxy or VPC Peering.
+
+<sub>Waive: `airtight hooks ignore-value terraform/gcp-sql-unencrypted "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/gcp-sql-unencrypted -- <reason>`</sub>
 
 ### `terraform/gcp-storage-public`
 

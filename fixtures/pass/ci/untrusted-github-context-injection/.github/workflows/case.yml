@@ -1,0 +1,27 @@
+name: Safe Context Tests
+on: [push]
+permissions:
+  contents: read
+jobs:
+  safe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Safe head_ref via environment variable
+        run: |
+          echo "Checking branch: $HEAD_REF"
+          git checkout "$HEAD_REF"
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+      - name: Safe issue body via environment variable
+        run: |
+          echo "$BODY" > issue.txt
+        env:
+          BODY: ${{ github.event.issue.body }}
+      - name: Safe trusted context sha
+        run: echo "Commit SHA: ${{ github.sha }}"
+      - name: Safe trusted context repository
+        run: echo "Repository: ${{ github.repository }}"
+      - name: Safe trusted context run_id
+        run: echo "Run ID: ${{ github.run_id }}"
+      - name: Plain script command without context
+        run: npm run test:ci

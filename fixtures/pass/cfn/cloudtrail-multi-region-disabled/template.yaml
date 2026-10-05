@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Multi-region CloudTrail trails and monitoring resources
+
+Resources:
+  PassTrailMultiRegionTrue:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: pass-trail-multi
+      IsLogging: true
+      IsMultiRegionTrail: true
+      S3BucketName: global-audit-logs
+
+  PassTrailMultiRegionString:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: pass-trail-string
+      IsLogging: true
+      IsMultiRegionTrail: 'true'
+      S3BucketName: global-audit-logs
+
+  PassTrailDefaultOmitted:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: pass-trail-omitted
+      IsLogging: true
+      S3BucketName: audit-bucket
+
+  PassCloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: pass-trail-alarm
+      MetricName: SecurityEvents
+      Namespace: Security
+
+  PassLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: secure-trail-logs

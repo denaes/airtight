@@ -1,0 +1,21 @@
+name: Untrusted Context Tests
+on: [push]
+permissions:
+  contents: read
+jobs:
+  vulnerable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Interpolate head_ref in multiline run
+        run: |
+          echo "Checking branch"
+          git checkout ${{ github.head_ref }}
+      - name: Interpolate issue body in run
+        run: |
+          cat <<EOF > issue.txt
+          ${{ github.event.issue.body }}
+          EOF
+      - name: Interpolate pull_request body in single line
+        run: echo "${{ github.event.pull_request.body }}" >> pr_comments.txt
+      - name: Interpolate comment body directly
+        run: /usr/local/bin/process-comment.sh "${{ github.event.comment.body }}"

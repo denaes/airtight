@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: S3 buckets with public access configurations
+
+Resources:
+  FlagBucketPublicRead:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: flag-bucket-public-read
+      AccessControl: PublicRead
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FlagBucketPublicReadWrite:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: flag-bucket-public-read-write
+      AccessControl: PublicReadWrite
+
+  FlagBucketNoBlockConfig:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: flag-bucket-no-block-config
+
+  FlagBucketBlockDisabled:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: flag-bucket-block-disabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
