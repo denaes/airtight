@@ -1,0 +1,10 @@
+name = "my-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+API_KEY = "sk_live_1234567890abcdef"
+DATABASE_URL = "postgres://admin:secretpass@db.example.com:5432/main"
+SECRET_TOKEN = "jwt_token_secret_123456789"
+ADMIN_PASSWORD = "production_super_password"
+AUTH_TOKEN = "bearer_auth_token_99999"

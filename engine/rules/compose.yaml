@@ -103,3 +103,30 @@
   fix: >-
     Mount only dedicated application data directories into the container, and
     never mount the host root directory, /etc, /proc, or /sys.
+
+- id: compose/no-resource-limits
+  name: Service declares no resource limits
+  domain: containers
+  severity: medium
+  confidence: firm
+  cwe: CWE-770
+  files: ['**/docker-compose*.yml', '**/docker-compose*.yaml', '**/compose*.yml', '**/compose*.yaml']
+  parse: yaml
+  for_each: services.*
+  assert:
+    all:
+      - path: mem_limit
+        present: false
+      - path: cpus
+        present: false
+      - path: deploy.resources.limits
+        present: false
+  message: Service sets no memory or CPU limits
+  why: >-
+    Without resource limits, a container undergoing a denial-of-service attack,
+    infinite loop, or memory leak can exhaust all host CPU or RAM, crashing
+    adjacent containers or the host machine.
+  fix: >-
+    Define resource limits for the service using mem_limit and cpus, or
+    deploy.resources.limits.memory and deploy.resources.limits.cpus.
+

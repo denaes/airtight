@@ -718,3 +718,109 @@
   message: Body parser configured with excessive request payload limit (>500mb)
   why: Allowing excessively large HTTP request bodies (hundreds of megabytes or gigabytes) in general body parsing middleware enables denial of service attacks by exhausting server memory and CPU during parsing.
   fix: Set strict body parser limits suited to the expected API payloads (e.g. 1mb to 10mb), and use streaming upload handlers for large files rather than in-memory body parsers.
+- id: js/nestjs-missing-validation-pipe
+  name: NestJS route handler lacks ValidationPipe
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-20
+  owasp: A03:2021
+  files:
+    - "**/*.ts"
+    - "**/*.js"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '@Body\(\s*\)'
+    require_regex: '^(?=[\s\S]*@Controller)(?=[\s\S]*@(Post|Put|Patch))(?![\s\S]*(?:ValidationPipe|UsePipes|class-validator))'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: NestJS mutating route receives body without ValidationPipe or DTO validation
+  why: "NestJS does not validate request payloads by default. Without a ValidationPipe or class-validator decorators, untrusted client JSON properties are passed directly into the handler, enabling mass-assignment and type-confusion vulnerabilities."
+  fix: "Apply ValidationPipe globally (app.useGlobalPipes(new ValidationPipe({ whitelist: true }))) or use @UsePipes(new ValidationPipe()) or bind @Body(new ValidationPipe()) with a validated DTO class."
+- id: js/nestjs-raw-query
+  name: NestJS raw database query with string concatenation
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-89
+  owasp: A03:2021
+  files:
+    - "**/*.ts"
+    - "**/*.js"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '\b(?:dataSource|entityManager)\.query\s*\(\s*(?:`[^`]*\$\{|(["''])(?:(?!\1).)*\1\s*\+)'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: Raw database query executed with dynamically concatenated string
+  why: "Executing raw SQL statements constructed via string interpolation or concatenation allows attackers to inject arbitrary SQL statements, bypassing ORM protections and leading to unauthorized data access or database compromise."
+  fix: "Use parameterized queries by passing SQL parameters in the second argument array (e.g., dataSource.query('SELECT * FROM users WHERE id = $1', [id]))."
+- id: js/nextjs-server-action-missing-auth
+  name: Next.js Server Action performing mutation without session check
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-862
+  owasp: A01:2021
+  files:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '\b(?:db|prisma)\.(?:[a-zA-Z0-9_$]+\.)?(?:delete|deleteMany|update|updateMany|create|createMany|insert|upsert)\s*\(|\bfs(?:\.promises)?\.(?:writeFile|writeFileSync|unlink|unlinkSync)\s*\('
+    require_regex: '^(?=[\s\S]*[''"]use server[''"])(?![\s\S]*\b(?:auth|getServerSession|currentUser|getSession|verifySession)\s*\()'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: Server Action performs database mutation or file write without session verification
+  why: "Next.js Server Actions are public HTTP POST endpoints that anyone can invoke directly with arbitrary arguments. UI-level hiding of buttons does not secure the action; the action itself must authenticate the caller and verify permissions."
+  fix: "Call session authentication (e.g. const session = await auth()) and verify permissions before executing any database mutation or filesystem operation."
+- id: js/nextjs-dangerously-allow-svg
+  name: Next.js dangerouslyAllowSVG enabled without CSP or attachment header
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-79
+  owasp: A03:2021
+  files:
+    - "**/next.config*.js"
+    - "**/next.config*.mjs"
+    - "**/next.config*.ts"
+    - "**/next.config*.cjs"
+  match:
+    regex: '\bdangerouslyAllowSVG\s*:\s*true\b'
+    require_regex: '^(?![\s\S]*(?:contentDispositionType|contentSecurityPolicy))'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: Next.js image optimization allows SVGs without Content-Disposition or Content-Security-Policy
+  why: "SVGs can contain embedded JavaScript, external entity references, and scripts. Enabling dangerouslyAllowSVG without restricting the content-disposition to attachment or applying a strict CSP allows cross-site scripting (XSS) when untrusted SVGs are rendered."
+  fix: "Set contentDispositionType to 'attachment' and configure a restrictive contentSecurityPolicy in the images configuration."
+- id: js/nextjs-open-redirect
+  name: Next.js unvalidated redirect using searchParams
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-601
+  owasp: A01:2021
+  files:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '\bredirect\s*\(\s*(?:await\s+)?(?:(?:req\.)?nextUrl\.searchParams\.get\s*\([^)]*\)|[a-zA-Z0-9_$]*searchParams(?:\.get\s*\([^)]*\)|\.[a-zA-Z0-9_$]+))\s*(?:as\s+\w+\s*)?(?:\?\?\s*(?:["''][^"'']*["'']|\w+)\s*)?\)'
+    not_regex: '(?i)^\s*(//|\*|/\*)'
+  message: redirect() directly takes search parameters without relative path validation
+  why: "Passing query parameter values directly to redirect() without verifying they are relative paths (starting with a single '/') allows attackers to redirect users to malicious third-party phishing domains."
+  fix: "Validate that the redirect target starts with '/' and not '//', or validate against an allowlist of safe redirect paths."

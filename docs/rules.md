@@ -2,7 +2,7 @@
 
 # Rule reference
 
-200 rules across 13 packs. 140 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+218 rules across 14 packs. 155 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -12,17 +12,18 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 |---|---:|---:|---|
 | [`ai`](#ai) | 5 | 5 | AI and LLM applications |
 | [`ci`](#ci) | 8 | 5 | CI and build pipeline |
-| [`compose`](#compose) | 4 | 4 | Docker Compose |
-| [`container`](#container) | 10 | 6 | Containers |
+| [`cloudflare`](#cloudflare) | 4 | 4 | cloudflare |
+| [`compose`](#compose) | 5 | 4 | Docker Compose |
+| [`container`](#container) | 11 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
 | [`go`](#go) | 19 | 16 | Go |
 | [`java`](#java) | 18 | 17 | Java |
-| [`js`](#js) | 29 | 18 | JavaScript and TypeScript |
-| [`k8s`](#k8s) | 18 | 8 | Kubernetes |
+| [`js`](#js) | 34 | 23 | JavaScript and TypeScript |
+| [`k8s`](#k8s) | 21 | 10 | Kubernetes |
 | [`py`](#py) | 34 | 28 | Python |
 | [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
-| [`terraform`](#terraform) | 20 | 7 | Terraform |
+| [`terraform`](#terraform) | 24 | 11 | Terraform |
 
 ## ai
 
@@ -190,9 +191,62 @@ Every step, including every third-party action, inherits a token that can push c
 <sub>Waive: `airtight hooks ignore-value ci/write-all-permissions "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ci/write-all-permissions -- <reason>`</sub>
 
 
+## cloudflare
+
+cloudflare. 4 rules.
+
+### `cloudflare/cors-origin-wildcard`
+
+Cloudflare Worker CORS pairs wildcard origin with credentials
+
+**critical** / firm · `P0` · CWE-942 · A05:2021 · fires on edit
+
+Allowing credentials with a wildcard origin is prohibited by browsers and indicates an insecure CORS configuration that risks exposing authenticated responses to arbitrary cross-origin sites.
+
+**Fix.** Set Access-Control-Allow-Origin to a trusted specific origin or reflect the incoming Origin header only after validating it against a strict allowlist.
+
+<sub>Waive: `airtight hooks ignore-value cloudflare/cors-origin-wildcard "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cloudflare/cors-origin-wildcard -- <reason>`</sub>
+
+### `cloudflare/d1-sql-concat`
+
+Cloudflare D1 query built by concatenation or template interpolation
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+Interpolating or concatenating values directly into SQL statements allows user input to alter the query logic and structure, enabling unauthorized data access, modification, or deletion.
+
+**Fix.** Use parameterized queries with question mark placeholders and pass values using .bind(...).
+
+<sub>Waive: `airtight hooks ignore-value cloudflare/d1-sql-concat "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cloudflare/d1-sql-concat -- <reason>`</sub>
+
+### `cloudflare/worker-ssrf-fetch`
+
+Cloudflare Worker fetch directly invoked with unvalidated request URL or query parameter
+
+**high** / firm · `P1` · CWE-918 · A10:2021 · fires on edit
+
+Invoking fetch directly on user-supplied URLs or query parameters allows attackers to trigger requests to internal services, loop back into edge worker routines, or access restricted cloud metadata endpoints.
+
+**Fix.** Validate destination URLs against an explicit hostname allowlist before fetching, or restrict outbound requests to known backend endpoints.
+
+<sub>Waive: `airtight hooks ignore-value cloudflare/worker-ssrf-fetch "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cloudflare/worker-ssrf-fetch -- <reason>`</sub>
+
+### `cloudflare/wrangler-plaintext-secret`
+
+Plaintext secret variable in wrangler configuration
+
+**high** / firm · `P1` · CWE-798 · A07:2021 · fires on edit
+
+Plaintext secrets in wrangler configuration are readable by anyone with repository access and are bundled into deployment artifacts. Cloudflare Workers supports encrypted secrets via wrangler secret put.
+
+**Fix.** Remove plaintext secret values from [vars] in wrangler.toml or wrangler.json and add them via wrangler secret put <NAME>.
+
+<sub>Waive: `airtight hooks ignore-value cloudflare/wrangler-plaintext-secret "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line cloudflare/wrangler-plaintext-secret -- <reason>`</sub>
+
+
 ## compose
 
-Docker Compose. 4 rules.
+Docker Compose. 5 rules.
 
 ### `compose/docker-socket-mount`
 
@@ -217,6 +271,18 @@ Using host networking disables network isolation between the container and the h
 **Fix.** Use a dedicated bridge or overlay network and expose only the specific required ports via the ports configuration.
 
 <sub>Waive: `airtight hooks ignore-value compose/host-network-mode "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line compose/host-network-mode -- <reason>`</sub>
+
+### `compose/no-resource-limits`
+
+Service declares no resource limits
+
+**medium** / firm · `P2` · CWE-770 · end of turn
+
+Without resource limits, a container undergoing a denial-of-service attack, infinite loop, or memory leak can exhaust all host CPU or RAM, crashing adjacent containers or the host machine.
+
+**Fix.** Define resource limits for the service using mem_limit and cpus, or deploy.resources.limits.memory and deploy.resources.limits.cpus.
+
+<sub>Waive: `airtight hooks ignore-value compose/no-resource-limits "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line compose/no-resource-limits -- <reason>`</sub>
 
 ### `compose/privileged-true`
 
@@ -245,7 +311,7 @@ Mounting the host root directory (/) or sensitive host paths (/etc, /proc, /sys)
 
 ## container
 
-Containers. 10 rules.
+Containers. 11 rules.
 
 ### `container/add-from-url`
 
@@ -294,6 +360,18 @@ The content behind :latest changes without notice, so the image you tested is no
 **Fix.** Pin to an explicit version, and ideally to a digest with @sha256.
 
 <sub>Waive: `airtight hooks ignore-value container/latest-tag "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line container/latest-tag -- <reason>`</sub>
+
+### `container/missing-healthcheck`
+
+Container missing healthcheck instruction
+
+**medium** / firm · `P2` · CWE-657 · end of turn
+
+Without a HEALTHCHECK instruction, the container engine and orchestrator cannot detect when an application process deadlocks, hangs, or crashes internally, leaving unresponsive containers in service and continuing to receive traffic.
+
+**Fix.** Add a HEALTHCHECK instruction in the final stage (e.g., `HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8080/health || exit 1`).
+
+<sub>Waive: `airtight hooks ignore-value container/missing-healthcheck "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line container/missing-healthcheck -- <reason>`</sub>
 
 ### `container/runs-as-root`
 
@@ -973,7 +1051,7 @@ Allowing external entity resolution or disabling secure processing enables XML E
 
 ## js
 
-JavaScript and TypeScript. 29 rules.
+JavaScript and TypeScript. 34 rules.
 
 ### `js/child-process-interpolation`
 
@@ -1155,6 +1233,66 @@ Math.random is a fast non-cryptographic PRNG with observable internal state. Giv
 
 <sub>Waive: `airtight hooks ignore-value js/math-random-for-secret "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/math-random-for-secret -- <reason>`</sub>
 
+### `js/nestjs-missing-validation-pipe`
+
+NestJS route handler lacks ValidationPipe
+
+**high** / firm · `P1` · CWE-20 · A03:2021 · fires on edit
+
+NestJS does not validate request payloads by default. Without a ValidationPipe or class-validator decorators, untrusted client JSON properties are passed directly into the handler, enabling mass-assignment and type-confusion vulnerabilities.
+
+**Fix.** Apply ValidationPipe globally (app.useGlobalPipes(new ValidationPipe({ whitelist: true }))) or use @UsePipes(new ValidationPipe()) or bind @Body(new ValidationPipe()) with a validated DTO class.
+
+<sub>Waive: `airtight hooks ignore-value js/nestjs-missing-validation-pipe "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nestjs-missing-validation-pipe -- <reason>`</sub>
+
+### `js/nestjs-raw-query`
+
+NestJS raw database query with string concatenation
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+Executing raw SQL statements constructed via string interpolation or concatenation allows attackers to inject arbitrary SQL statements, bypassing ORM protections and leading to unauthorized data access or database compromise.
+
+**Fix.** Use parameterized queries by passing SQL parameters in the second argument array (e.g., dataSource.query('SELECT * FROM users WHERE id = $1', [id])).
+
+<sub>Waive: `airtight hooks ignore-value js/nestjs-raw-query "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nestjs-raw-query -- <reason>`</sub>
+
+### `js/nextjs-dangerously-allow-svg`
+
+Next.js dangerouslyAllowSVG enabled without CSP or attachment header
+
+**high** / firm · `P1` · CWE-79 · A03:2021 · fires on edit
+
+SVGs can contain embedded JavaScript, external entity references, and scripts. Enabling dangerouslyAllowSVG without restricting the content-disposition to attachment or applying a strict CSP allows cross-site scripting (XSS) when untrusted SVGs are rendered.
+
+**Fix.** Set contentDispositionType to 'attachment' and configure a restrictive contentSecurityPolicy in the images configuration.
+
+<sub>Waive: `airtight hooks ignore-value js/nextjs-dangerously-allow-svg "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nextjs-dangerously-allow-svg -- <reason>`</sub>
+
+### `js/nextjs-open-redirect`
+
+Next.js unvalidated redirect using searchParams
+
+**high** / firm · `P1` · CWE-601 · A01:2021 · fires on edit
+
+Passing query parameter values directly to redirect() without verifying they are relative paths (starting with a single '/') allows attackers to redirect users to malicious third-party phishing domains.
+
+**Fix.** Validate that the redirect target starts with '/' and not '//', or validate against an allowlist of safe redirect paths.
+
+<sub>Waive: `airtight hooks ignore-value js/nextjs-open-redirect "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nextjs-open-redirect -- <reason>`</sub>
+
+### `js/nextjs-server-action-missing-auth`
+
+Next.js Server Action performing mutation without session check
+
+**high** / firm · `P1` · CWE-862 · A01:2021 · fires on edit
+
+Next.js Server Actions are public HTTP POST endpoints that anyone can invoke directly with arbitrary arguments. UI-level hiding of buttons does not secure the action; the action itself must authenticate the caller and verify permissions.
+
+**Fix.** Call session authentication (e.g. const session = await auth()) and verify permissions before executing any database mutation or filesystem operation.
+
+<sub>Waive: `airtight hooks ignore-value js/nextjs-server-action-missing-auth "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/nextjs-server-action-missing-auth -- <reason>`</sub>
+
 ### `js/node-serialize`
 
 Arbitrary code execution via unsafe object deserialization
@@ -1326,7 +1464,7 @@ Setting noent: true in libxmljs causes the XML parser to expand external entitie
 
 ## k8s
 
-Kubernetes. 18 rules.
+Kubernetes. 21 rules.
 
 ### `k8s/allow-privilege-escalation`
 
@@ -1436,6 +1574,18 @@ A hostPath mount crosses the isolation boundary. Depending on the path it can ex
 
 <sub>Waive: `airtight hooks ignore-value k8s/host-path-volume "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/host-path-volume -- <reason>`</sub>
 
+### `k8s/ingress-tls-missing`
+
+Ingress does not configure TLS encryption
+
+**high** / firm · `P1` · CWE-319 · A02:2021 · fires on edit
+
+Serving ingress traffic over plaintext HTTP exposes cookies, session tokens, and request payloads to eavesdropping and manipulation by anyone on the network path.
+
+**Fix.** Add a spec.tls block referencing a TLS Secret or cert-manager ClusterIssuer to terminate HTTPS traffic on the ingress.
+
+<sub>Waive: `airtight hooks ignore-value k8s/ingress-tls-missing "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/ingress-tls-missing -- <reason>`</sub>
+
 ### `k8s/latest-image-tag`
 
 Container image uses a mutable tag
@@ -1447,6 +1597,18 @@ Rollouts become non-deterministic and non-reproducible: two pods of the same Dep
 **Fix.** Pin to an immutable tag or a digest, and set imagePullPolicy accordingly.
 
 <sub>Waive: `airtight hooks ignore-value k8s/latest-image-tag "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/latest-image-tag -- <reason>`</sub>
+
+### `k8s/missing-seccomp-profile`
+
+Pod does not configure a secure seccomp profile
+
+**medium** / firm · `P2` · CWE-250 · end of turn
+
+Unconfined system calls expose the host kernel to container breakouts when kernel vulnerabilities exist. Pod Security Standards (Baseline and Restricted) mandate specifying RuntimeDefault or Localhost seccomp profiles.
+
+**Fix.** Set securityContext.seccompProfile.type = "RuntimeDefault" on the Pod spec or individual container securityContext.
+
+<sub>Waive: `airtight hooks ignore-value k8s/missing-seccomp-profile "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/missing-seccomp-profile -- <reason>`</sub>
 
 ### `k8s/no-resource-limits`
 
@@ -1507,6 +1669,18 @@ Manifests are usually in version control and readable by everyone with repositor
 **Fix.** Reference a Secret with valueFrom.secretKeyRef, and source the Secret from an external store rather than committing it.
 
 <sub>Waive: `airtight hooks ignore-value k8s/secret-in-env-literal "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/secret-in-env-literal -- <reason>`</sub>
+
+### `k8s/unconfined-apparmor`
+
+AppArmor profile disabled or not enforced
+
+**high** / firm · `P1` · CWE-250 · A05:2021 · fires on edit
+
+Running containers without AppArmor enforcement, or explicitly setting AppArmor to unconfined, removes Mandatory Access Control protections and allows compromised processes unrestricted access to permitted kernel capabilities.
+
+**Fix.** Add container.apparmor.security.beta.kubernetes.io/<container-name> annotation set to runtime/default or a validated localhost/<profile> profile.
+
+<sub>Waive: `airtight hooks ignore-value k8s/unconfined-apparmor "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/unconfined-apparmor -- <reason>`</sub>
 
 ### `k8s/untagged-image`
 
@@ -2246,7 +2420,19 @@ A live Stripe secret key can move real money and read customer payment records.
 
 ## terraform
 
-Terraform. 20 rules.
+Terraform. 24 rules.
+
+### `terraform/azure-storage-public`
+
+Azure storage account permits public access
+
+**critical** / firm · `P0` · CWE-284 · A01:2021 · fires on edit
+
+Enabling nested item public access or internet-wide public network access without network firewall rules allows anonymous callers to query blob containers and download sensitive storage account objects directly.
+
+**Fix.** Set allow_nested_items_to_be_public = false and public_network_access_enabled = false, or configure a network_rules block with default_action = "Deny".
+
+<sub>Waive: `airtight hooks ignore-value terraform/azure-storage-public "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/azure-storage-public -- <reason>`</sub>
 
 ### `terraform/cloudtrail-not-multi-region`
 
@@ -2284,6 +2470,18 @@ The Kubernetes API is the control plane for everything in the cluster, and expos
 
 <sub>Waive: `airtight hooks ignore-value terraform/eks-public-endpoint "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/eks-public-endpoint -- <reason>`</sub>
 
+### `terraform/gcp-storage-public`
+
+GCP storage bucket grants public access
+
+**critical** / confirmed · `P0` · CWE-284 · A01:2021 · fires on edit
+
+Granting permissions to allUsers or allAuthenticatedUsers allows anyone on the internet, or any authenticated Google account holder anywhere in the world, to access the bucket's contents without authorization from your project.
+
+**Fix.** Remove allUsers and allAuthenticatedUsers from IAM members. Bind permissions only to specific service accounts, groups, or domain identities.
+
+<sub>Waive: `airtight hooks ignore-value terraform/gcp-storage-public "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/gcp-storage-public -- <reason>`</sub>
+
 ### `terraform/hardcoded-credential`
 
 Credential hardcoded in Terraform
@@ -2295,6 +2493,18 @@ Terraform source is usually more widely readable than the infrastructure it desc
 **Fix.** Move the value to a variable sourced from a secret manager, and mark the variable sensitive so it stays out of plan output.
 
 <sub>Waive: `airtight hooks ignore-value terraform/hardcoded-credential "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/hardcoded-credential -- <reason>`</sub>
+
+### `terraform/iam-privilege-escalation`
+
+IAM policy grants dangerous privilege escalation actions
+
+**critical** / firm · `P0` · CWE-250 · A01:2021 · fires on edit
+
+Actions such as CreatePolicyVersion, SetDefaultPolicyVersion, AttachRolePolicy, or PassRole alongside compute services allow an identity to bypass intended boundaries and elevate its own permissions to administrator.
+
+**Fix.** Remove direct policy modification actions, attach permission boundaries to prevent escalation, and restrict iam:PassRole to specific role ARNs.
+
+<sub>Waive: `airtight hooks ignore-value terraform/iam-privilege-escalation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/iam-privilege-escalation -- <reason>`</sub>
 
 ### `terraform/iam-wildcard-action`
 
@@ -2463,6 +2673,18 @@ Any AWS account, and often any anonymous caller, can invoke the allowed actions.
 **Fix.** Name the specific principals, and add a condition on aws:SourceAccount or aws:SourceArn.
 
 <sub>Waive: `airtight hooks ignore-value terraform/sqs-sns-public-policy "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/sqs-sns-public-policy -- <reason>`</sub>
+
+### `terraform/sqs-unencrypted`
+
+SQS queue does not enable server-side encryption
+
+**medium** / confirmed · `P2` · CWE-311 · A02:2021 · fires on edit
+
+Messages traversing and stored at rest in an unencrypted SQS queue are readable by anyone who accesses the underlying storage volumes, violating compliance mandates and exposing sensitive pipeline payload data.
+
+**Fix.** Set sqs_managed_sse_enabled = true for Amazon SQS-managed keys (SSE-SQS), or specify kms_master_key_id with a customer-managed or AWS-managed KMS key.
+
+<sub>Waive: `airtight hooks ignore-value terraform/sqs-unencrypted "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line terraform/sqs-unencrypted -- <reason>`</sub>
 
 ### `terraform/unencrypted-state-backend`
 

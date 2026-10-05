@@ -24,10 +24,10 @@ node scripts/demo.mjs
 <!-- numbers are kept current by scripts/demo.mjs --check in CI -->
 
 ```
-total findings:   64
-distinct rules:   60
-by priority:      31 P0, 18 P1, 11 P2, 4 P3
-by pack:          ai=2 ci=5 compose=4 container=7 dep=7 go=1 java=1 js=10 k8s=10 py=5 rust=1 secret=4 terraform=7
+total findings:   73
+distinct rules:   68
+by priority:      34 P0, 21 P1, 14 P2, 4 P3
+by pack:          ai=2 ci=5 cloudflare=4 compose=5 container=8 dep=7 go=1 java=1 js=11 k8s=12 py=5 rust=1 secret=4 terraform=7
 
 immediate tier:   35 distinct rules would interrupt an edit
 ```

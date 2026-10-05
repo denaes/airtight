@@ -33,7 +33,7 @@ Work outside-in, the way an attacker does.
 3. **Check authorization at the object, not just the verb.** `canEdit(user)` without the object is the shape of every IDOR. In a multi-tenant system, check that every query is scoped by tenant *in the query*, not filtered after fetching.
 4. **Compare against CONTROLS.md.** Where the code does something the register says is done differently, that is drift. It is rarely a vulnerability today and it is how vulnerabilities get reintroduced after they are fixed.
 5. **Look for the abuse paths no rule has.** Replay, ordering, enumeration, resource exhaustion, cross-tenant leakage through a shared cache or search index, anything worth money.
-6. **Consult framework cards & vulnerability-class checklists.** Check `skill/reference/frameworks/` (`express.md`, `nextjs.md`, `django.md`, `fastapi.md`, `spring.md`, `gin.md`) for framework-specific sources, sinks, authorization patterns, and common footguns. Check `skill/reference/classes/` (`idor-tenancy.md`, `ssrf.md`, `oauth-oidc.md`, `race-financial.md`, `llm-agent.md`) for deep-dive boundary checklists and verification steps.
+6. **Consult framework cards & vulnerability-class checklists.** Check `skill/reference/frameworks/` (`express.md`, `nextjs.md`, `django.md`, `fastapi.md`, `spring.md`, `gin.md`) for framework-specific sources, sinks, authorization patterns, and common footguns. Check `skill/reference/classes/` (`idor-tenancy.md`, `ssrf.md`, `oauth-oidc.md`, `race-financial.md`, `llm-agent.md`, `cloud-iac.md`) for deep-dive boundary checklists and verification steps.
 
 ## Calibration
 

@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: missing-seccomp-pod
+  namespace: prod
+spec:
+  containers:
+    - name: web
+      image: nginx:1.25
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: missing-seccomp-deploy
+  namespace: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.25
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: unconfined-daemonset
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      securityContext:
+        seccompProfile:
+          type: Unconfined
+      containers:
+        - name: agent
+          image: agent:2.0
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: missing-seccomp-job
+  namespace: default
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: migrate:1.0

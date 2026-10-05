@@ -28,7 +28,7 @@ Work through these in order and stop at the first that holds.
 4. **Does the sink actually do what the finding assumes?** An ORM method named `raw` that parameterizes anyway. A template engine that escapes by default. A library that rejects the dangerous input itself.
 5. **Are the preconditions realistic?** A finding requiring an attacker who already has admin and database access is describing a consequence of a breach, not a vulnerability.
 6. **Does the impact hold?** The mechanism can be real while the consequence is overstated.
-7. **Consult framework cards & vulnerability-class checklists.** Check `skill/reference/frameworks/` (`express.md`, `nextjs.md`, `django.md`, `fastapi.md`, `spring.md`, `gin.md`) to verify framework-specific controls, sinks, or sources. Check `skill/reference/classes/` (`idor-tenancy.md`, `ssrf.md`, `oauth-oidc.md`, `race-financial.md`, `llm-agent.md`) for disproving conditions and boundary verification steps.
+7. **Consult framework cards & vulnerability-class checklists.** Check `skill/reference/frameworks/` (`express.md`, `nextjs.md`, `django.md`, `fastapi.md`, `spring.md`, `gin.md`) to verify framework-specific controls, sinks, or sources. Check `skill/reference/classes/` (`idor-tenancy.md`, `ssrf.md`, `oauth-oidc.md`, `race-financial.md`, `llm-agent.md`, `cloud-iac.md`) for disproving conditions and boundary verification steps.
 
 Read the actual library or framework behaviour when it matters. Do not assume a method is dangerous because of its name, and do not assume it is safe because of its name either.
 

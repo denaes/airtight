@@ -1,0 +1,117 @@
+# Cloudflare pack.
+#
+# Covers Cloudflare Workers and ecosystem security:
+# - Plaintext secrets in wrangler configuration files
+# - SSRF via unvalidated fetch in worker handlers
+# - D1 SQL injection via string concatenation or template interpolation
+# - Insecure CORS wildcard origin combined with credentials
+
+- id: cloudflare/wrangler-plaintext-secret
+  name: Plaintext secret variable in wrangler configuration
+  domain: secrets
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-798
+  owasp: A07:2021
+  files:
+    - "**/wrangler.toml"
+    - "**/wrangler.json"
+    - "**/wrangler.*.toml"
+    - "**/wrangler.*.json"
+  match:
+    regex: '(?i)["'']?(?:[a-z0-9_]*_)?(api[_-]?key|secret|password|passwd|database[_-]?url|auth[_-]?token|private[_-]?key|access[_-]?token)(?:_[a-z0-9_]*)?["'']?\s*[:=]\s*(["''])(?:(?!\2)[^\r\n])+\2'
+    not_regex: '(?i)(EXAMPLE|PLACEHOLDER|CHANGE_ME|<your|YOUR_|\$\{[^}]+\})'
+  message: Plaintext secret committed to wrangler configuration
+  why: >-
+    Plaintext secrets in wrangler configuration are readable by anyone with repository
+    access and are bundled into deployment artifacts. Cloudflare Workers supports encrypted
+    secrets via wrangler secret put.
+  fix: >-
+    Remove plaintext secret values from [vars] in wrangler.toml or wrangler.json and
+    add them via wrangler secret put <NAME>.
+
+- id: cloudflare/worker-ssrf-fetch
+  name: Cloudflare Worker fetch directly invoked with unvalidated request URL or query parameter
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-918
+  owasp: A10:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '\bfetch\s*\(\s*(?:(?:req|request|event\.request)\.url|(?:new\s+URL\s*\(\s*)?(?:req|request|event\.request)\.url|(?:[a-zA-Z0-9_$]+\.)?(?:searchParams|params)\.get\s*\()'
+    not_regex: '(?i)(allow(ed)?|whitelist|validate|checkHost|isAllowed|hostname)'
+  message: Worker fetch invoked directly with unvalidated request URL or parameter
+  why: >-
+    Invoking fetch directly on user-supplied URLs or query parameters allows attackers
+    to trigger requests to internal services, loop back into edge worker routines, or
+    access restricted cloud metadata endpoints.
+  fix: >-
+    Validate destination URLs against an explicit hostname allowlist before fetching,
+    or restrict outbound requests to known backend endpoints.
+
+- id: cloudflare/d1-sql-concat
+  name: Cloudflare D1 query built by concatenation or template interpolation
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-89
+  owasp: A03:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '\b(?:env\.[A-Za-z0-9_$]+|[a-zA-Z0-9_$]*db[A-Za-z0-9_$]*|[a-zA-Z0-9_$]*d1[A-Za-z0-9_$]*)\.prepare\s*\(\s*(?:`[^`]*\$\{|(["''])(?:(?!\1).)*\1\s*\+|[A-Za-z0-9_$]+\s*\+)'
+  message: Cloudflare D1 prepare interpolates or concatenates query parameters
+  why: >-
+    Interpolating or concatenating values directly into SQL statements allows user input
+    to alter the query logic and structure, enabling unauthorized data access, modification,
+    or deletion.
+  fix: >-
+    Use parameterized queries with question mark placeholders and pass values using .bind(...).
+
+- id: cloudflare/cors-origin-wildcard
+  name: Cloudflare Worker CORS pairs wildcard origin with credentials
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-942
+  owasp: A05:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: '(?i)(Access-Control-Allow-Origin["'']?\s*[:=,]\s*["'']?\*|\.(?:set|append)\(\s*["'']Access-Control-Allow-Origin["''],\s*["'']\*["'']\))'
+    require_regex: '(?i)(Access-Control-Allow-Credentials["'']?\s*[:=,]\s*["'']?true|\.(?:set|append)\(\s*["'']Access-Control-Allow-Credentials["''],\s*["'']true["'']\))'
+  message: Worker sets Access-Control-Allow-Origin to * while allowing credentials
+  why: >-
+    Allowing credentials with a wildcard origin is prohibited by browsers and indicates
+    an insecure CORS configuration that risks exposing authenticated responses to arbitrary
+    cross-origin sites.
+  fix: >-
+    Set Access-Control-Allow-Origin to a trusted specific origin or reflect the incoming
+    Origin header only after validating it against a strict allowlist.

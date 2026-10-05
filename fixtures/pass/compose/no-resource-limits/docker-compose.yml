@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  svc_mem:
+    image: alpine
+    mem_limit: 512m
+  svc_cpu:
+    image: alpine
+    cpus: 1.5
+  svc_deploy:
+    image: alpine
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+  svc_both:
+    image: alpine
+    mem_limit: 1g
+    cpus: 2.0
+  svc_deploy_mem:
+    image: alpine
+    deploy:
+      resources:
+        limits:
+          memory: 128M

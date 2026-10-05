@@ -382,6 +382,112 @@
     "fix": "Set `permissions: {contents: read}` at the workflow level and grant individual write scopes only on the jobs that need them."
   },
   {
+    "id": "cloudflare/cors-origin-wildcard",
+    "name": "Cloudflare Worker CORS pairs wildcard origin with credentials",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-942",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?i)(Access-Control-Allow-Origin[\"']?\\s*[:=,]\\s*[\"']?\\*|\\.(?:set|append)\\(\\s*[\"']Access-Control-Allow-Origin[\"'],\\s*[\"']\\*[\"']\\))",
+      "require_regex": "(?i)(Access-Control-Allow-Credentials[\"']?\\s*[:=,]\\s*[\"']?true|\\.(?:set|append)\\(\\s*[\"']Access-Control-Allow-Credentials[\"'],\\s*[\"']true[\"']\\))"
+    },
+    "message": "Worker sets Access-Control-Allow-Origin to * while allowing credentials",
+    "why": "Allowing credentials with a wildcard origin is prohibited by browsers and indicates an insecure CORS configuration that risks exposing authenticated responses to arbitrary cross-origin sites.",
+    "fix": "Set Access-Control-Allow-Origin to a trusted specific origin or reflect the incoming Origin header only after validating it against a strict allowlist."
+  },
+  {
+    "id": "cloudflare/d1-sql-concat",
+    "name": "Cloudflare D1 query built by concatenation or template interpolation",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b(?:env\\.[A-Za-z0-9_$]+|[a-zA-Z0-9_$]*db[A-Za-z0-9_$]*|[a-zA-Z0-9_$]*d1[A-Za-z0-9_$]*)\\.prepare\\s*\\(\\s*(?:`[^`]*\\$\\{|([\"'])(?:(?!\\1).)*\\1\\s*\\+|[A-Za-z0-9_$]+\\s*\\+)"
+    },
+    "message": "Cloudflare D1 prepare interpolates or concatenates query parameters",
+    "why": "Interpolating or concatenating values directly into SQL statements allows user input to alter the query logic and structure, enabling unauthorized data access, modification, or deletion.",
+    "fix": "Use parameterized queries with question mark placeholders and pass values using .bind(...)."
+  },
+  {
+    "id": "cloudflare/worker-ssrf-fetch",
+    "name": "Cloudflare Worker fetch directly invoked with unvalidated request URL or query parameter",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\bfetch\\s*\\(\\s*(?:(?:req|request|event\\.request)\\.url|(?:new\\s+URL\\s*\\(\\s*)?(?:req|request|event\\.request)\\.url|(?:[a-zA-Z0-9_$]+\\.)?(?:searchParams|params)\\.get\\s*\\()",
+      "not_regex": "(?i)(allow(ed)?|whitelist|validate|checkHost|isAllowed|hostname)"
+    },
+    "message": "Worker fetch invoked directly with unvalidated request URL or parameter",
+    "why": "Invoking fetch directly on user-supplied URLs or query parameters allows attackers to trigger requests to internal services, loop back into edge worker routines, or access restricted cloud metadata endpoints.",
+    "fix": "Validate destination URLs against an explicit hostname allowlist before fetching, or restrict outbound requests to known backend endpoints."
+  },
+  {
+    "id": "cloudflare/wrangler-plaintext-secret",
+    "name": "Plaintext secret variable in wrangler configuration",
+    "domain": "secrets",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-798",
+    "owasp": "A07:2021",
+    "files": [
+      "**/wrangler.toml",
+      "**/wrangler.json",
+      "**/wrangler.*.toml",
+      "**/wrangler.*.json"
+    ],
+    "match": {
+      "regex": "(?i)[\"']?(?:[a-z0-9_]*_)?(api[_-]?key|secret|password|passwd|database[_-]?url|auth[_-]?token|private[_-]?key|access[_-]?token)(?:_[a-z0-9_]*)?[\"']?\\s*[:=]\\s*([\"'])(?:(?!\\2)[^\\r\\n])+\\2",
+      "not_regex": "(?i)(EXAMPLE|PLACEHOLDER|CHANGE_ME|<your|YOUR_|\\$\\{[^}]+\\})"
+    },
+    "message": "Plaintext secret committed to wrangler configuration",
+    "why": "Plaintext secrets in wrangler configuration are readable by anyone with repository access and are bundled into deployment artifacts. Cloudflare Workers supports encrypted secrets via wrangler secret put.",
+    "fix": "Remove plaintext secret values from [vars] in wrangler.toml or wrangler.json and add them via wrangler secret put <NAME>."
+  },
+  {
     "id": "compose/docker-socket-mount",
     "name": "Docker socket mounted into container",
     "domain": "containers",
@@ -442,6 +548,41 @@
     "message": "Service configures network_mode host",
     "why": "Using host networking disables network isolation between the container and the host. The container can bind to any host port, intercept local network traffic, and access loopback services that assume local-only trust.",
     "fix": "Use a dedicated bridge or overlay network and expose only the specific required ports via the ports configuration."
+  },
+  {
+    "id": "compose/no-resource-limits",
+    "name": "Service declares no resource limits",
+    "domain": "containers",
+    "severity": "medium",
+    "confidence": "firm",
+    "cwe": "CWE-770",
+    "files": [
+      "**/docker-compose*.yml",
+      "**/docker-compose*.yaml",
+      "**/compose*.yml",
+      "**/compose*.yaml"
+    ],
+    "parse": "yaml",
+    "for_each": "services.*",
+    "assert": {
+      "all": [
+        {
+          "path": "mem_limit",
+          "present": false
+        },
+        {
+          "path": "cpus",
+          "present": false
+        },
+        {
+          "path": "deploy.resources.limits",
+          "present": false
+        }
+      ]
+    },
+    "message": "Service sets no memory or CPU limits",
+    "why": "Without resource limits, a container undergoing a denial-of-service attack, infinite loop, or memory leak can exhaust all host CPU or RAM, crashing adjacent containers or the host machine.",
+    "fix": "Define resource limits for the service using mem_limit and cpus, or deploy.resources.limits.memory and deploy.resources.limits.cpus."
   },
   {
     "id": "compose/privileged-true",
@@ -628,6 +769,34 @@
     "message": "Base image uses the mutable :latest tag: {{image}}",
     "why": "The content behind :latest changes without notice, so the image you tested is not necessarily the image you deploy, and a compromised upstream tag reaches you on the next build.",
     "fix": "Pin to an explicit version, and ideally to a digest with @sha256."
+  },
+  {
+    "id": "container/missing-healthcheck",
+    "name": "Container missing healthcheck instruction",
+    "domain": "containers",
+    "severity": "medium",
+    "confidence": "firm",
+    "cwe": "CWE-657",
+    "files": [
+      "**/Dockerfile*",
+      "**/Containerfile*"
+    ],
+    "parse": "dockerfile",
+    "assert": {
+      "all": [
+        {
+          "path": "finalStage.instructions[*].name",
+          "matches": "^(EXPOSE|CMD|ENTRYPOINT)$"
+        },
+        {
+          "path": "finalStage.instructions[*].name",
+          "not_matches": "^HEALTHCHECK$"
+        }
+      ]
+    },
+    "message": "Container defines EXPOSE, CMD, or ENTRYPOINT without a HEALTHCHECK instruction",
+    "why": "Without a HEALTHCHECK instruction, the container engine and orchestrator cannot detect when an application process deadlocks, hangs, or crashes internally, leaving unresponsive containers in service and continuing to receive traffic.",
+    "fix": "Add a HEALTHCHECK instruction in the final stage (e.g., `HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8080/health || exit 1`)."
   },
   {
     "id": "container/runs-as-root",
@@ -2214,6 +2383,136 @@
     "fix": "Use crypto.randomUUID() or crypto.randomBytes(32).toString('base64url')."
   },
   {
+    "id": "js/nestjs-missing-validation-pipe",
+    "name": "NestJS route handler lacks ValidationPipe",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-20",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.ts",
+      "**/*.js"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "@Body\\(\\s*\\)",
+      "require_regex": "^(?=[\\s\\S]*@Controller)(?=[\\s\\S]*@(Post|Put|Patch))(?![\\s\\S]*(?:ValidationPipe|UsePipes|class-validator))",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)"
+    },
+    "message": "NestJS mutating route receives body without ValidationPipe or DTO validation",
+    "why": "NestJS does not validate request payloads by default. Without a ValidationPipe or class-validator decorators, untrusted client JSON properties are passed directly into the handler, enabling mass-assignment and type-confusion vulnerabilities.",
+    "fix": "Apply ValidationPipe globally (app.useGlobalPipes(new ValidationPipe({ whitelist: true }))) or use @UsePipes(new ValidationPipe()) or bind @Body(new ValidationPipe()) with a validated DTO class."
+  },
+  {
+    "id": "js/nestjs-raw-query",
+    "name": "NestJS raw database query with string concatenation",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.ts",
+      "**/*.js"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b(?:dataSource|entityManager)\\.query\\s*\\(\\s*(?:`[^`]*\\$\\{|([\"'])(?:(?!\\1).)*\\1\\s*\\+)",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)"
+    },
+    "message": "Raw database query executed with dynamically concatenated string",
+    "why": "Executing raw SQL statements constructed via string interpolation or concatenation allows attackers to inject arbitrary SQL statements, bypassing ORM protections and leading to unauthorized data access or database compromise.",
+    "fix": "Use parameterized queries by passing SQL parameters in the second argument array (e.g., dataSource.query('SELECT * FROM users WHERE id = $1', [id]))."
+  },
+  {
+    "id": "js/nextjs-dangerously-allow-svg",
+    "name": "Next.js dangerouslyAllowSVG enabled without CSP or attachment header",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-79",
+    "owasp": "A03:2021",
+    "files": [
+      "**/next.config*.js",
+      "**/next.config*.mjs",
+      "**/next.config*.ts",
+      "**/next.config*.cjs"
+    ],
+    "match": {
+      "regex": "\\bdangerouslyAllowSVG\\s*:\\s*true\\b",
+      "require_regex": "^(?![\\s\\S]*(?:contentDispositionType|contentSecurityPolicy))",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)"
+    },
+    "message": "Next.js image optimization allows SVGs without Content-Disposition or Content-Security-Policy",
+    "why": "SVGs can contain embedded JavaScript, external entity references, and scripts. Enabling dangerouslyAllowSVG without restricting the content-disposition to attachment or applying a strict CSP allows cross-site scripting (XSS) when untrusted SVGs are rendered.",
+    "fix": "Set contentDispositionType to 'attachment' and configure a restrictive contentSecurityPolicy in the images configuration."
+  },
+  {
+    "id": "js/nextjs-open-redirect",
+    "name": "Next.js unvalidated redirect using searchParams",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-601",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\bredirect\\s*\\(\\s*(?:await\\s+)?(?:(?:req\\.)?nextUrl\\.searchParams\\.get\\s*\\([^)]*\\)|[a-zA-Z0-9_$]*searchParams(?:\\.get\\s*\\([^)]*\\)|\\.[a-zA-Z0-9_$]+))\\s*(?:as\\s+\\w+\\s*)?(?:\\?\\?\\s*(?:[\"'][^\"']*[\"']|\\w+)\\s*)?\\)",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)"
+    },
+    "message": "redirect() directly takes search parameters without relative path validation",
+    "why": "Passing query parameter values directly to redirect() without verifying they are relative paths (starting with a single '/') allows attackers to redirect users to malicious third-party phishing domains.",
+    "fix": "Validate that the redirect target starts with '/' and not '//', or validate against an allowlist of safe redirect paths."
+  },
+  {
+    "id": "js/nextjs-server-action-missing-auth",
+    "name": "Next.js Server Action performing mutation without session check",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-862",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "\\b(?:db|prisma)\\.(?:[a-zA-Z0-9_$]+\\.)?(?:delete|deleteMany|update|updateMany|create|createMany|insert|upsert)\\s*\\(|\\bfs(?:\\.promises)?\\.(?:writeFile|writeFileSync|unlink|unlinkSync)\\s*\\(",
+      "require_regex": "^(?=[\\s\\S]*['\"]use server['\"])(?![\\s\\S]*\\b(?:auth|getServerSession|currentUser|getSession|verifySession)\\s*\\()",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)"
+    },
+    "message": "Server Action performs database mutation or file write without session verification",
+    "why": "Next.js Server Actions are public HTTP POST endpoints that anyone can invoke directly with arbitrary arguments. UI-level hiding of buttons does not secure the action; the action itself must authenticate the caller and verify permissions.",
+    "fix": "Call session authentication (e.g. const session = await auth()) and verify permissions before executing any database mutation or filesystem operation."
+  },
+  {
     "id": "js/node-serialize",
     "name": "Arbitrary code execution via unsafe object deserialization",
     "domain": "appsec",
@@ -2901,6 +3200,43 @@
     "fix": "Use a PersistentVolumeClaim, configMap, or emptyDir. Where hostPath is unavoidable, mount it readOnly and narrow the path."
   },
   {
+    "id": "k8s/ingress-tls-missing",
+    "name": "Ingress does not configure TLS encryption",
+    "domain": "infrastructure",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-319",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.yaml",
+      "**/*.yml"
+    ],
+    "exclude": [
+      "**/.github/**"
+    ],
+    "parse": "yaml",
+    "assert": {
+      "all": [
+        {
+          "path": "kind",
+          "equals": "Ingress"
+        },
+        {
+          "path": "spec.rules",
+          "present": true
+        },
+        {
+          "path": "spec.tls",
+          "present": false
+        }
+      ]
+    },
+    "message": "Ingress defines routing rules without configuring a tls termination block",
+    "why": "Serving ingress traffic over plaintext HTTP exposes cookies, session tokens, and request payloads to eavesdropping and manipulation by anyone on the network path.",
+    "fix": "Add a spec.tls block referencing a TLS Secret or cert-manager ClusterIssuer to terminate HTTPS traffic on the ingress."
+  },
+  {
     "id": "k8s/latest-image-tag",
     "name": "Container image uses a mutable tag",
     "domain": "infrastructure",
@@ -2934,6 +3270,38 @@
     "message": "Container image uses the mutable :latest tag: {{image}}",
     "why": "Rollouts become non-deterministic and non-reproducible: two pods of the same Deployment can run different code, and a rollback does not roll the image back.",
     "fix": "Pin to an immutable tag or a digest, and set imagePullPolicy accordingly."
+  },
+  {
+    "id": "k8s/missing-seccomp-profile",
+    "name": "Pod does not configure a secure seccomp profile",
+    "domain": "infrastructure",
+    "severity": "medium",
+    "confidence": "firm",
+    "tier": "deep",
+    "cwe": "CWE-250",
+    "files": [
+      "**/*.yaml",
+      "**/*.yml"
+    ],
+    "exclude": [
+      "**/.github/**"
+    ],
+    "parse": "yaml",
+    "assert": {
+      "all": [
+        {
+          "path": "kind",
+          "matches": "^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet)$"
+        },
+        {
+          "path": "**.seccompProfile.type",
+          "not_matches": "^(RuntimeDefault|Localhost)$"
+        }
+      ]
+    },
+    "message": "Pod does not enforce RuntimeDefault or Localhost seccompProfile",
+    "why": "Unconfined system calls expose the host kernel to container breakouts when kernel vulnerabilities exist. Pod Security Standards (Baseline and Restricted) mandate specifying RuntimeDefault or Localhost seccomp profiles.",
+    "fix": "Set securityContext.seccompProfile.type = \"RuntimeDefault\" on the Pod spec or individual container securityContext."
   },
   {
     "id": "k8s/no-resource-limits",
@@ -3120,6 +3488,39 @@
     "message": "Environment variable {{name}} holds a literal value in the manifest",
     "why": "Manifests are usually in version control and readable by everyone with repository access, which is a far wider group than those who should hold production credentials.",
     "fix": "Reference a Secret with valueFrom.secretKeyRef, and source the Secret from an external store rather than committing it."
+  },
+  {
+    "id": "k8s/unconfined-apparmor",
+    "name": "AppArmor profile disabled or not enforced",
+    "domain": "infrastructure",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-250",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.yaml",
+      "**/*.yml"
+    ],
+    "exclude": [
+      "**/.github/**"
+    ],
+    "parse": "yaml",
+    "assert": {
+      "all": [
+        {
+          "path": "kind",
+          "matches": "^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet)$"
+        },
+        {
+          "path": "**.annotations.*",
+          "not_matches": "^(runtime/default|localhost/)"
+        }
+      ]
+    },
+    "message": "Pod container missing AppArmor profile annotation or explicitly set to unconfined",
+    "why": "Running containers without AppArmor enforcement, or explicitly setting AppArmor to unconfined, removes Mandatory Access Control protections and allows compromised processes unrestricted access to permitted kernel capabilities.",
+    "fix": "Add container.apparmor.security.beta.kubernetes.io/<container-name> annotation set to runtime/default or a validated localhost/<profile> profile."
   },
   {
     "id": "k8s/untagged-image",
@@ -4383,6 +4784,46 @@
     "fix": "Roll the key in the Stripe dashboard immediately, then load it from a secret manager."
   },
   {
+    "id": "terraform/azure-storage-public",
+    "name": "Azure storage account permits public access",
+    "domain": "infrastructure",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-284",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.tf"
+    ],
+    "parse": "hcl",
+    "for_each": "allBlocks[*]",
+    "assert": {
+      "all": [
+        {
+          "path": "labels[0]",
+          "equals": "azurerm_storage_account"
+        },
+        {
+          "path": "blocks[*].type",
+          "not_matches": "^network_rules$"
+        }
+      ],
+      "any": [
+        {
+          "path": "attrs.allow_nested_items_to_be_public",
+          "equals": true
+        },
+        {
+          "path": "attrs.public_network_access_enabled",
+          "equals": true
+        }
+      ]
+    },
+    "message": "Azure storage account allows public access without restricting network rules",
+    "why": "Enabling nested item public access or internet-wide public network access without network firewall rules allows anonymous callers to query blob containers and download sensitive storage account objects directly.",
+    "fix": "Set allow_nested_items_to_be_public = false and public_network_access_enabled = false, or configure a network_rules block with default_action = \"Deny\"."
+  },
+  {
     "id": "terraform/cloudtrail-not-multi-region",
     "name": "CloudTrail is not multi-region",
     "domain": "infrastructure",
@@ -4472,6 +4913,42 @@
     "fix": "Set endpoint_private_access = true, and restrict public_access_cidrs to your own ranges if public access is required."
   },
   {
+    "id": "terraform/gcp-storage-public",
+    "name": "GCP storage bucket grants public access",
+    "domain": "infrastructure",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-284",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.tf"
+    ],
+    "parse": "hcl",
+    "for_each": "allBlocks[*]",
+    "assert": {
+      "all": [
+        {
+          "path": "labels[0]",
+          "matches": "^google_storage_bucket_iam_(binding|member)$"
+        }
+      ],
+      "any": [
+        {
+          "path": "attrs.member",
+          "matches": "^(allUsers|allAuthenticatedUsers)$"
+        },
+        {
+          "path": "attrs.members[*]",
+          "matches": "^(allUsers|allAuthenticatedUsers)$"
+        }
+      ]
+    },
+    "message": "GCP storage bucket IAM grants access to allUsers or allAuthenticatedUsers",
+    "why": "Granting permissions to allUsers or allAuthenticatedUsers allows anyone on the internet, or any authenticated Google account holder anywhere in the world, to access the bucket's contents without authorization from your project.",
+    "fix": "Remove allUsers and allAuthenticatedUsers from IAM members. Bind permissions only to specific service accounts, groups, or domain identities."
+  },
+  {
     "id": "terraform/hardcoded-credential",
     "name": "Credential hardcoded in Terraform",
     "domain": "infrastructure",
@@ -4507,6 +4984,50 @@
     "message": "Attribute {{name}} is assigned a literal credential",
     "why": "Terraform source is usually more widely readable than the infrastructure it describes, and the value also lands in state, which is rarely encrypted as carefully as people assume.",
     "fix": "Move the value to a variable sourced from a secret manager, and mark the variable sensitive so it stays out of plan output."
+  },
+  {
+    "id": "terraform/iam-privilege-escalation",
+    "name": "IAM policy grants dangerous privilege escalation actions",
+    "domain": "infrastructure",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-250",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.tf"
+    ],
+    "parse": "hcl",
+    "for_each": "allBlocks[*]",
+    "assert": {
+      "all": [
+        {
+          "path": "labels[0]",
+          "matches": "^aws_iam_(role_)?policy$"
+        },
+        {
+          "path": "attrs.policy",
+          "matches": "(\"Effect\"|Effect)\\s*[:=]\\s*\"Allow\""
+        }
+      ],
+      "any": [
+        {
+          "path": "attrs.policy",
+          "matches": "iam:(CreatePolicyVersion|SetDefaultPolicyVersion)"
+        },
+        {
+          "path": "attrs.policy",
+          "matches": "iam:PassRole.*(lambda|ec2):|(lambda|ec2):.*iam:PassRole"
+        },
+        {
+          "path": "attrs.policy",
+          "matches": "iam:(AttachRolePolicy|AttachUserPolicy|PutRolePolicy|PutUserPolicy)"
+        }
+      ]
+    },
+    "message": "IAM policy allows dangerous privilege escalation action combinations",
+    "why": "Actions such as CreatePolicyVersion, SetDefaultPolicyVersion, AttachRolePolicy, or PassRole alongside compute services allow an identity to bypass intended boundaries and elevate its own permissions to administrator.",
+    "fix": "Remove direct policy modification actions, attach permission boundaries to prevent escalation, and restrict iam:PassRole to specific role ARNs."
   },
   {
     "id": "terraform/iam-wildcard-action",
@@ -4976,6 +5497,40 @@
     "message": "Resource policy allows Principal \"*\"",
     "why": "Any AWS account, and often any anonymous caller, can invoke the allowed actions. On a queue that means message injection or drainage; on a bucket it means public data.",
     "fix": "Name the specific principals, and add a condition on aws:SourceAccount or aws:SourceArn."
+  },
+  {
+    "id": "terraform/sqs-unencrypted",
+    "name": "SQS queue does not enable server-side encryption",
+    "domain": "infrastructure",
+    "severity": "medium",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-311",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.tf"
+    ],
+    "parse": "hcl",
+    "for_each": "allBlocks[*]",
+    "assert": {
+      "all": [
+        {
+          "path": "labels[0]",
+          "equals": "aws_sqs_queue"
+        },
+        {
+          "path": "attrs.kms_master_key_id",
+          "not_matches": "."
+        },
+        {
+          "path": "attrs.sqs_managed_sse_enabled",
+          "not_matches": "^true$"
+        }
+      ]
+    },
+    "message": "SQS queue does not configure KMS encryption or SQS-managed SSE",
+    "why": "Messages traversing and stored at rest in an unencrypted SQS queue are readable by anyone who accesses the underlying storage volumes, violating compliance mandates and exposing sensitive pipeline payload data.",
+    "fix": "Set sqs_managed_sse_enabled = true for Amazon SQS-managed keys (SSE-SQS), or specify kms_master_key_id with a customer-managed or AWS-managed KMS key."
   },
   {
     "id": "terraform/unencrypted-state-backend",

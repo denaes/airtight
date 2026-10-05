@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secured-runtimedefault-pod
+  namespace: prod
+spec:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: web
+      image: nginx:1.25
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secured-runtimedefault-deploy
+  namespace: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: nginx:1.25
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: secured-localhost-daemonset
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      containers:
+        - name: agent
+          image: agent:2.0
+          securityContext:
+            seccompProfile:
+              type: Localhost
+              localhostProfile: profiles/audit.json
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: secured-statefulset
+  namespace: data
+spec:
+  serviceName: db
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: db
+          image: postgres:16
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: prod
+data:
+  database.url: postgres://db:5432/app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: prod
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 8080

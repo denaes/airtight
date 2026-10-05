@@ -55,7 +55,7 @@ function* walk(root, dir = root) {
 const SINK_PATTERNS = [
   {
     type: 'sql',
-    regex: /(?:\b(?:db|conn|connection|client|pool|session|cursor|jdbcTemplate|em)\.(?:query|execute|rawQuery|queryRaw|executeRaw|executeUpdate|executeQuery|Query|QueryRow|Exec|createNativeQuery)\s*\(|\b(?:knex|prisma|sequelize)\.raw\s*\(|`[^`]*(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^`]*`|["'](?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^"']*["'])/i,
+    regex: /(?:\b(?:db|conn|connection|client|pool|session|cursor|jdbcTemplate|em|dataSource|entityManager)\.(?:query|execute|rawQuery|queryRaw|executeRaw|executeUpdate|executeQuery|Query|QueryRow|Exec|createNativeQuery)\s*\(|\b(?:knex|prisma|sequelize)\.raw\s*\(|`[^`]*(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^`]*`|["'](?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^"']*["'])/i,
   },
   {
     type: 'exec',
@@ -181,32 +181,268 @@ function parseFastifyRoutes(content, lines, relPath) {
   return routes;
 }
 
-/** Next.js App Router: app/** /route.(ts|js|tsx|jsx) */
+/** Next.js App Router, Pages Router, and Server Actions */
 function parseNextJsRoutes(content, lines, relPath) {
-  const match = /(?:^|\/)(?:src\/)?app(\/.*)?\/route\.(?:ts|js|tsx|jsx)$/.exec(relPath);
-  if (!match) return [];
+  const routes = [];
 
-  let routePath = match[1] || '/';
-  if (!routePath.startsWith('/')) routePath = '/' + routePath;
+  // 1. App Router: app/**/route.(ts|js|tsx|jsx)
+  const appMatch = /(?:^|\/)(?:src\/)?app(\/.*)?\/route\.(?:ts|js|tsx|jsx)$/.exec(relPath);
+  if (appMatch) {
+    let routePath = appMatch[1] || '/';
+    if (!routePath.startsWith('/')) routePath = '/' + routePath;
+
+    const exportFuncRe = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+    const exportConstRe = /export\s+const\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const m = exportFuncRe.exec(line) || exportConstRe.exec(line);
+      if (m) {
+        routes.push({
+          framework: 'nextjs',
+          method: m[1].toUpperCase(),
+          path: routePath,
+          file: relPath,
+          line: i + 1,
+          handlerName: m[1],
+        });
+      }
+    }
+  }
+
+  // 2. Pages Router: pages/api/**
+  const pagesMatch = /(?:^|\/)(?:src\/)?pages\/api\/(.+)\.(?:ts|js|tsx|jsx)$/.exec(relPath);
+  if (pagesMatch) {
+    let sub = pagesMatch[1];
+    if (sub === 'index') {
+      sub = '';
+    } else if (sub.endsWith('/index')) {
+      sub = sub.slice(0, -6);
+    }
+    sub = sub.replace(/\[\.\.\.([a-zA-Z0-9_$]+)\]/g, ':$1*');
+    sub = sub.replace(/\[([a-zA-Z0-9_$]+)\]/g, ':$1');
+
+    let routePath = '/api' + (sub ? (sub.startsWith('/') ? sub : '/' + sub) : '');
+    if (!routePath.startsWith('/')) routePath = '/' + routePath;
+
+    let handlerName = 'handler';
+    let handlerLine = 1;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const mFunc = /export\s+default\s+(?:async\s+)?function\s*([a-zA-Z0-9_$]+)?/.exec(line);
+      if (mFunc) {
+        handlerName = mFunc[1] || 'handler';
+        handlerLine = i + 1;
+        break;
+      }
+      const mIdent = /export\s+default\s+([a-zA-Z0-9_$]+)\s*;?$/.exec(line);
+      if (mIdent) {
+        handlerName = mIdent[1];
+        handlerLine = i + 1;
+        break;
+      }
+    }
+
+    routes.push({
+      framework: 'nextjs',
+      method: 'ALL',
+      path: routePath,
+      file: relPath,
+      line: handlerLine,
+      handlerName,
+    });
+  }
+
+  // 3. Server Actions: files with 'use server' at top or functions with 'use server' directive
+  const topUseServer = /^\s*['"]use server['"]\s*;?/.test(
+    lines.slice(0, 10).map((l) => l.trim()).filter((l) => l && !l.startsWith('//') && !l.startsWith('/*')).join('\n')
+  );
+
+  if (topUseServer) {
+    const exportActionRe = /export\s+(?:async\s+)?function\s+([a-zA-Z0-9_$]+)\b|export\s+const\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?\(/;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const m = exportActionRe.exec(line);
+      if (m) {
+        const actionName = m[1] || m[2];
+        routes.push({
+          framework: 'nextjs',
+          method: 'POST',
+          path: `/${actionName}`,
+          file: relPath,
+          line: i + 1,
+          handlerName: actionName,
+        });
+      }
+    }
+  } else if (content.includes("'use server'") || content.includes('"use server"')) {
+    const funcHeaderRe = /(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_$]+)\s*\(/;
+    const constActionRe = /(?:export\s+)?const\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?\(/;
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (/export\s+default\b/.test(line)) continue;
+
+      const mFunc = funcHeaderRe.exec(line) || constActionRe.exec(line);
+      if (mFunc) {
+        const actionName = mFunc[1];
+        let hasUseServer = false;
+        // The first non-empty statement inside the function must be 'use server'
+        for (let j = i + 1; j < Math.min(lines.length, i + 5); j += 1) {
+          const trimmed = lines[j].trim();
+          if (!trimmed || trimmed === '{') continue;
+          if (/^['"]use server['"]\s*;?$/.test(trimmed)) {
+            hasUseServer = true;
+          }
+          break;
+        }
+        if (hasUseServer) {
+          routes.push({
+            framework: 'nextjs',
+            method: 'POST',
+            path: `/${actionName}`,
+            file: relPath,
+            line: i + 1,
+            handlerName: actionName,
+          });
+        }
+      }
+    }
+  }
+
+  return routes;
+}
+
+/** NestJS: @Controller(...) classes and HTTP method decorators */
+function parseNestJsRoutes(content, lines, relPath) {
+  if (!content.includes('@Controller')) return [];
 
   const routes = [];
-  const exportFuncRe = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
-  const exportConstRe = /export\s+const\s+(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/;
+  const controllerRe = /@Controller\s*(?:\(\s*(?:['"`]([^'"`]*)['"`])?\s*\))?/;
+  const methodRe = /@(Get|Post|Put|Delete|Patch|All)\s*(?:\(\s*(?:['"`]([^'"`]*)['"`])?\s*\))?/;
+
+  let currentPrefix = '';
+  let inController = false;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+
+    const cMatch = controllerRe.exec(line);
+    if (cMatch) {
+      currentPrefix = cMatch[1] ?? '';
+      inController = true;
+      continue;
+    }
+
+    if (!inController) continue;
+
+    const mMatch = methodRe.exec(line);
+    if (mMatch) {
+      const verb = mMatch[1].toUpperCase();
+      const subPath = mMatch[2] ?? '';
+
+      // Combine controller prefix and method path
+      let p = currentPrefix.trim();
+      let s = subPath.trim();
+      if (p && !p.startsWith('/')) p = '/' + p;
+      if (p.endsWith('/')) p = p.slice(0, -1);
+      if (s && !s.startsWith('/')) s = '/' + s;
+      let fullPath = p + s;
+      if (!fullPath || fullPath === '') fullPath = '/';
+      fullPath = fullPath.replace(/\/+/g, '/');
+
+      // Look forward for handler method name and parameters
+      let handlerName = 'anonymous';
+      let paramText = '';
+      const maxJ = Math.min(lines.length, i + 10);
+      for (let j = i + 1; j < maxJ; j += 1) {
+        const subLine = lines[j];
+        if (subLine.includes('@Controller')) break;
+
+        const mHandler = /(?:public\s+|private\s+|protected\s+)?(?:async\s+)?([a-zA-Z0-9_$]+)\s*\(([\s\S]*)/.exec(subLine);
+        if (mHandler && !subLine.trim().startsWith('@')) {
+          handlerName = mHandler[1];
+          let collected = mHandler[2];
+          if (!collected.includes(')')) {
+            for (let k = j + 1; k < Math.min(lines.length, j + 10); k += 1) {
+              collected += ' ' + lines[k];
+              if (lines[k].includes(')')) break;
+            }
+          }
+          paramText = collected;
+          break;
+        }
+      }
+
+      // Extract parameter annotations (@Body(), @Query(), @Param())
+      const paramMatches = [...paramText.matchAll(/@(Body|Query|Param)\b/g)];
+      const params = [...new Set(paramMatches.map((m) => `@${m[1]}()`))];
+
+      routes.push({
+        framework: 'nestjs',
+        method: verb,
+        path: fullPath,
+        file: relPath,
+        line: i + 1,
+        handlerName,
+        params,
+        parameters: params,
+      });
+    }
+  }
+
+  return routes;
+}
+
+/** Cloudflare Pages Functions: functions/api/** or functions/** */
+function parseCloudflareRoutes(content, lines, relPath) {
+  const match = /(?:^|\/)functions\/(.+)\.(?:ts|js|mjs|cjs)$/.exec(relPath);
+  if (!match) return [];
+
+  let sub = match[1];
+  if (sub === 'index') {
+    sub = '';
+  } else if (sub.endsWith('/index')) {
+    sub = sub.slice(0, -6);
+  }
+  sub = sub.replace(/\[\.\.\.([a-zA-Z0-9_$]+)\]/g, ':$1*');
+  sub = sub.replace(/\[([a-zA-Z0-9_$]+)\]/g, ':$1');
+
+  let routePath = sub ? (sub.startsWith('/') ? sub : '/' + sub) : '/';
+  routePath = routePath.replace(/\/+/g, '/');
+
+  const routes = [];
+  const exportFuncRe = /export\s+(?:async\s+)?function\s+(onRequest(?:Get|Post|Put|Delete|Patch|Head|Options)?)\b/;
+  const exportConstRe = /export\s+const\s+(onRequest(?:Get|Post|Put|Delete|Patch|Head|Options)?)\b/;
+
+  const methodMap = {
+    onRequestGet: 'GET',
+    onRequestPost: 'POST',
+    onRequestPut: 'PUT',
+    onRequestDelete: 'DELETE',
+    onRequestPatch: 'PATCH',
+    onRequestHead: 'HEAD',
+    onRequestOptions: 'OPTIONS',
+    onRequest: 'ALL',
+  };
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const m = exportFuncRe.exec(line) || exportConstRe.exec(line);
     if (m) {
+      const handlerName = m[1];
+      const method = methodMap[handlerName] || 'ALL';
       routes.push({
-        framework: 'nextjs',
-        method: m[1].toUpperCase(),
+        framework: 'cloudflare',
+        method,
         path: routePath,
         file: relPath,
         line: i + 1,
-        handlerName: m[1],
+        handlerName,
       });
     }
   }
+
   return routes;
 }
 
@@ -462,6 +698,8 @@ export function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
     // Dispatch framework route parsers
     if (['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx'].includes(ext)) {
       fileRoutes.push(...parseNextJsRoutes(content, lines, relPath));
+      fileRoutes.push(...parseNestJsRoutes(content, lines, relPath));
+      fileRoutes.push(...parseCloudflareRoutes(content, lines, relPath));
       fileRoutes.push(...parseExpressRoutes(content, lines, relPath));
       fileRoutes.push(...parseFastifyRoutes(content, lines, relPath));
     }

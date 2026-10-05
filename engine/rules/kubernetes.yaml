@@ -443,3 +443,83 @@
     no distinct RBAC, so workloads there inherit the weakest posture in the
     cluster.
   fix: Deploy into a dedicated namespace with its own NetworkPolicy, quota, and Pod Security Standard label.
+
+- id: k8s/missing-seccomp-profile
+  name: Pod does not configure a secure seccomp profile
+  domain: infrastructure
+  severity: medium
+  confidence: firm
+  tier: deep
+  cwe: CWE-250
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        matches: '^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet)$'
+      - path: '**.seccompProfile.type'
+        not_matches: '^(RuntimeDefault|Localhost)$'
+  message: Pod does not enforce RuntimeDefault or Localhost seccompProfile
+  why: >-
+    Unconfined system calls expose the host kernel to container breakouts when
+    kernel vulnerabilities exist. Pod Security Standards (Baseline and Restricted)
+    mandate specifying RuntimeDefault or Localhost seccomp profiles.
+  fix: >-
+    Set securityContext.seccompProfile.type = "RuntimeDefault" on the Pod spec
+    or individual container securityContext.
+
+- id: k8s/ingress-tls-missing
+  name: Ingress does not configure TLS encryption
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-319
+  owasp: A02:2021
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        equals: Ingress
+      - path: spec.rules
+        present: true
+      - path: spec.tls
+        present: false
+  message: Ingress defines routing rules without configuring a tls termination block
+  why: >-
+    Serving ingress traffic over plaintext HTTP exposes cookies, session
+    tokens, and request payloads to eavesdropping and manipulation by anyone
+    on the network path.
+  fix: >-
+    Add a spec.tls block referencing a TLS Secret or cert-manager ClusterIssuer
+    to terminate HTTPS traffic on the ingress.
+
+- id: k8s/unconfined-apparmor
+  name: AppArmor profile disabled or not enforced
+  domain: infrastructure
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-250
+  owasp: A05:2021
+  files: ['**/*.yaml', '**/*.yml']
+  exclude: ['**/.github/**']
+  parse: yaml
+  assert:
+    all:
+      - path: kind
+        matches: '^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet)$'
+      - path: '**.annotations.*'
+        not_matches: '^(runtime/default|localhost/)'
+  message: Pod container missing AppArmor profile annotation or explicitly set to unconfined
+  why: >-
+    Running containers without AppArmor enforcement, or explicitly setting
+    AppArmor to unconfined, removes Mandatory Access Control protections and
+    allows compromised processes unrestricted access to permitted kernel capabilities.
+  fix: >-
+    Add container.apparmor.security.beta.kubernetes.io/<container-name> annotation
+    set to runtime/default or a validated localhost/<profile> profile.
+

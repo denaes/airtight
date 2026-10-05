@@ -240,3 +240,26 @@
     be. Installing sudo turns a non-root USER from containment back into a
     speed bump.
   fix: Drop sudo and set the correct USER, chowning any paths the process must write.
+
+- id: container/missing-healthcheck
+  name: Container missing healthcheck instruction
+  domain: containers
+  severity: medium
+  confidence: firm
+  cwe: CWE-657
+  files: ['**/Dockerfile*', '**/Containerfile*']
+  parse: dockerfile
+  assert:
+    all:
+      - path: finalStage.instructions[*].name
+        matches: '^(EXPOSE|CMD|ENTRYPOINT)$'
+      - path: finalStage.instructions[*].name
+        not_matches: '^HEALTHCHECK$'
+  message: Container defines EXPOSE, CMD, or ENTRYPOINT without a HEALTHCHECK instruction
+  why: >-
+    Without a HEALTHCHECK instruction, the container engine and orchestrator cannot
+    detect when an application process deadlocks, hangs, or crashes internally,
+    leaving unresponsive containers in service and continuing to receive traffic.
+  fix: >-
+    Add a HEALTHCHECK instruction in the final stage (e.g., `HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8080/health || exit 1`).
+

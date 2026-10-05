@@ -499,3 +499,125 @@
     Lambda environment variables are visible to anyone with lambda:GetFunction
     and are stored unencrypted at rest unless a KMS key is configured.
   fix: Read the secret from Secrets Manager or Parameter Store at cold start, or configure a KMS key for the environment.
+
+- id: terraform/gcp-storage-public
+  name: GCP storage bucket grants public access
+  domain: infrastructure
+  severity: critical
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^google_storage_bucket_iam_(binding|member)$'
+    any:
+      - path: attrs.member
+        matches: '^(allUsers|allAuthenticatedUsers)$'
+      - path: attrs.members[*]
+        matches: '^(allUsers|allAuthenticatedUsers)$'
+  message: GCP storage bucket IAM grants access to allUsers or allAuthenticatedUsers
+  why: >-
+    Granting permissions to allUsers or allAuthenticatedUsers allows anyone on
+    the internet, or any authenticated Google account holder anywhere in the
+    world, to access the bucket's contents without authorization from your project.
+  fix: >-
+    Remove allUsers and allAuthenticatedUsers from IAM members. Bind permissions
+    only to specific service accounts, groups, or domain identities.
+
+- id: terraform/azure-storage-public
+  name: Azure storage account permits public access
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-284
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: azurerm_storage_account
+      - path: blocks[*].type
+        not_matches: '^network_rules$'
+    any:
+      - path: attrs.allow_nested_items_to_be_public
+        equals: true
+      - path: attrs.public_network_access_enabled
+        equals: true
+  message: Azure storage account allows public access without restricting network rules
+  why: >-
+    Enabling nested item public access or internet-wide public network access
+    without network firewall rules allows anonymous callers to query blob
+    containers and download sensitive storage account objects directly.
+  fix: >-
+    Set allow_nested_items_to_be_public = false and public_network_access_enabled = false,
+    or configure a network_rules block with default_action = "Deny".
+
+- id: terraform/iam-privilege-escalation
+  name: IAM policy grants dangerous privilege escalation actions
+  domain: infrastructure
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-250
+  owasp: A01:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        matches: '^aws_iam_(role_)?policy$'
+      - path: attrs.policy
+        matches: '("Effect"|Effect)\s*[:=]\s*"Allow"'
+    any:
+      - path: attrs.policy
+        matches: 'iam:(CreatePolicyVersion|SetDefaultPolicyVersion)'
+      - path: attrs.policy
+        matches: 'iam:PassRole.*(lambda|ec2):|(lambda|ec2):.*iam:PassRole'
+      - path: attrs.policy
+        matches: 'iam:(AttachRolePolicy|AttachUserPolicy|PutRolePolicy|PutUserPolicy)'
+  message: IAM policy allows dangerous privilege escalation action combinations
+  why: >-
+    Actions such as CreatePolicyVersion, SetDefaultPolicyVersion, AttachRolePolicy,
+    or PassRole alongside compute services allow an identity to bypass intended
+    boundaries and elevate its own permissions to administrator.
+  fix: >-
+    Remove direct policy modification actions, attach permission boundaries to
+    prevent escalation, and restrict iam:PassRole to specific role ARNs.
+
+- id: terraform/sqs-unencrypted
+  name: SQS queue does not enable server-side encryption
+  domain: infrastructure
+  severity: medium
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-311
+  owasp: A02:2021
+  files: ['**/*.tf']
+  parse: hcl
+  for_each: allBlocks[*]
+  assert:
+    all:
+      - path: labels[0]
+        equals: aws_sqs_queue
+      - path: attrs.kms_master_key_id
+        not_matches: '.'
+      - path: attrs.sqs_managed_sse_enabled
+        not_matches: '^true$'
+  message: SQS queue does not configure KMS encryption or SQS-managed SSE
+  why: >-
+    Messages traversing and stored at rest in an unencrypted SQS queue are readable
+    by anyone who accesses the underlying storage volumes, violating compliance
+    mandates and exposing sensitive pipeline payload data.
+  fix: >-
+    Set sqs_managed_sse_enabled = true for Amazon SQS-managed keys (SSE-SQS), or
+    specify kms_master_key_id with a customer-managed or AWS-managed KMS key.
+

@@ -1,0 +1,12 @@
+name = "my-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "production"
+APP_NAME = "worker-gateway"
+MAX_RETRIES = "5"
+API_KEY = ""
+SECRET_TOKEN = "PLACEHOLDER"
+DATABASE_URL = "${DATABASE_URL}"
+EXAMPLE_KEY = "YOUR_API_KEY_HERE"

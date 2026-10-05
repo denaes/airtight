@@ -330,3 +330,222 @@ exec('ls');
   });
 });
 
+test('generateAttackSurfaceMap detects NestJS controllers, routes, and parameter annotations', () => {
+  withTempProject((root) => {
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src/users.controller.ts'), `
+import { Controller, Get, Post, Put, Delete, Patch, All, Body, Param, Query } from '@nestjs/common';
+
+@Controller('api/v1/users')
+export class UsersController {
+  @Get(':id')
+  async findOne(@Param('id') id: string, @Query('include') include: string) {
+    return this.dataSource.query('SELECT * FROM users WHERE id = $1', [id]);
+  }
+
+  @Post()
+  async create(@Body() createUserDto: any) {
+    return { status: 'created' };
+  }
+
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() updateDto: any) {
+    return { status: 'updated' };
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    return { status: 'deleted' };
+  }
+
+  @Patch(':id')
+  async patch(@Param('id') id: string, @Body() patchDto: any) {
+    return { status: 'patched' };
+  }
+
+  @All('proxy')
+  async proxyAll() {
+    return { status: 'proxied' };
+  }
+}
+    `);
+
+    writeFileSync(join(root, 'src/health.controller.ts'), `
+import { Controller, Get } from '@nestjs/common';
+
+@Controller()
+export class HealthController {
+  @Get('health')
+  check() {
+    return { status: 'ok' };
+  }
+}
+    `);
+
+    const result = generateAttackSurfaceMap(['src'], { root });
+    assert.equal(result.summary.totalRoutes, 7);
+    assert.deepEqual(result.summary.frameworks, ['nestjs']);
+    assert.equal(result.summary.totalSinksNearRoutes, 1);
+
+    const routes = result.routes;
+    const findOneRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/v1/users/:id');
+    assert.ok(findOneRoute);
+    assert.equal(findOneRoute.handlerName, 'findOne');
+    assert.ok(findOneRoute.params.includes('@Param()'));
+    assert.ok(findOneRoute.params.includes('@Query()'));
+    assert.equal(findOneRoute.sinks.length, 1);
+    assert.equal(findOneRoute.sinks[0].type, 'sql');
+
+    const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/v1/users');
+    assert.ok(createRoute);
+    assert.equal(createRoute.handlerName, 'create');
+    assert.ok(createRoute.params.includes('@Body()'));
+
+    const putRoute = routes.find((r) => r.method === 'PUT' && r.path === '/api/v1/users/:id');
+    assert.ok(putRoute);
+    assert.equal(putRoute.handlerName, 'update');
+    assert.ok(putRoute.params.includes('@Param()'));
+    assert.ok(putRoute.params.includes('@Body()'));
+
+    const deleteRoute = routes.find((r) => r.method === 'DELETE' && r.path === '/api/v1/users/:id');
+    assert.ok(deleteRoute);
+    assert.equal(deleteRoute.handlerName, 'remove');
+    assert.ok(deleteRoute.params.includes('@Param()'));
+
+    const patchRoute = routes.find((r) => r.method === 'PATCH' && r.path === '/api/v1/users/:id');
+    assert.ok(patchRoute);
+    assert.equal(patchRoute.handlerName, 'patch');
+    assert.ok(patchRoute.params.includes('@Param()'));
+    assert.ok(patchRoute.params.includes('@Body()'));
+
+    const proxyRoute = routes.find((r) => r.method === 'ALL' && r.path === '/api/v1/users/proxy');
+    assert.ok(proxyRoute);
+    assert.equal(proxyRoute.handlerName, 'proxyAll');
+
+    const healthRoute = routes.find((r) => r.path === '/health');
+    assert.ok(healthRoute);
+    assert.equal(healthRoute.method, 'GET');
+    assert.equal(healthRoute.handlerName, 'check');
+  });
+});
+
+test('generateAttackSurfaceMap detects Next.js Pages Router and Server Actions', () => {
+  withTempProject((root) => {
+    // 1. Pages Router
+    mkdirSync(join(root, 'pages/api/users'), { recursive: true });
+    writeFileSync(join(root, 'pages/api/users/[id].ts'), `
+export default async function handler(req, res) {
+  const { id } = req.query;
+  res.status(200).json({ id });
+}
+    `);
+
+    // 2. Server Action (file-level 'use server')
+    mkdirSync(join(root, 'app/actions'), { recursive: true });
+    writeFileSync(join(root, 'app/actions/projects.ts'), `
+'use server';
+
+export async function deleteProject(projectId: string) {
+  return { success: true };
+}
+
+export const createProject = async (name: string) => {
+  return { id: 123, name };
+};
+    `);
+
+    // 3. Inline Server Action in component
+    mkdirSync(join(root, 'app/dashboard'), { recursive: true });
+    writeFileSync(join(root, 'app/dashboard/page.tsx'), `
+export default function Dashboard() {
+  async function submitForm(formData: FormData) {
+    'use server';
+    // perform mutation
+  }
+  return <form action={submitForm}><button type="submit">Go</button></form>;
+}
+    `);
+
+    const result = generateAttackSurfaceMap(['pages', 'app'], { root });
+    assert.equal(result.summary.totalRoutes, 4);
+    assert.deepEqual(result.summary.frameworks, ['nextjs']);
+
+    const pagesRoute = result.routes.find((r) => r.path === '/api/users/:id');
+    assert.ok(pagesRoute);
+    assert.equal(pagesRoute.method, 'ALL');
+    assert.equal(pagesRoute.handlerName, 'handler');
+
+    const delAction = result.routes.find((r) => r.handlerName === 'deleteProject');
+    assert.ok(delAction);
+    assert.equal(delAction.method, 'POST');
+    assert.equal(delAction.path, '/deleteProject');
+
+    const createAction = result.routes.find((r) => r.handlerName === 'createProject');
+    assert.ok(createAction);
+    assert.equal(createAction.method, 'POST');
+    assert.equal(createAction.path, '/createProject');
+
+    const submitAction = result.routes.find((r) => r.handlerName === 'submitForm');
+    assert.ok(submitAction);
+    assert.equal(submitAction.method, 'POST');
+    assert.equal(submitAction.path, '/submitForm');
+  });
+});
+
+test('generateAttackSurfaceMap detects Cloudflare Pages Functions routes', () => {
+  withTempProject((root) => {
+    mkdirSync(join(root, 'functions/api/users'), { recursive: true });
+    writeFileSync(join(root, 'functions/api/submit.ts'), `
+export async function onRequestPost(context) {
+  const data = await context.request.json();
+  return new Response('ok');
+}
+
+export async function onRequestGet(context) {
+  return new Response('submit form');
+}
+    `);
+
+    writeFileSync(join(root, 'functions/api/users/[id].ts'), `
+export const onRequestDelete = async (context) => {
+  return new Response('deleted');
+};
+
+export async function onRequestPut(context) {
+  return new Response('updated');
+}
+    `);
+
+    writeFileSync(join(root, 'functions/api/fallback.js'), `
+export async function onRequest(context) {
+  return new Response('fallback');
+}
+    `);
+
+    const result = generateAttackSurfaceMap(['functions'], { root });
+    assert.equal(result.summary.totalRoutes, 5);
+    assert.deepEqual(result.summary.frameworks, ['cloudflare']);
+
+    const postRoute = result.routes.find((r) => r.path === '/api/submit' && r.method === 'POST');
+    assert.ok(postRoute);
+    assert.equal(postRoute.handlerName, 'onRequestPost');
+
+    const getRoute = result.routes.find((r) => r.path === '/api/submit' && r.method === 'GET');
+    assert.ok(getRoute);
+    assert.equal(getRoute.handlerName, 'onRequestGet');
+
+    const deleteRoute = result.routes.find((r) => r.path === '/api/users/:id' && r.method === 'DELETE');
+    assert.ok(deleteRoute);
+    assert.equal(deleteRoute.handlerName, 'onRequestDelete');
+
+    const putRoute = result.routes.find((r) => r.path === '/api/users/:id' && r.method === 'PUT');
+    assert.ok(putRoute);
+    assert.equal(putRoute.handlerName, 'onRequestPut');
+
+    const fallbackRoute = result.routes.find((r) => r.path === '/api/fallback');
+    assert.ok(fallbackRoute);
+    assert.equal(fallbackRoute.method, 'ALL');
+    assert.equal(fallbackRoute.handlerName, 'onRequest');
+  });
+});
+
