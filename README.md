@@ -3,10 +3,10 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.4.1, installable from npm across 18 harnesses. Engine with 200
+> **Status:** v0.5.0, installable from npm across 18 harnesses. Engine with 200
 > rules, findings store, control register, 11 commands, edit hook, installer,
-> docs, and a demo. Benchmarked against four real repositories; see
-> [measured against real code](#measured-against-real-code) for what that
+> docs, and a demo. Benchmarked against 10 real repositories; see
+> [docs/benchmark.md](docs/benchmark.md) for what that
 > covers and what it does not.
 
 **[Documentation](docs/)** · [Getting started](docs/getting-started.md) ·
@@ -232,7 +232,7 @@ credential in three files is three edits to make but one key to rotate.
 Scan pull requests and push findings to GitHub Code Scanning via the composite action:
 
 ```yaml
-- uses: denaes/airtight@v0.4.1
+- uses: denaes/airtight@v0.5.0
   with:
     paths: '.'
     format: 'sarif'

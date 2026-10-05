@@ -5,7 +5,7 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.1] - 2026-10-02
+## [0.5.0] - 2026-10-04
 
 ### Added
 - **Attack Surface Mapping (`airtight map`)**: Added `airtight map [paths...]` command statically inventorying HTTP route endpoints across 8 frameworks (Express, Fastify, Next.js App Router, Flask, FastAPI, Django, Gin, Spring) and correlating dangerous sinks (SQL, eval, exec, SSRF, file I/O) within route scope.

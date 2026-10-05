@@ -10871,7 +10871,7 @@ var ESCALATION_NOTICE = "ignore-file and ignore-rule suppress far more than one 
 
 // engine/src/cli.mjs
 var HERE = dirname6(fileURLToPath(import.meta.url));
-var VERSION = "0.4.1";
+var VERSION = "0.5.0";
 var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
