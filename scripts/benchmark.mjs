@@ -32,8 +32,11 @@ const WORK = join(tmpdir(), 'airtight-benchmark');
 const REPOS = [
   // Application code benchmarks
   { repo: 'OWASP/NodeGoat', kind: 'vulnerable', suite: 'app', note: 'OWASP teaching app, intentionally vulnerable' },
+  { repo: 'juice-shop/juice-shop', kind: 'vulnerable', suite: 'app', note: 'OWASP flagship modern vulnerable web app' },
   { repo: 'fastify/fastify', kind: 'clean', suite: 'app', note: 'actively maintained HTTP framework' },
   { repo: 'expressjs/express', kind: 'clean', suite: 'app', note: 'actively maintained HTTP framework' },
+  { repo: 'gin-gonic/gin', kind: 'clean', suite: 'app', note: 'high-performance Go web framework' },
+  { repo: 'pallets/flask', kind: 'clean', suite: 'app', note: 'actively maintained Python web framework' },
   { repo: 'psf/requests', kind: 'clean', suite: 'app', note: 'actively maintained HTTP client' },
 
   // Infrastructure & container benchmarks

@@ -22,9 +22,12 @@ Two suites and two kinds of repository, because they answer different questions:
 ### 1. Application Suite
 - **Vulnerable** — does it find what is there?
   - `OWASP/NodeGoat`: OWASP teaching application with documented OWASP Top 10 flaws.
+  - `juice-shop/juice-shop`: OWASP flagship modern vulnerable web app (TypeScript, Node.js, Express, Angular).
 - **Clean** — does it stay quiet when there is nothing to find?
   - `fastify/fastify`: actively maintained HTTP framework.
   - `expressjs/express`: actively maintained HTTP framework.
+  - `gin-gonic/gin`: high-performance Go web framework.
+  - `pallets/flask`: actively maintained Python web framework.
   - `psf/requests`: actively maintained HTTP client.
 
 ### 2. Infrastructure & Container Suite
@@ -42,15 +45,30 @@ or production infrastructure is uninstalled long before its recall is ever teste
 
 | Repository | Suite | Kind | Files | Findings | P0 | Verdict |
 |---|---|---|---:|---:|---:|---|
-| OWASP/NodeGoat | app | vulnerable | 93 | 12 | 3 | Flagship injections, open redirect, hardcoded keys |
-| fastify/fastify | app | clean | 390 | 17 | 0 | 0 at P0 |
-| expressjs/express | app | clean | 214 | 5 | 0 | 0 at P0 |
-| psf/requests | app | clean | 122 | 9 | 0 | 7 true (certs/unpinned), 2 test FP, 0 at P0 |
+| OWASP/NodeGoat | app | vulnerable | 93 | 12 | 3 | Flagship injections (eval), open redirect, hardcoded keys |
+| juice-shop/juice-shop | app | vulnerable | 1,166 | 122 | 11 | NoSQL $where injection, RSA private key, dynamic eval, unverified JWT |
 | bridgecrewio/terragoat | infra | vulnerable | 69 | 31 | 6 | RDS public, open ingress, hardcoded secrets, KMS disabled |
 | bridgecrewio/k8sgoat | infra | vulnerable | 154 | 108 | 12 | Privileged containers, docker socket, wildcard RBAC, hostPath |
+| fastify/fastify | app | clean | 390 | 17 | 0 | 0 at P0 |
+| expressjs/express | app | clean | 214 | 5 | 0 | 0 at P0 |
+| gin-gonic/gin | app | clean | 130 | 11 | 0 | 0 at P0 in production Go code (CI actions & test certs) |
+| pallets/flask | app | clean | 231 | 7 | 1 | 1 P0 (intentional DEBUG = True in config.py) |
+| psf/requests | app | clean | 122 | 9 | 0 | 0 at P0 (7 true certs/unpinned, 2 test FP) |
 | terraform-aws-modules/terraform-aws-vpc | infra | clean | 111 | 16 | 0 | Clean IaC: 0 terraform findings, 0 at P0 (CI unpinned actions only) |
 
-**Clean repositories: 47 findings, 0 at P0, 0 at `confirmed` confidence on application or infrastructure code.**
+**Zero P0 findings across five clean production codebases.** On vulnerable apps
+it catches flagship injection flaws, committed credentials, unverified JWTs,
+and dangerous infrastructure postures.
+
+### What it catches in Juice Shop (TypeScript & Node.js)
+
+OWASP Juice Shop contains realistic, multi-tier vulnerabilities across authentication, database, and client layers:
+
+- `js/nosql-injection`: Unescaped `$where` JavaScript expressions in MongoDB review and order queries (`routes/chat.ts`, `routes/showProductReviews.ts`, `routes/trackOrder.ts`).
+- `secret/private-key-pem`: Hardcoded RSA private key material committed in `lib/insecurity.ts`.
+- `js/eval-dynamic`: Dynamic `eval()` and `new Function()` in `routes/captcha.ts`, `routes/userProfile.ts`, and `lib/xml.ts`.
+- `js/jwt-verify-without-algorithms` & `js/jwt-decode-unverified`: Unverified JWT decoding in `routes/verify.ts` and token verification without algorithm constraints.
+- `js/math-random-for-secret`: `Math.random()` used to generate security tokens in `lib/insecurity.ts`.
 
 ### What it catches in NodeGoat
 

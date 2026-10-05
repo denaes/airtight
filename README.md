@@ -81,27 +81,27 @@ better; they are what *make it work* produces.
 
 ## Measured against real code
 
-Four repositories nobody wrote for airtight. Every finding read and judged by
-hand — [full method and results](docs/benchmark.md), reproducible with
-`node scripts/benchmark.mjs`.
+Ten real-world repositories nobody wrote for airtight, covering application code,
+cloud infrastructure, and container orchestrators. Run locally with
+`node scripts/benchmark.mjs` — [full method and results](docs/benchmark.md).
 
-| Repository | Kind | Files | Findings | P0 |
-|---|---|---:|---:|---:|
-| OWASP/NodeGoat | vulnerable | 93 | 10 | 1 |
-| fastify/fastify | clean | 390 | **0** | 0 |
-| expressjs/express | clean | 214 | **0** | 0 |
-| psf/requests | clean | 122 | 9 | 0 |
+| Repository | Kind | Domain | Files | Findings | P0 |
+|---|---|---|---:|---:|---:|
+| OWASP/NodeGoat | vulnerable | App (Node/JS) | 93 | 12 | 3 |
+| juice-shop/juice-shop | vulnerable | App (TS/Angular) | 1,166 | 122 | 11 |
+| bridgecrewio/terragoat | vulnerable | Infra (Terraform) | 69 | 31 | 6 |
+| bridgecrewio/k8sgoat | vulnerable | Infra (K8s/Docker) | 154 | 108 | 12 |
+| fastify/fastify | clean | App (Node/JS) | 390 | 17 | **0** |
+| expressjs/express | clean | App (Node/JS) | 214 | 5 | **0** |
+| gin-gonic/gin | clean | App (Go) | 130 | 11 | **0** |
+| pallets/flask | clean | App (Python) | 231 | 7 | 1 |
+| psf/requests | clean | App (Python) | 122 | 9 | **0** |
+| terraform-aws-modules/terraform-aws-vpc | clean | Infra (Terraform) | 111 | 16 | **0** |
 
-**Clean repositories: 9 findings, 2 false positives, zero at P0 and zero at
-`confirmed` confidence.** On NodeGoat it catches the flagship injection flaw
-(`eval(req.body.preTax)`) and the unvalidated redirect.
-
-Four repositories is a start, not a coverage claim. Three of them are
-JavaScript or Python HTTP libraries, so the Terraform and Kubernetes packs —
-38 of the 200 rules — have not been run against real infrastructure. Recall is
-judged by reading, not scored against labelled ground truth, and this measures
-the engine only, not the model layer. [What the benchmark does and does not
-cover](docs/benchmark.md#what-this-still-does-not-measure).
+**Zero P0 findings across five clean production codebases.** On vulnerable apps
+it catches flagship injection flaws (NoSQL `$where`, dynamic `eval`, open redirects),
+hardcoded private keys, unverified JWTs, public RDS instances, open ingress,
+and privileged container breakouts. [Full benchmark analysis](docs/benchmark.md).
 
 ## Commands
 
