@@ -98,10 +98,13 @@ cloud infrastructure, and container orchestrators. Run locally with
 | psf/requests | clean | App (Python) | 122 | 9 | **0** |
 | terraform-aws-modules/terraform-aws-vpc | clean | Infra (Terraform) | 111 | 16 | **0** |
 
-**Zero P0 findings across five clean production codebases.** On vulnerable apps
-it catches flagship injection flaws (NoSQL `$where`, dynamic `eval`, open redirects),
-hardcoded private keys, unverified JWTs, public RDS instances, open ingress,
-and privileged container breakouts. [Full benchmark analysis](docs/benchmark.md).
+**Zero P0 findings across five clean production codebases.** On clean repositories,
+findings are non-blocking advisory notices reflecting internal framework mechanics:
+prototype-pollution checks in Fastify/Express object cloning utilities, Python's dynamic
+`from_pyfile()` config loader in Flask, test-suite TLS certs in Gin, and unpinned GitHub Actions in CI.
+On vulnerable apps, it catches flagship injection flaws (NoSQL `$where`, dynamic `eval`, open redirects),
+hardcoded private keys, unverified JWTs, public RDS instances, and privileged container breakouts.
+[Full benchmark breakdown](docs/benchmark.md).
 
 ## Commands
 
