@@ -26,6 +26,7 @@ report you read later.
 - **[CI integration](ci.md)** — exit codes, gating, and what to fail on.
 - **[Benchmark](benchmark.md)** — measured against four real repositories,
   including what it misses.
+- **[MCP server](mcp.md)** — native Model Context Protocol server for Claude, Cursor, and Zed.
 - **[Architecture](architecture.md)** — how the pieces fit, and what airtight
   deliberately does not do.
 

@@ -21,6 +21,7 @@ import { renderSarif } from './render-sarif.mjs';
 import { generateCycloneDx } from './sbom.mjs';
 import { generateAttackSurfaceMap } from './map.mjs';
 import { correlateAttackSurface } from './correlate.mjs';
+import { runMcpServer } from './mcp.mjs';
 import { detectLockfiles, parseLockfile } from './lockfile.mjs';
 import { queryOsv } from './osv.mjs';
 import * as store from './store.mjs';
@@ -38,6 +39,7 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
   airtight rules                    list loaded rules
   airtight map [paths...]           map HTTP entry points and nearby sinks
   airtight correlate [paths...]     correlate IaC exposure with application sinks
+  airtight mcp                      start Model Context Protocol (MCP) stdio server
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
@@ -588,6 +590,7 @@ export function run(argv, io = defaultIo(), env = process.env) {
       case 'rules': return cmdRules(rest, io, env);
       case 'map': return cmdMap(rest, io, env);
       case 'correlate': return cmdCorrelate(rest, io, env);
+      case 'mcp': return runMcpServer(io, env);
       case 'findings': return cmdFindings(rest, io, env);
       case 'context': return cmdContext(rest, io, env);
       case 'sbom': return cmdSbom(rest, io, env);
@@ -634,5 +637,13 @@ function isEntryPoint() {
 }
 
 if (isEntryPoint()) {
-  process.exit(run(process.argv.slice(2)));
+  const result = run(process.argv.slice(2));
+  if (result && typeof result.then === 'function') {
+    result.then((code) => process.exit(code ?? 0)).catch((err) => {
+      process.stderr.write(`airtight: ${err.message}\n`);
+      process.exit(1);
+    });
+  } else {
+    process.exit(result);
+  }
 }

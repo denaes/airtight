@@ -7372,9 +7372,9 @@ var require_dist = __commonJS({
 
 // engine/src/cli.mjs
 import { execFileSync } from "node:child_process";
-import { readFileSync as readFileSync13, realpathSync as realpathSync2, statSync as statSync8, readdirSync as readdirSync6, existsSync as existsSync8 } from "node:fs";
-import { dirname as dirname6, join as join12, resolve as resolve7 } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { readFileSync as readFileSync14, realpathSync as realpathSync2, statSync as statSync8, readdirSync as readdirSync6, existsSync as existsSync9 } from "node:fs";
+import { dirname as dirname7, join as join13, resolve as resolve8 } from "node:path";
+import { fileURLToPath as fileURLToPath2, pathToFileURL } from "node:url";
 
 // engine/src/findings.mjs
 import { createHash } from "node:crypto";
@@ -10683,6 +10683,12 @@ function correlateAttackSurface(paths = ["."], { root = process.cwd() } = {}) {
   };
 }
 
+// engine/src/mcp.mjs
+import { createInterface } from "node:readline";
+import { readFileSync as readFileSync10, existsSync as existsSync6 } from "node:fs";
+import { dirname as dirname4, join as join9, resolve as resolve6 } from "node:path";
+import { fileURLToPath } from "node:url";
+
 // engine/src/osv.mjs
 import { existsSync as existsSync3, mkdirSync, readFileSync as readFileSync7, writeFileSync } from "node:fs";
 import { dirname as dirname2, join as join6, relative as relative5, resolve as resolve5 } from "node:path";
@@ -11060,10 +11066,6 @@ function summarize(store) {
   return { total: store.size, byStatus, bySeverity };
 }
 
-// engine/src/context.mjs
-import { existsSync as existsSync6, readFileSync as readFileSync10, statSync as statSync6 } from "node:fs";
-import { join as join9 } from "node:path";
-
 // engine/src/controls.mjs
 import { readFileSync as readFileSync9, existsSync as existsSync5 } from "node:fs";
 import { join as join8 } from "node:path";
@@ -11145,7 +11147,455 @@ function frameworksIn(controls) {
   return [...out].sort();
 }
 
+// engine/src/mcp.mjs
+var HERE = dirname4(fileURLToPath(import.meta.url));
+var SERVER_NAME = "airtight";
+var SERVER_VERSION = "0.5.0";
+var PROTOCOL_VERSION = "2024-11-05";
+function loadRulesBundle(env = process.env) {
+  if (env.AIRTIGHT_RULES && existsSync6(env.AIRTIGHT_RULES)) {
+    return compileAll(JSON.parse(readFileSync10(env.AIRTIGHT_RULES, "utf8")));
+  }
+  const candidates = [
+    join9(HERE, "..", "build", "rules.json"),
+    join9(HERE, "..", "..", "skill", "scripts", "rules.json"),
+    join9(HERE, "..", "..", "rules.json")
+  ];
+  for (const p of candidates) {
+    if (existsSync6(p)) {
+      return compileAll(JSON.parse(readFileSync10(p, "utf8")));
+    }
+  }
+  return [];
+}
+var TOOLS = [
+  {
+    name: "airtight_detect",
+    description: "Scan codebase for deterministic security findings (injection sinks, secrets, misconfigurations, container/IaC flaws).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Directories or files to scan (default: ["."])'
+        },
+        tier: {
+          type: "string",
+          enum: ["all", "immediate"],
+          description: 'Rule tier: "all" for deep sweep, "immediate" for hook-level high-confidence rules'
+        },
+        packs: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Restrict to specific rule packs (e.g. ["secret", "terraform", "js", "compose"])'
+        },
+        format: {
+          type: "string",
+          enum: ["text", "json"],
+          description: 'Output format (default: "text")'
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_map",
+    description: "Map application HTTP routes, controller entry points, and dangerous sinks across web frameworks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Directories to map (default: ["."])'
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_correlate",
+    description: "Correlate infrastructure ingress rules with application routes and sinks, discovering internet-facing attack paths.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Directories to correlate (default: ["."])'
+        },
+        format: {
+          type: "string",
+          enum: ["text", "json"],
+          description: 'Output format (default: "text")'
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_rules",
+    description: "List available security rules, severity, confidence levels, and CWE mappings.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        packs: {
+          type: "array",
+          items: { type: "string" },
+          description: "Filter rules by pack"
+        },
+        tier: {
+          type: "string",
+          enum: ["all", "immediate"],
+          description: "Filter rules by tier"
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_findings",
+    description: "Inspect and manage tracked security findings in .airtight/findings.ndjson.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["list", "sync", "overdue"],
+          description: "Action to perform: list findings, sync from scan, or show overdue remediations"
+        },
+        status: {
+          type: "string",
+          enum: ["open", "accepted", "fixed"],
+          description: 'Filter findings by status (for "list" action)'
+        }
+      },
+      required: ["action"]
+    }
+  },
+  {
+    name: "airtight_controls",
+    description: "Verify declared compliance controls (SOC 2, ISO 27001) against codebase findings.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sub: {
+          type: "string",
+          enum: ["verify", "coverage"],
+          description: 'Subcommand: "verify" controls or evaluate "coverage"'
+        },
+        framework: {
+          type: "string",
+          description: 'Compliance framework name (e.g. "SOC2", "ISO27001")'
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_sbom",
+    description: "Generate CycloneDX 1.5 Software Bill of Materials (SBOM) in JSON from repository lockfiles.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Target repository root (default: current directory)"
+        }
+      }
+    }
+  }
+];
+async function handleToolCall(name, args = {}, { root = process.cwd(), env = process.env } = {}) {
+  switch (name) {
+    case "airtight_detect": {
+      const paths = args.paths?.length ? args.paths : ["."];
+      let rules = loadRulesBundle(env);
+      const config = loadConfig(root);
+      const isSuppressed = buildFilter(config);
+      if (config.rulePaths?.length > 0) {
+        try {
+          rules = [...rules, ...loadCustomRules(root, config)];
+        } catch {
+        }
+      }
+      if (args.tier === "immediate") rules = immediateTier(rules);
+      if (args.packs?.length) rules = rules.filter((r) => args.packs.includes(r.pack));
+      const files = collectTargets(root, paths.map((p) => resolve6(root, p)));
+      const scanned = scanFiles({ root, files, rules, config, isSuppressed });
+      let findings = scanned.findings;
+      if (args.tier !== "immediate" && (!args.packs?.length || args.packs.includes("dep"))) {
+        try {
+          const lockfiles = detectLockfiles(root);
+          const allDeps = [];
+          for (const lf of lockfiles) {
+            try {
+              const content = readFileSync10(lf, "utf8");
+              const parsed = parseLockfile(lf, content);
+              if (parsed?.dependencies?.length) allDeps.push(...parsed.dependencies);
+            } catch {
+            }
+          }
+          if (allDeps.length > 0) {
+            const advisories = queryOsv(allDeps, {
+              cacheDir: join9(root, ".airtight", "cache", "osv.json"),
+              offline: false
+            });
+            for (const adv of advisories) {
+              if (!isSuppressed || !isSuppressed(adv)) findings.push(adv);
+            }
+          }
+        } catch {
+        }
+      }
+      if (config.severityOverrides && Object.keys(config.severityOverrides).length > 0) {
+        findings = applySeverityOverrides(findings, config.severityOverrides);
+      }
+      const format = args.format || "text";
+      if (format === "json") {
+        return {
+          content: [{ type: "text", text: renderJson({ findings, vault: scanned.vault, meta: scanned.meta }) }]
+        };
+      }
+      return {
+        content: [{ type: "text", text: renderText({ findings, vault: scanned.vault, meta: scanned.meta }) }]
+      };
+    }
+    case "airtight_map": {
+      const paths = args.paths?.length ? args.paths : ["."];
+      const attackMap = generateAttackSurfaceMap(paths, { root });
+      return {
+        content: [{ type: "text", text: JSON.stringify(attackMap, null, 2) }]
+      };
+    }
+    case "airtight_correlate": {
+      const paths = args.paths?.length ? args.paths : ["."];
+      const correlation = correlateAttackSurface(paths, { root });
+      if (args.format === "json") {
+        return {
+          content: [{ type: "text", text: JSON.stringify(correlation, null, 2) }]
+        };
+      }
+      const lines = [
+        "airtight: cross-layer exposure correlation",
+        `  ingress rules: ${correlation.summary.totalPublicIngressRules} public, ${correlation.ingressRules.length - correlation.summary.totalPublicIngressRules} internal`,
+        `  discovered service ports: ${correlation.servicePorts.length ? correlation.servicePorts.map((sp) => sp.port).join(", ") : "none"}`,
+        `  routes analyzed: ${correlation.summary.totalRoutes} (${correlation.summary.totalExposedRoutes} internet-facing, ${correlation.summary.totalInternalRoutes} internal/unmapped)`,
+        `  correlated attack paths: ${correlation.summary.totalAttackPaths}`
+      ];
+      if (correlation.attackPaths.length > 0) {
+        lines.push("\n[!] Discovered Attack Paths:");
+        for (const ap of correlation.attackPaths) {
+          lines.push(`
+  [CRITICAL] ${ap.sinkType.toUpperCase()} Sink reachable from Internet`);
+          lines.push(`    Exposure: ${ap.publicIngress.source} (${ap.publicIngress.cidr} -> port ${ap.exposedPort})`);
+          lines.push(`    Route:    ${ap.method} ${ap.path} (${ap.routeFile}:${ap.routeLine})`);
+          lines.push(`    Sink:     ${ap.sinkSnippet || ap.sinkType} (${ap.routeFile}:${ap.sinkLine})`);
+        }
+      } else {
+        lines.push("\nNo exposed attack paths discovered.");
+      }
+      return {
+        content: [{ type: "text", text: lines.join("\n") }]
+      };
+    }
+    case "airtight_rules": {
+      let rules = loadRulesBundle(env);
+      if (args.tier === "immediate") rules = immediateTier(rules);
+      if (args.packs?.length) rules = rules.filter((r) => args.packs.includes(r.pack));
+      const summary = rules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        pack: r.pack,
+        severity: r.severity,
+        confidence: r.confidence,
+        tier: r.tier,
+        cwe: r.cwe
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }]
+      };
+    }
+    case "airtight_findings": {
+      const action = args.action || "list";
+      if (action === "list") {
+        const records = [...load(root).values()].filter((r) => !args.status || r.status === args.status).sort((a, b) => a.severity.localeCompare(b.severity) || a.id.localeCompare(b.id));
+        return {
+          content: [{ type: "text", text: JSON.stringify(records, null, 2) }]
+        };
+      }
+      if (action === "overdue") {
+        const late = overdue(load(root));
+        return {
+          content: [{ type: "text", text: JSON.stringify(late, null, 2) }]
+        };
+      }
+      if (action === "sync") {
+        let rules = loadRulesBundle(env);
+        const config = loadConfig(root);
+        const isSuppressed = buildFilter(config);
+        const files = collectTargets(root, [root]);
+        const scanned = scanFiles({ root, files, rules, config, isSuppressed });
+        const { records, events } = reconcile(load(root), scanned.findings);
+        const written = save(root, records);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ events, total: written }, null, 2) }]
+        };
+      }
+      throw new Error(`unknown findings action: ${action}`);
+    }
+    case "airtight_controls": {
+      const sub = args.sub || "verify";
+      const { controls } = loadControls(root);
+      if (controls.length === 0) {
+        return {
+          content: [{ type: "text", text: "No controls declared in .airtight/controls.json" }]
+        };
+      }
+      const rules = loadRulesBundle(env);
+      const allRuleIds = new Set(rules.map((r) => r.id));
+      const config = loadConfig(root);
+      const isSuppressed = buildFilter(config);
+      const files = collectTargets(root, [root]);
+      const scanned = scanFiles({ root, files, rules, config, isSuppressed });
+      const results = verifyControls(controls, scanned.findings, allRuleIds);
+      if (sub === "coverage") {
+        const framework = args.framework;
+        if (!framework) {
+          return {
+            content: [{ type: "text", text: `Frameworks declared: ${frameworksIn(controls).join(", ") || "none"}` }]
+          };
+        }
+        const coverage = frameworkCoverage(controls, framework, results);
+        return {
+          content: [{ type: "text", text: JSON.stringify(coverage, null, 2) }]
+        };
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(results, null, 2) }]
+      };
+    }
+    case "airtight_sbom": {
+      const target = args.path ? resolve6(root, args.path) : root;
+      const sbom = generateCycloneDx({ root: target });
+      return {
+        content: [{ type: "text", text: sbom }]
+      };
+    }
+    default:
+      throw new Error(`unknown tool: ${name}`);
+  }
+}
+function createMcpServer({ root = process.cwd(), env = process.env, input = process.stdin, output = process.stdout } = {}) {
+  const rl = createInterface({
+    input,
+    crlfDelay: Infinity,
+    terminal: false
+  });
+  function send(msg) {
+    output.write(JSON.stringify(msg) + "\n");
+  }
+  function sendError(id, code, message, data = null) {
+    send({
+      jsonrpc: "2.0",
+      id: id ?? null,
+      error: { code, message, ...data ? { data } : {} }
+    });
+  }
+  function sendResult(id, result) {
+    send({
+      jsonrpc: "2.0",
+      id,
+      result
+    });
+  }
+  rl.on("line", async (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let req;
+    try {
+      req = JSON.parse(trimmed);
+    } catch {
+      sendError(null, -32700, "Parse error: invalid JSON");
+      return;
+    }
+    if (!req || typeof req !== "object" || req.jsonrpc !== "2.0") {
+      sendError(req?.id ?? null, -32600, 'Invalid Request: expected jsonrpc: "2.0"');
+      return;
+    }
+    const { id, method, params } = req;
+    if (id === void 0 || id === null) {
+      if (method === "notifications/initialized") {
+        return;
+      }
+      return;
+    }
+    try {
+      switch (method) {
+        case "initialize": {
+          sendResult(id, {
+            protocolVersion: PROTOCOL_VERSION,
+            capabilities: {
+              tools: {}
+            },
+            serverInfo: {
+              name: SERVER_NAME,
+              version: SERVER_VERSION
+            }
+          });
+          break;
+        }
+        case "ping": {
+          sendResult(id, {});
+          break;
+        }
+        case "tools/list": {
+          sendResult(id, {
+            tools: TOOLS
+          });
+          break;
+        }
+        case "tools/call": {
+          if (!params?.name) {
+            sendError(id, -32602, "Invalid params: tool name is required");
+            return;
+          }
+          const result = await handleToolCall(params.name, params.arguments || {}, { root, env });
+          sendResult(id, result);
+          break;
+        }
+        default: {
+          sendError(id, -32601, `Method not found: ${method}`);
+          break;
+        }
+      }
+    } catch (err) {
+      sendError(id, -32603, `Internal error: ${err.message}`);
+    }
+  });
+  return {
+    close: () => rl.close()
+  };
+}
+function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = process.env) {
+  return new Promise((resolve9) => {
+    const server = createMcpServer({
+      root: process.cwd(),
+      env,
+      input: process.stdin,
+      output: process.stdout
+    });
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      server.close();
+      resolve9(0);
+    };
+    process.stdin.on("close", finish);
+    process.stdin.on("end", finish);
+  });
+}
+
 // engine/src/context.mjs
+import { existsSync as existsSync7, readFileSync as readFileSync11, statSync as statSync6 } from "node:fs";
+import { join as join10 } from "node:path";
 var SEP = "\n\n---\n\n";
 function detectStack(root, ignoreFiles = []) {
   const stack = {
@@ -11171,7 +11621,7 @@ function detectStack(root, ignoreFiles = []) {
     else if (base === "go.mod") stack.go = true;
     else if (/\.ya?ml$/.test(rel) && !rel.startsWith(".github/")) {
       try {
-        const head = readFileSync10(abs, "utf8").slice(0, 2048);
+        const head = readFileSync11(abs, "utf8").slice(0, 2048);
         if (/^\s*apiVersion:/m.test(head) && /^\s*kind:/m.test(head)) stack.kubernetes = true;
       } catch {
       }
@@ -11180,18 +11630,18 @@ function detectStack(root, ignoreFiles = []) {
   return stack;
 }
 function readIfPresent(root, name) {
-  const path = join9(root, name);
+  const path = join10(root, name);
   try {
-    return statSync6(path).isFile() ? readFileSync10(path, "utf8") : null;
+    return statSync6(path).isFile() ? readFileSync11(path, "utf8") : null;
   } catch {
     return null;
   }
 }
 function hookActive(root) {
-  const settings = join9(root, ".claude", "settings.json");
-  if (!existsSync6(settings)) return false;
+  const settings = join10(root, ".claude", "settings.json");
+  if (!existsSync7(settings)) return false;
   try {
-    return readFileSync10(settings, "utf8").includes("airtight");
+    return readFileSync11(settings, "utf8").includes("airtight");
   } catch {
     return false;
   }
@@ -11311,8 +11761,8 @@ ${JSON.stringify({
 }
 
 // engine/src/hook.mjs
-import { readFileSync as readFileSync11, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync7, realpathSync } from "node:fs";
-import { dirname as dirname4, join as join10, relative as relative6, resolve as resolve6, sep as sep5 } from "node:path";
+import { readFileSync as readFileSync12, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync7, realpathSync } from "node:fs";
+import { dirname as dirname5, join as join11, relative as relative6, resolve as resolve7, sep as sep5 } from "node:path";
 var ENVELOPE = "[airtight@1]";
 var CACHE_PATH = ".airtight/hook.cache.json";
 var MAX_SESSIONS = 8;
@@ -11372,14 +11822,14 @@ function payload(text, eventName, harness) {
 }
 function loadCache(root) {
   try {
-    return JSON.parse(readFileSync11(join10(root, CACHE_PATH), "utf8"));
+    return JSON.parse(readFileSync12(join11(root, CACHE_PATH), "utf8"));
   } catch {
     return { sessions: {} };
   }
 }
 function saveCache(root, cache2) {
   try {
-    if (!statSync7(join10(root, ".airtight")).isDirectory()) return;
+    if (!statSync7(join11(root, ".airtight")).isDirectory()) return;
   } catch {
     return;
   }
@@ -11388,8 +11838,8 @@ function saveCache(root, cache2) {
     for (const id of ids.slice(0, ids.length - MAX_SESSIONS)) delete cache2.sessions[id];
   }
   try {
-    mkdirSync3(dirname4(join10(root, CACHE_PATH)), { recursive: true });
-    writeFileSync3(join10(root, CACHE_PATH), JSON.stringify(cache2));
+    mkdirSync3(dirname5(join11(root, CACHE_PATH)), { recursive: true });
+    writeFileSync3(join11(root, CACHE_PATH), JSON.stringify(cache2));
   } catch {
   }
 }
@@ -11417,7 +11867,7 @@ function insideProject(root, abs) {
         return realpathSync(probe).startsWith(realRoot);
       } catch {
       }
-      const parent = dirname4(probe);
+      const parent = dirname5(probe);
       if (parent === probe) return false;
       probe = parent;
     }
@@ -11468,11 +11918,11 @@ function clampToBudget(text, maxChars) {
   return `${withShort.slice(0, Math.max(0, maxChars - 1))}\u2026`;
 }
 function loadRules(env, root) {
-  const here = dirname4(new URL(import.meta.url).pathname);
-  for (const path of [env.AIRTIGHT_RULES, join10(here, "..", "rules.json"), join10(here, "..", "build", "rules.json")]) {
+  const here = dirname5(new URL(import.meta.url).pathname);
+  for (const path of [env.AIRTIGHT_RULES, join11(here, "..", "rules.json"), join11(here, "..", "build", "rules.json")]) {
     if (!path) continue;
     try {
-      return compileAll(JSON.parse(readFileSync11(path, "utf8")));
+      return compileAll(JSON.parse(readFileSync12(path, "utf8")));
     } catch {
     }
   }
@@ -11506,7 +11956,7 @@ function runHook(io, env, stdinText) {
   } else {
     rels = [];
     for (const p of resolveTargets(input)) {
-      const abs = resolve6(root, p);
+      const abs = resolve7(root, p);
       if (!insideProject(root, abs)) continue;
       const rel = relative6(root, abs).split(sep5).join("/");
       if (rel.startsWith("..")) continue;
@@ -11530,7 +11980,7 @@ function runHook(io, env, stdinText) {
   const active = stop ? rules : immediateTier(rules);
   const { findings, vault } = scanFiles({
     root,
-    files: rels.map((r) => join10(root, r)),
+    files: rels.map((r) => join11(root, r)),
     rules: active,
     config,
     isSuppressed: buildFilter(config)
@@ -11592,15 +12042,15 @@ This write introduced a confirmed critical finding. Fix it before continuing.`);
 }
 function readStdin() {
   try {
-    return readFileSync11(0, "utf8");
+    return readFileSync12(0, "utf8");
   } catch {
     return "";
   }
 }
 
 // engine/src/hooks-admin.mjs
-import { readFileSync as readFileSync12, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync7 } from "node:fs";
-import { dirname as dirname5, join as join11 } from "node:path";
+import { readFileSync as readFileSync13, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync8 } from "node:fs";
+import { dirname as dirname6, join as join12 } from "node:path";
 var SETTINGS = ".claude/settings.json";
 var CONFIG = ".airtight/config.json";
 var LAUNCHER = "${CLAUDE_PROJECT_DIR}/.claude/skills/airtight/scripts/airtight";
@@ -11616,19 +12066,19 @@ var MANIFEST = {
 };
 function readJson(path, fallback) {
   try {
-    return JSON.parse(readFileSync12(path, "utf8"));
+    return JSON.parse(readFileSync13(path, "utf8"));
   } catch {
     return fallback;
   }
 }
 function writeJson(path, value) {
-  mkdirSync4(dirname5(path), { recursive: true });
+  mkdirSync4(dirname6(path), { recursive: true });
   writeFileSync4(path, `${JSON.stringify(value, null, 2)}
 `);
 }
 var isOurs = (entry) => JSON.stringify(entry).includes("airtight");
 function install(root) {
-  const path = join11(root, SETTINGS);
+  const path = join12(root, SETTINGS);
   const settings = readJson(path, {});
   settings.hooks ??= {};
   for (const [event, entries] of Object.entries(MANIFEST)) {
@@ -11638,8 +12088,8 @@ function install(root) {
   return path;
 }
 function uninstall(root) {
-  const path = join11(root, SETTINGS);
-  if (!existsSync7(path)) return null;
+  const path = join12(root, SETTINGS);
+  if (!existsSync8(path)) return null;
   const settings = readJson(path, {});
   if (!settings.hooks) return null;
   for (const event of Object.keys(MANIFEST)) {
@@ -11651,7 +12101,7 @@ function uninstall(root) {
   return path;
 }
 function status(root) {
-  const settings = readJson(join11(root, SETTINGS), {});
+  const settings = readJson(join12(root, SETTINGS), {});
   const events = Object.keys(MANIFEST).filter((e) => (settings.hooks?.[e] ?? []).some(isOurs));
   const config = loadConfig(root);
   const d = config.detector ?? {};
@@ -11668,7 +12118,7 @@ function status(root) {
   };
 }
 function mutateConfig(root, fn) {
-  const path = join11(root, CONFIG);
+  const path = join12(root, CONFIG);
   const config = readJson(path, { detector: { ignoreRules: [], ignoreFiles: [], ignoreValues: [] } });
   config.detector ??= {};
   config.detector.ignoreRules ??= [];
@@ -11679,7 +12129,7 @@ function mutateConfig(root, fn) {
   return path;
 }
 function setEnabled(root, enabled) {
-  const path = join11(root, CONFIG);
+  const path = join12(root, CONFIG);
   const config = readJson(path, {});
   config.hook = { ...config.hook ?? {}, enabled };
   writeJson(path, config);
@@ -11718,7 +12168,7 @@ function ignoreRule(root, rule) {
 var ESCALATION_NOTICE = "ignore-file and ignore-rule suppress far more than one finding, including rules that do not exist yet. Confirm with the user before running this, and never run it to get past a blocked write.";
 
 // engine/src/cli.mjs
-var HERE = dirname6(fileURLToPath(import.meta.url));
+var HERE2 = dirname7(fileURLToPath2(import.meta.url));
 var VERSION = "0.5.0";
 var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
@@ -11726,6 +12176,7 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
   airtight rules                    list loaded rules
   airtight map [paths...]           map HTTP entry points and nearby sinks
   airtight correlate [paths...]     correlate IaC exposure with application sinks
+  airtight mcp                      start Model Context Protocol (MCP) stdio server
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
@@ -11753,12 +12204,12 @@ Options
 `;
 function checkStaleRules(bundlePath) {
   try {
-    const rulesDir = join12(HERE, "..", "rules");
-    if (!existsSync8(rulesDir)) return;
+    const rulesDir = join13(HERE2, "..", "rules");
+    if (!existsSync9(rulesDir)) return;
     const bundleStat = statSync8(bundlePath);
     const yamlFiles = readdirSync6(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const f of yamlFiles) {
-      const yamlStat = statSync8(join12(rulesDir, f));
+      const yamlStat = statSync8(join13(rulesDir, f));
       if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
         process.stderr.write(
           `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules
@@ -11773,12 +12224,12 @@ function checkStaleRules(bundlePath) {
 function loadRules2(env) {
   const candidates = [
     env.AIRTIGHT_RULES,
-    join12(HERE, "..", "rules.json"),
-    join12(HERE, "..", "build", "rules.json")
+    join13(HERE2, "..", "rules.json"),
+    join13(HERE2, "..", "build", "rules.json")
   ].filter(Boolean);
   for (const path of candidates) {
     try {
-      const data = JSON.parse(readFileSync13(path, "utf8"));
+      const data = JSON.parse(readFileSync14(path, "utf8"));
       checkStaleRules(path);
       return compileAll(data);
     } catch (err) {
@@ -11814,7 +12265,7 @@ function getChangedFilesSince(root, ref) {
     });
     const set = new Set(
       `${diffOut}
-${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve7(root, p)).filter((p) => {
+${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve8(root, p)).filter((p) => {
         try {
           return statSync8(p).isFile();
         } catch {
@@ -11870,14 +12321,14 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.flags.since) {
     const changed = getChangedFilesSince(root, opts.flags.since);
     if (opts.paths.length) {
-      const targetPaths = opts.paths.map((p) => resolve7(root, p));
+      const targetPaths = opts.paths.map((p) => resolve8(root, p));
       files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith("/") ? t : `${t}/`)));
     } else {
       files = changed;
     }
   } else {
     const paths = opts.paths.length ? opts.paths : defaultPaths;
-    files = collectTargets(root, paths.map((p) => resolve7(root, p)));
+    files = collectTargets(root, paths.map((p) => resolve8(root, p)));
   }
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
   let findings = scanned.findings;
@@ -11887,7 +12338,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       const allDeps = [];
       for (const lf of lockfiles) {
         try {
-          const content = readFileSync13(lf, "utf8");
+          const content = readFileSync14(lf, "utf8");
           const parsed = parseLockfile(lf, content);
           if (parsed?.dependencies?.length) {
             allDeps.push(...parsed.dependencies);
@@ -11897,7 +12348,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       }
       if (allDeps.length > 0) {
         const advisories = queryOsv(allDeps, {
-          cacheDir: join12(root, ".airtight", "cache", "osv.json"),
+          cacheDir: join13(root, ".airtight", "cache", "osv.json"),
           offline: false
         });
         for (const adv of advisories) {
@@ -11932,7 +12383,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   }
   let baselineIgnored = 0;
   if (opts.flags.baseline) {
-    const baselineIds = loadBaseline(resolve7(root, opts.flags.baseline));
+    const baselineIds = loadBaseline(resolve8(root, opts.flags.baseline));
     const totalBefore = findings.length;
     findings = filterBaseline(findings, baselineIds);
     baselineIgnored = totalBefore - findings.length;
@@ -12179,7 +12630,7 @@ ${results.length} control(s): ${results.length - failing - broken - unverifiable
 function cmdSbom(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
-  const target = opts.paths.length ? resolve7(root, opts.paths[0]) : root;
+  const target = opts.paths.length ? resolve8(root, opts.paths[0]) : root;
   const sbom = generateCycloneDx({ root: target });
   io.out(sbom);
   return 0;
@@ -12259,6 +12710,8 @@ function run(argv, io = defaultIo(), env = process.env) {
         return cmdMap(rest, io, env);
       case "correlate":
         return cmdCorrelate(rest, io, env);
+      case "mcp":
+        return runMcpServer(io, env);
       case "findings":
         return cmdFindings(rest, io, env);
       case "context":
@@ -12299,7 +12752,16 @@ function isEntryPoint() {
   }
 }
 if (isEntryPoint()) {
-  process.exit(run(process.argv.slice(2)));
+  const result = run(process.argv.slice(2));
+  if (result && typeof result.then === "function") {
+    result.then((code) => process.exit(code ?? 0)).catch((err) => {
+      process.stderr.write(`airtight: ${err.message}
+`);
+      process.exit(1);
+    });
+  } else {
+    process.exit(result);
+  }
 }
 export {
   VERSION,

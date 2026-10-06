@@ -167,7 +167,7 @@ function parse(argv) {
 }
 
 const ENGINE_VERBS = new Set([
-  'detect', 'rules', 'map', 'correlate', 'findings', 'controls', 'context',
+  'detect', 'rules', 'map', 'correlate', 'mcp', 'findings', 'controls', 'context',
   'hook', 'hooks', 'engine-probe', 'sbom',
 ]);
 
@@ -217,6 +217,7 @@ Analysis and posture
   npx airtight rules            list loaded rules
   npx airtight map [paths]      map HTTP entry points and nearby sinks
   npx airtight correlate [paths] correlate IaC exposure with application sinks
+  npx airtight mcp              start Model Context Protocol (MCP) stdio server
   npx airtight sbom [paths]     generate CycloneDX 1.5 SBOM from lockfiles
   npx airtight findings <sub>   sync | list | accept | overdue
   npx airtight controls <sub>   verify | coverage

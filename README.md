@@ -11,7 +11,7 @@ an edit hook that catches the mechanical failures at the edit site.
 
 **[Documentation](docs/)** · [Getting started](docs/getting-started.md) ·
 [Rule reference](docs/rules.md) · [Harnesses](docs/harnesses.md) ·
-[Benchmark](docs/benchmark.md) · [Demo](demo/)
+[Benchmark](docs/benchmark.md) · [MCP server](docs/mcp.md) · [Demo](demo/)
 
 ## Why
 
