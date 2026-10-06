@@ -2,7 +2,7 @@
 
 # Commands
 
-11 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
+12 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
 
 ## Establish
 
@@ -87,6 +87,14 @@ IaC posture: Terraform, Kubernetes, containers
 *When to use:* Use when the user asks about cloud posture, IaC security, or container hardening.
 
 [Playbook](../skill/reference/infra.md)
+
+### `/airtight correlate [paths]`
+
+Correlate IaC exposure with application routes and sinks
+
+*When to use:* Use when the user wants to understand external attack surface exposure, bridge IaC ingress with application code, or verify whether code vulnerabilities are reachable from the internet.
+
+[Playbook](../skill/reference/correlate.md)
 
 ## Fix
 

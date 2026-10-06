@@ -4003,10 +4003,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep5, value } = collItem;
+        const { start, key, sep: sep6, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep5?.[0],
+          next: key ?? sep6?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -4020,7 +4020,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep5) {
+          if (!keyProps.anchor && !keyProps.tag && !sep6) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -4044,7 +4044,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep5 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep6 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -4060,7 +4060,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep5, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep6, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -4151,7 +4151,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep5 = "";
+        let sep6 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -4165,13 +4165,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep5 + cb;
-              sep5 = "";
+                comment += sep6 + cb;
+              sep6 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep5 += source;
+                sep6 += source;
               hasSpace = true;
               break;
             default:
@@ -4214,18 +4214,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep5, value } = collItem;
+        const { start, key, sep: sep6, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep5?.[0],
+          next: key ?? sep6?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep5 && !value) {
+          if (!props.anchor && !props.tag && !sep6 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -4279,8 +4279,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap2 && !sep5 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep5, null, props, onError);
+        if (!isMap2 && !sep6 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep6, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -4292,7 +4292,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep5 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep6 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -4303,8 +4303,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap2 && !props.found && ctx.options.strict) {
-              if (sep5)
-                for (const st of sep5) {
+              if (sep6)
+                for (const st of sep6) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -4321,7 +4321,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep5, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep6, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -4501,7 +4501,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep5 = "";
+      let sep6 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -4518,24 +4518,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep5 + indent.slice(trimIndent) + content;
-          sep5 = "\n";
+          value += sep6 + indent.slice(trimIndent) + content;
+          sep6 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep5 === " ")
-            sep5 = "\n";
-          else if (!prevMoreIndented && sep5 === "\n")
-            sep5 = "\n\n";
-          value += sep5 + indent.slice(trimIndent) + content;
-          sep5 = "\n";
+          if (sep6 === " ")
+            sep6 = "\n";
+          else if (!prevMoreIndented && sep6 === "\n")
+            sep6 = "\n\n";
+          value += sep6 + indent.slice(trimIndent) + content;
+          sep6 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep5 === "\n")
+          if (sep6 === "\n")
             value += "\n";
           else
-            sep5 = "\n";
+            sep6 = "\n";
         } else {
-          value += sep5 + content;
-          sep5 = " ";
+          value += sep6 + content;
+          sep6 = " ";
           prevMoreIndented = false;
         }
       }
@@ -4718,25 +4718,25 @@ var require_resolve_flow_scalar = __commonJS({
         trimBoth = /^[ \t]+|[ \t]+$/g;
       }
       let res = match[1].replace(trimEnd, "");
-      let sep5 = " ";
+      let sep6 = " ";
       let pos = line.lastIndex;
       while (match = line.exec(source)) {
         const lm = match[1].replace(trimBoth, "");
         if (lm === "") {
-          if (sep5 === "\n")
-            res += sep5;
+          if (sep6 === "\n")
+            res += sep6;
           else
-            sep5 = "\n";
+            sep6 = "\n";
         } else {
-          res += sep5 + lm;
-          sep5 = " ";
+          res += sep6 + lm;
+          sep6 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep5 + (match?.[1] ?? "");
+      return res + sep6 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -5546,14 +5546,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep5, value }) {
+    function stringifyItem({ start, key, sep: sep6, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep5)
-        for (const st of sep5)
+      if (sep6)
+        for (const st of sep6)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -6720,18 +6720,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep5;
+          let sep6;
           if (scalar.end) {
-            sep5 = scalar.end;
-            sep5.push(this.sourceToken);
+            sep6 = scalar.end;
+            sep6.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep5 = [this.sourceToken];
+            sep6 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep5 }]
+            items: [{ start, key: scalar, sep: sep6 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -6884,15 +6884,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep5 = it.sep;
-                  sep5.push(this.sourceToken);
+                  const sep6 = it.sep;
+                  sep6.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep5 }]
+                    items: [{ start: start2, key, sep: sep6 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -7086,13 +7086,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep5 = fc.end.splice(1, fc.end.length);
-            sep5.push(this.sourceToken);
+            const sep6 = fc.end.splice(1, fc.end.length);
+            sep6.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep5 }]
+              items: [{ start, key: fc, sep: sep6 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -7372,8 +7372,8 @@ var require_dist = __commonJS({
 
 // engine/src/cli.mjs
 import { execFileSync } from "node:child_process";
-import { readFileSync as readFileSync12, realpathSync as realpathSync2, statSync as statSync7, readdirSync as readdirSync5, existsSync as existsSync7 } from "node:fs";
-import { dirname as dirname6, join as join11, resolve as resolve6 } from "node:path";
+import { readFileSync as readFileSync13, realpathSync as realpathSync2, statSync as statSync8, readdirSync as readdirSync6, existsSync as existsSync8 } from "node:fs";
+import { dirname as dirname6, join as join12, resolve as resolve7 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // engine/src/findings.mjs
@@ -8974,7 +8974,7 @@ var LOCKFILE_FILENAMES = /* @__PURE__ */ new Set([
 ]);
 function detectLockfiles(root) {
   const found = [];
-  function walk3(dir) {
+  function walk4(dir) {
     let entries;
     try {
       entries = readdirSync3(dir, { withFileTypes: true });
@@ -8984,7 +8984,7 @@ function detectLockfiles(root) {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (SKIP_DIRS2.has(entry.name)) continue;
-        walk3(join3(dir, entry.name));
+        walk4(join3(dir, entry.name));
       } else if (entry.isFile()) {
         if (LOCKFILE_FILENAMES.has(entry.name)) {
           found.push(join3(dir, entry.name));
@@ -8992,7 +8992,7 @@ function detectLockfiles(root) {
       }
     }
   }
-  walk3(resolve2(root));
+  walk4(resolve2(root));
   return found;
 }
 function parsePackageLock(content, filePath) {
@@ -10193,22 +10193,512 @@ function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
   };
 }
 
+// engine/src/correlate.mjs
+import { readdirSync as readdirSync5, readFileSync as readFileSync6, statSync as statSync4, existsSync as existsSync2 } from "node:fs";
+import { join as join5, relative as relative4, resolve as resolve4, sep as sep4, basename as basename2 } from "node:path";
+var SKIP_DIRS4 = /* @__PURE__ */ new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  ".next",
+  ".nuxt",
+  ".cache",
+  "coverage",
+  "vendor",
+  "target",
+  ".venv",
+  "venv",
+  "__pycache__",
+  ".tox",
+  ".terraform",
+  ".gradle",
+  ".idea",
+  ".airtight"
+]);
+var FRAMEWORK_DEFAULT_PORTS = {
+  express: [3e3, 8080],
+  fastify: [3e3, 8080],
+  nextjs: [3e3],
+  nestjs: [3e3],
+  nuxt: [3e3],
+  sveltekit: [5173, 3e3],
+  flask: [5e3],
+  fastapi: [8e3],
+  django: [8e3],
+  spring: [8080],
+  gin: [8080],
+  cloudflare: [8787]
+};
+function* walk3(root, dir = root) {
+  let entries;
+  try {
+    entries = readdirSync5(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join5(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS4.has(entry.name)) continue;
+      yield* walk3(root, full);
+    } else if (entry.isFile()) {
+      yield full;
+    }
+  }
+}
+function parsePortNumber(val) {
+  if (val === null || val === void 0) return null;
+  const num = Number(val);
+  return Number.isInteger(num) && num > 0 && num <= 65535 ? num : null;
+}
+function portInRange(port, fromPort, toPort) {
+  if (port === null) return false;
+  const from = fromPort ?? 0;
+  const to = toPort ?? fromPort ?? 65535;
+  return port >= from && port <= to;
+}
+function portMatchesRule(port, rule) {
+  if (port === null) return false;
+  if (rule.targetPort && rule.targetPort === port) return true;
+  return portInRange(port, rule.fromPort, rule.toPort);
+}
+function extractIngressRules(paths = ["."], { root = process.cwd() } = {}) {
+  const ingressRules = [];
+  const targetDirs = (Array.isArray(paths) && paths.length > 0 ? paths : ["."]).map((p) => resolve4(root, p));
+  const seenFiles = /* @__PURE__ */ new Set();
+  const allFiles = [];
+  for (const target of targetDirs) {
+    if (!existsSync2(target)) continue;
+    const st = statSync4(target);
+    if (st.isDirectory()) {
+      for (const file of walk3(target)) {
+        if (!seenFiles.has(file)) {
+          seenFiles.add(file);
+          allFiles.push(file);
+        }
+      }
+    } else if (st.isFile()) {
+      if (!seenFiles.has(target)) {
+        seenFiles.add(target);
+        allFiles.push(target);
+      }
+    }
+  }
+  for (const file of allFiles) {
+    const relPath = relative4(root, file);
+    const base = basename2(file).toLowerCase();
+    if (file.endsWith(".tf")) {
+      let content;
+      try {
+        content = readFileSync6(file, "utf8");
+      } catch {
+        continue;
+      }
+      const parsed = parseHcl(content);
+      const doc = parsed.documents[0];
+      if (!doc || !doc.allBlocks) continue;
+      for (const b of doc.allBlocks) {
+        const address = b.address || "";
+        const attrs = b.attrs || {};
+        if (b.type === "ingress" && address.includes("security_group")) {
+          const cidrs = Array.isArray(attrs.cidr_blocks) ? attrs.cidr_blocks : [];
+          const isPublic = cidrs.includes("0.0.0.0/0") || cidrs.includes("::/0");
+          const fromPort = parsePortNumber(attrs.from_port);
+          const toPort = parsePortNumber(attrs.to_port) ?? fromPort;
+          const protocol = String(attrs.protocol || "tcp").toLowerCase();
+          ingressRules.push({
+            id: `${relPath}:${b.line || 1}`,
+            source: "terraform",
+            resource: address,
+            file: relPath,
+            line: b.line || 1,
+            protocol,
+            fromPort,
+            toPort,
+            isPublic,
+            cidr: isPublic ? "0.0.0.0/0" : cidrs.join(", ") || "internal"
+          });
+        }
+        if (address.includes("aws_vpc_security_group_ingress_rule")) {
+          const cidr = attrs.cidr_ipv4 || attrs.cidr_ipv6 || "";
+          const isPublic = cidr === "0.0.0.0/0" || cidr === "::/0";
+          const fromPort = parsePortNumber(attrs.from_port);
+          const toPort = parsePortNumber(attrs.to_port) ?? fromPort;
+          const protocol = String(attrs.ip_protocol || attrs.protocol || "tcp").toLowerCase();
+          ingressRules.push({
+            id: `${relPath}:${b.line || 1}`,
+            source: "terraform",
+            resource: address,
+            file: relPath,
+            line: b.line || 1,
+            protocol,
+            fromPort,
+            toPort,
+            isPublic,
+            cidr: cidr || "internal"
+          });
+        }
+        if (address.includes("google_compute_firewall")) {
+          const sources = Array.isArray(attrs.source_ranges) ? attrs.source_ranges : [];
+          const isPublic = sources.includes("0.0.0.0/0") || sources.includes("::/0");
+          let fromPort = null;
+          let toPort = null;
+          let protocol = "tcp";
+          if (b.blocks) {
+            for (const sub of b.blocks) {
+              if (sub.type === "allow" && sub.attrs) {
+                protocol = String(sub.attrs.protocol || "tcp").toLowerCase();
+                const ports = Array.isArray(sub.attrs.ports) ? sub.attrs.ports : [];
+                if (ports.length > 0) {
+                  const pNum = parsePortNumber(ports[0]);
+                  if (pNum) {
+                    fromPort = pNum;
+                    toPort = pNum;
+                  }
+                }
+              }
+            }
+          }
+          ingressRules.push({
+            id: `${relPath}:${b.line || 1}`,
+            source: "terraform",
+            resource: address,
+            file: relPath,
+            line: b.line || 1,
+            protocol,
+            fromPort,
+            toPort,
+            isPublic,
+            cidr: isPublic ? "0.0.0.0/0" : sources.join(", ") || "internal"
+          });
+        }
+        if (address.includes("azurerm_network_security_rule") || address.includes("azurerm_network_security_group")) {
+          const direction = String(attrs.direction || "").toLowerCase();
+          const access = String(attrs.access || "").toLowerCase();
+          if (direction === "inbound" && access === "allow") {
+            const prefix = String(attrs.source_address_prefix || "");
+            const isPublic = prefix === "*" || prefix === "Internet" || prefix === "0.0.0.0/0";
+            const destPort = String(attrs.destination_port_range || "");
+            const pNum = parsePortNumber(destPort);
+            ingressRules.push({
+              id: `${relPath}:${b.line || 1}`,
+              source: "terraform",
+              resource: address,
+              file: relPath,
+              line: b.line || 1,
+              protocol: String(attrs.protocol || "tcp").toLowerCase(),
+              fromPort: pNum,
+              toPort: pNum,
+              isPublic,
+              cidr: prefix || "internal"
+            });
+          }
+        }
+      }
+      continue;
+    }
+    if (file.endsWith(".yaml") || file.endsWith(".yml") || file.endsWith(".json") || file.endsWith(".template")) {
+      let content;
+      try {
+        content = readFileSync6(file, "utf8");
+      } catch {
+        continue;
+      }
+      const parsed = parseStructured(content);
+      if (!parsed.documents || parsed.documents.length === 0) continue;
+      for (const doc of parsed.documents) {
+        if (!doc || typeof doc !== "object") continue;
+        if (doc.services && typeof doc.services === "object") {
+          for (const [svcName, svc] of Object.entries(doc.services)) {
+            if (!svc || typeof svc !== "object") continue;
+            const isHostNetwork = svc.network_mode === "host";
+            if (Array.isArray(svc.ports)) {
+              for (const p of svc.ports) {
+                const str = String(p);
+                const parts = str.split(":");
+                let hostIp = "0.0.0.0";
+                let hostPort = null;
+                let containerPort = null;
+                if (parts.length === 3) {
+                  hostIp = parts[0];
+                  hostPort = parsePortNumber(parts[1]);
+                  containerPort = parsePortNumber(parts[2]);
+                } else if (parts.length === 2) {
+                  hostPort = parsePortNumber(parts[0]);
+                  containerPort = parsePortNumber(parts[1]);
+                } else if (parts.length === 1) {
+                  containerPort = parsePortNumber(parts[0]);
+                  hostPort = containerPort;
+                }
+                const isPublic = hostIp === "0.0.0.0" || hostIp === "" || hostIp === "::";
+                ingressRules.push({
+                  id: `${relPath}:${svcName}:${hostPort || containerPort}`,
+                  source: "compose",
+                  resource: `compose.services.${svcName}`,
+                  file: relPath,
+                  line: doc.__line || 1,
+                  protocol: "tcp",
+                  fromPort: hostPort || containerPort,
+                  toPort: hostPort || containerPort,
+                  hostPort,
+                  targetPort: containerPort,
+                  isPublic,
+                  cidr: isPublic ? "0.0.0.0/0" : hostIp
+                });
+              }
+            } else if (isHostNetwork) {
+              ingressRules.push({
+                id: `${relPath}:${svcName}:host`,
+                source: "compose",
+                resource: `compose.services.${svcName}`,
+                file: relPath,
+                line: doc.__line || 1,
+                protocol: "tcp",
+                fromPort: 1,
+                toPort: 65535,
+                isPublic: true,
+                cidr: "0.0.0.0/0 (host-network)"
+              });
+            }
+          }
+        }
+        if (doc.kind === "Service" && doc.spec && typeof doc.spec === "object") {
+          const type = doc.spec.type || "ClusterIP";
+          const isPublic = type === "LoadBalancer" || type === "NodePort";
+          const ports = Array.isArray(doc.spec.ports) ? doc.spec.ports : [];
+          for (const p of ports) {
+            const svcPort = parsePortNumber(p.port);
+            const targetPort = parsePortNumber(p.targetPort) ?? svcPort;
+            ingressRules.push({
+              id: `${relPath}:${doc.metadata?.name || "service"}:${svcPort}`,
+              source: "k8s",
+              resource: `k8s.service.${doc.metadata?.name || "service"}`,
+              file: relPath,
+              line: doc.__line || 1,
+              protocol: String(p.protocol || "TCP").toLowerCase(),
+              fromPort: targetPort,
+              toPort: targetPort,
+              svcPort,
+              isPublic,
+              cidr: isPublic ? "0.0.0.0/0 (LoadBalancer/NodePort)" : "ClusterIP (internal)"
+            });
+          }
+        }
+        if (doc.kind === "Ingress" && doc.spec && typeof doc.spec === "object") {
+          const rules = Array.isArray(doc.spec.rules) ? doc.spec.rules : [];
+          for (const r of rules) {
+            const host = r.host || "*";
+            const paths2 = r.http?.paths || [];
+            for (const pathObj of paths2) {
+              const portObj = pathObj.backend?.service?.port;
+              const portNum = parsePortNumber(portObj?.number ?? portObj);
+              if (portNum) {
+                ingressRules.push({
+                  id: `${relPath}:${doc.metadata?.name || "ingress"}:${portNum}`,
+                  source: "k8s",
+                  resource: `k8s.ingress.${doc.metadata?.name || "ingress"}`,
+                  file: relPath,
+                  line: doc.__line || 1,
+                  protocol: "tcp",
+                  fromPort: portNum,
+                  toPort: portNum,
+                  isPublic: true,
+                  cidr: `0.0.0.0/0 (Ingress: ${host})`
+                });
+              }
+            }
+          }
+        }
+        if (doc.Resources && typeof doc.Resources === "object") {
+          for (const [resName, res] of Object.entries(doc.Resources)) {
+            if (!res || typeof res !== "object") continue;
+            if (res.Type === "AWS::EC2::SecurityGroup" && res.Properties) {
+              const ingresses = Array.isArray(res.Properties.SecurityGroupIngress) ? res.Properties.SecurityGroupIngress : [];
+              for (const ing of ingresses) {
+                const cidr = ing.CidrIp || ing.CidrIpv6 || "";
+                const isPublic = cidr === "0.0.0.0/0" || cidr === "::/0";
+                const fromPort = parsePortNumber(ing.FromPort);
+                const toPort = parsePortNumber(ing.ToPort) ?? fromPort;
+                const protocol = String(ing.IpProtocol || "tcp").toLowerCase();
+                ingressRules.push({
+                  id: `${relPath}:${resName}:${fromPort}`,
+                  source: "cfn",
+                  resource: `cfn.resource.${resName}`,
+                  file: relPath,
+                  line: doc.__line || 1,
+                  protocol,
+                  fromPort,
+                  toPort,
+                  isPublic,
+                  cidr: isPublic ? "0.0.0.0/0" : cidr || "internal"
+                });
+              }
+            }
+            if (res.Type === "AWS::EC2::SecurityGroupIngress" && res.Properties) {
+              const cidr = res.Properties.CidrIp || res.Properties.CidrIpv6 || "";
+              const isPublic = cidr === "0.0.0.0/0" || cidr === "::/0";
+              const fromPort = parsePortNumber(res.Properties.FromPort);
+              const toPort = parsePortNumber(res.Properties.ToPort) ?? fromPort;
+              ingressRules.push({
+                id: `${relPath}:${resName}:${fromPort}`,
+                source: "cfn",
+                resource: `cfn.resource.${resName}`,
+                file: relPath,
+                line: doc.__line || 1,
+                protocol: String(res.Properties.IpProtocol || "tcp").toLowerCase(),
+                fromPort,
+                toPort,
+                isPublic,
+                cidr: isPublic ? "0.0.0.0/0" : cidr || "internal"
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+  return ingressRules;
+}
+function extractServicePorts(paths = ["."], { root = process.cwd() } = {}) {
+  const servicePorts = [];
+  const targetDirs = (Array.isArray(paths) && paths.length > 0 ? paths : ["."]).map((p) => resolve4(root, p));
+  const seenFiles = /* @__PURE__ */ new Set();
+  for (const target of targetDirs) {
+    if (!existsSync2(target)) continue;
+    const st = statSync4(target);
+    if (st.isDirectory()) {
+      for (const file of walk3(target)) {
+        if (!seenFiles.has(file)) {
+          seenFiles.add(file);
+        }
+      }
+    } else if (st.isFile()) {
+      seenFiles.add(target);
+    }
+  }
+  const explicitPortRe = /(?:\.listen\s*\(\s*(\d{2,5})\b|server\.port\s*[=:]\s*(\d{2,5})\b|PORT\s*=\s*(\d{2,5})\b|\.Run\s*\(\s*["']:(\d{2,5})["']|ListenAndServe\s*\(\s*["']:(\d{2,5})["']|port\s*=\s*(\d{2,5})\b)/;
+  for (const file of seenFiles) {
+    const ext = "." + file.split(".").pop();
+    if (![".js", ".ts", ".mjs", ".cjs", ".py", ".go", ".java", ".properties", ".yaml", ".yml"].includes(ext)) {
+      continue;
+    }
+    let content;
+    try {
+      content = readFileSync6(file, "utf8");
+    } catch {
+      continue;
+    }
+    const m = explicitPortRe.exec(content);
+    if (m) {
+      const port = parsePortNumber(m[1] || m[2] || m[3] || m[4] || m[5] || m[6]);
+      if (port) {
+        servicePorts.push({
+          file: relative4(root, file),
+          port
+        });
+      }
+    }
+  }
+  return servicePorts;
+}
+function correlateAttackSurface(paths = ["."], { root = process.cwd() } = {}) {
+  const mapResult = generateAttackSurfaceMap(paths, { root });
+  const ingressRules = extractIngressRules(paths, { root });
+  const servicePorts = extractServicePorts(paths, { root });
+  const publicIngressRules = ingressRules.filter((r) => r.isPublic);
+  const exposedRoutes = [];
+  const internalRoutes = [];
+  const attackPaths = [];
+  for (const route of mapResult.routes) {
+    const candidatePorts = /* @__PURE__ */ new Set();
+    const fileExplicit = servicePorts.find((sp) => sp.file === route.file);
+    if (fileExplicit) {
+      candidatePorts.add(fileExplicit.port);
+    } else if (servicePorts.length > 0) {
+      for (const sp of servicePorts) candidatePorts.add(sp.port);
+    }
+    const defaults = FRAMEWORK_DEFAULT_PORTS[route.framework] || [3e3, 8080];
+    for (const d of defaults) candidatePorts.add(d);
+    const matchingPublicIngress = [];
+    const matchingInternalIngress = [];
+    for (const p of candidatePorts) {
+      for (const rule of ingressRules) {
+        if (portMatchesRule(p, rule)) {
+          if (rule.isPublic) {
+            matchingPublicIngress.push({ port: p, rule });
+          } else {
+            matchingInternalIngress.push({ port: p, rule });
+          }
+        }
+      }
+    }
+    if (matchingPublicIngress.length > 0) {
+      route.exposure = "internet-facing";
+      route.ingressRules = matchingPublicIngress.map((m) => m.rule);
+      route.exposedPort = matchingPublicIngress[0].port;
+      exposedRoutes.push(route);
+      if (Array.isArray(route.sinks)) {
+        for (const sink of route.sinks) {
+          const pub = matchingPublicIngress[0].rule;
+          const attackPath = {
+            id: `${route.file}:${route.line}:${sink.line}`,
+            framework: route.framework,
+            method: route.method,
+            path: route.path,
+            routeFile: route.file,
+            routeLine: route.line,
+            sinkType: sink.type,
+            sinkLine: sink.line,
+            sinkSnippet: sink.snippet,
+            publicIngress: pub,
+            exposedPort: matchingPublicIngress[0].port,
+            riskLevel: "critical",
+            pathString: `Internet (0.0.0.0/0) -> ${pub.source} (${pub.cidr}:${matchingPublicIngress[0].port}) -> ${route.method} ${route.path} -> ${sink.type.toUpperCase()} Sink`
+          };
+          attackPaths.push(attackPath);
+        }
+      }
+    } else {
+      route.exposure = matchingInternalIngress.length > 0 ? "internal" : "unmapped";
+      internalRoutes.push(route);
+    }
+  }
+  return {
+    attackPaths,
+    exposedRoutes,
+    internalRoutes,
+    ingressRules,
+    servicePorts,
+    summary: {
+      totalIngressRules: ingressRules.length,
+      totalPublicIngressRules: publicIngressRules.length,
+      totalRoutes: mapResult.routes.length,
+      totalExposedRoutes: exposedRoutes.length,
+      totalInternalRoutes: internalRoutes.length,
+      totalAttackPaths: attackPaths.length,
+      frameworks: mapResult.summary.frameworks
+    }
+  };
+}
+
 // engine/src/osv.mjs
-import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync6, writeFileSync } from "node:fs";
-import { dirname as dirname2, join as join5, relative as relative4, resolve as resolve4 } from "node:path";
+import { existsSync as existsSync3, mkdirSync, readFileSync as readFileSync7, writeFileSync } from "node:fs";
+import { dirname as dirname2, join as join6, relative as relative5, resolve as resolve5 } from "node:path";
 function resolveCacheFile(cacheDir) {
   if (!cacheDir) {
-    return join5(process.cwd(), ".airtight", "cache", "osv.json");
+    return join6(process.cwd(), ".airtight", "cache", "osv.json");
   }
   if (cacheDir.endsWith(".json")) {
-    return resolve4(cacheDir);
+    return resolve5(cacheDir);
   }
-  return join5(resolve4(cacheDir), "osv.json");
+  return join6(resolve5(cacheDir), "osv.json");
 }
 function readCache(filePath) {
   try {
-    if (existsSync2(filePath)) {
-      const data = JSON.parse(readFileSync6(filePath, "utf8"));
+    if (existsSync3(filePath)) {
+      const data = JSON.parse(readFileSync7(filePath, "utf8"));
       if (data && typeof data === "object") return data;
     }
   } catch {
@@ -10369,7 +10859,7 @@ async function queryOsv(dependencies, { cacheDir, offline = false, timeoutMs = 3
     const cacheKey2 = `${dep.ecosystem}:${dep.name}@${dep.version}`;
     const vulns = cache2[cacheKey2];
     if (!Array.isArray(vulns) || vulns.length === 0) continue;
-    let relFile = dep.lockfile ? relative4(process.cwd(), resolve4(dep.lockfile)) : "lockfile";
+    let relFile = dep.lockfile ? relative5(process.cwd(), resolve5(dep.lockfile)) : "lockfile";
     relFile = relFile.replace(/\\/g, "/");
     for (const vuln of vulns) {
       if (!vuln || !vuln.id) continue;
@@ -10417,18 +10907,18 @@ async function queryOsv(dependencies, { cacheDir, offline = false, timeoutMs = 3
 }
 
 // engine/src/store.mjs
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, existsSync as existsSync3, statSync as statSync4 } from "node:fs";
-import { dirname as dirname3, join as join6 } from "node:path";
+import { readFileSync as readFileSync8, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, existsSync as existsSync4, statSync as statSync5 } from "node:fs";
+import { dirname as dirname3, join as join7 } from "node:path";
 var STORE_PATH = ".airtight/findings.ndjson";
 var ACTIVE = /* @__PURE__ */ new Set(["open", "verified", "regressed"]);
 function isActive(record) {
   return ACTIVE.has(record.status);
 }
 function load(root) {
-  const path = join6(root, STORE_PATH);
-  if (!existsSync3(path)) return /* @__PURE__ */ new Map();
+  const path = join7(root, STORE_PATH);
+  if (!existsSync4(path)) return /* @__PURE__ */ new Map();
   const out = /* @__PURE__ */ new Map();
-  for (const line of readFileSync7(path, "utf8").split("\n")) {
+  for (const line of readFileSync8(path, "utf8").split("\n")) {
     if (!line.trim()) continue;
     try {
       const rec = JSON.parse(line);
@@ -10440,13 +10930,13 @@ function load(root) {
 }
 function loadBaseline(pathOrRoot) {
   let filePath = pathOrRoot;
-  if (existsSync3(filePath) && statSync4(filePath).isDirectory()) {
-    filePath = join6(pathOrRoot, STORE_PATH);
+  if (existsSync4(filePath) && statSync5(filePath).isDirectory()) {
+    filePath = join7(pathOrRoot, STORE_PATH);
   }
-  if (!existsSync3(filePath)) {
+  if (!existsSync4(filePath)) {
     throw new Error(`baseline file not found: ${pathOrRoot}`);
   }
-  const content = readFileSync7(filePath, "utf8").trim();
+  const content = readFileSync8(filePath, "utf8").trim();
   const baselineIds = /* @__PURE__ */ new Set();
   if (content.startsWith("[") || content.startsWith("{")) {
     try {
@@ -10479,7 +10969,7 @@ function filterBaseline(findings, baselineIds) {
   });
 }
 function save(root, records) {
-  const path = join6(root, STORE_PATH);
+  const path = join7(root, STORE_PATH);
   mkdirSync2(dirname3(path), { recursive: true });
   const lines = [...records.values()].sort((a, b) => a.id.localeCompare(b.id)).map((r) => JSON.stringify(r));
   writeFileSync2(path, lines.length ? `${lines.join("\n")}
@@ -10571,18 +11061,18 @@ function summarize(store) {
 }
 
 // engine/src/context.mjs
-import { existsSync as existsSync5, readFileSync as readFileSync9, statSync as statSync5 } from "node:fs";
-import { join as join8 } from "node:path";
+import { existsSync as existsSync6, readFileSync as readFileSync10, statSync as statSync6 } from "node:fs";
+import { join as join9 } from "node:path";
 
 // engine/src/controls.mjs
-import { readFileSync as readFileSync8, existsSync as existsSync4 } from "node:fs";
-import { join as join7 } from "node:path";
+import { readFileSync as readFileSync9, existsSync as existsSync5 } from "node:fs";
+import { join as join8 } from "node:path";
 var CONTROLS_PATH = ".airtight/controls.json";
 function loadControls(root) {
-  const path = join7(root, CONTROLS_PATH);
-  if (!existsSync4(path)) return { schemaVersion: 1, controls: [] };
+  const path = join8(root, CONTROLS_PATH);
+  if (!existsSync5(path)) return { schemaVersion: 1, controls: [] };
   try {
-    const parsed = JSON.parse(readFileSync8(path, "utf8"));
+    const parsed = JSON.parse(readFileSync9(path, "utf8"));
     return { schemaVersion: parsed.schemaVersion ?? 1, controls: parsed.controls ?? [] };
   } catch (err) {
     throw new Error(`${CONTROLS_PATH} is not valid JSON: ${err.message}`);
@@ -10681,7 +11171,7 @@ function detectStack(root, ignoreFiles = []) {
     else if (base === "go.mod") stack.go = true;
     else if (/\.ya?ml$/.test(rel) && !rel.startsWith(".github/")) {
       try {
-        const head = readFileSync9(abs, "utf8").slice(0, 2048);
+        const head = readFileSync10(abs, "utf8").slice(0, 2048);
         if (/^\s*apiVersion:/m.test(head) && /^\s*kind:/m.test(head)) stack.kubernetes = true;
       } catch {
       }
@@ -10690,18 +11180,18 @@ function detectStack(root, ignoreFiles = []) {
   return stack;
 }
 function readIfPresent(root, name) {
-  const path = join8(root, name);
+  const path = join9(root, name);
   try {
-    return statSync5(path).isFile() ? readFileSync9(path, "utf8") : null;
+    return statSync6(path).isFile() ? readFileSync10(path, "utf8") : null;
   } catch {
     return null;
   }
 }
 function hookActive(root) {
-  const settings = join8(root, ".claude", "settings.json");
-  if (!existsSync5(settings)) return false;
+  const settings = join9(root, ".claude", "settings.json");
+  if (!existsSync6(settings)) return false;
   try {
-    return readFileSync9(settings, "utf8").includes("airtight");
+    return readFileSync10(settings, "utf8").includes("airtight");
   } catch {
     return false;
   }
@@ -10821,8 +11311,8 @@ ${JSON.stringify({
 }
 
 // engine/src/hook.mjs
-import { readFileSync as readFileSync10, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync6, realpathSync } from "node:fs";
-import { dirname as dirname4, join as join9, relative as relative5, resolve as resolve5, sep as sep4 } from "node:path";
+import { readFileSync as readFileSync11, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync7, realpathSync } from "node:fs";
+import { dirname as dirname4, join as join10, relative as relative6, resolve as resolve6, sep as sep5 } from "node:path";
 var ENVELOPE = "[airtight@1]";
 var CACHE_PATH = ".airtight/hook.cache.json";
 var MAX_SESSIONS = 8;
@@ -10882,14 +11372,14 @@ function payload(text, eventName, harness) {
 }
 function loadCache(root) {
   try {
-    return JSON.parse(readFileSync10(join9(root, CACHE_PATH), "utf8"));
+    return JSON.parse(readFileSync11(join10(root, CACHE_PATH), "utf8"));
   } catch {
     return { sessions: {} };
   }
 }
 function saveCache(root, cache2) {
   try {
-    if (!statSync6(join9(root, ".airtight")).isDirectory()) return;
+    if (!statSync7(join10(root, ".airtight")).isDirectory()) return;
   } catch {
     return;
   }
@@ -10898,8 +11388,8 @@ function saveCache(root, cache2) {
     for (const id of ids.slice(0, ids.length - MAX_SESSIONS)) delete cache2.sessions[id];
   }
   try {
-    mkdirSync3(dirname4(join9(root, CACHE_PATH)), { recursive: true });
-    writeFileSync3(join9(root, CACHE_PATH), JSON.stringify(cache2));
+    mkdirSync3(dirname4(join10(root, CACHE_PATH)), { recursive: true });
+    writeFileSync3(join10(root, CACHE_PATH), JSON.stringify(cache2));
   } catch {
   }
 }
@@ -10979,10 +11469,10 @@ function clampToBudget(text, maxChars) {
 }
 function loadRules(env, root) {
   const here = dirname4(new URL(import.meta.url).pathname);
-  for (const path of [env.AIRTIGHT_RULES, join9(here, "..", "rules.json"), join9(here, "..", "build", "rules.json")]) {
+  for (const path of [env.AIRTIGHT_RULES, join10(here, "..", "rules.json"), join10(here, "..", "build", "rules.json")]) {
     if (!path) continue;
     try {
-      return compileAll(JSON.parse(readFileSync10(path, "utf8")));
+      return compileAll(JSON.parse(readFileSync11(path, "utf8")));
     } catch {
     }
   }
@@ -11016,15 +11506,15 @@ function runHook(io, env, stdinText) {
   } else {
     rels = [];
     for (const p of resolveTargets(input)) {
-      const abs = resolve5(root, p);
+      const abs = resolve6(root, p);
       if (!insideProject(root, abs)) continue;
-      const rel = relative5(root, abs).split(sep4).join("/");
+      const rel = relative6(root, abs).split(sep5).join("/");
       if (rel.startsWith("..")) continue;
       if (GENERATED.test(`/${rel}`) || GENERATED_FILE.test(rel)) continue;
       if (!isScannable(rel)) continue;
       if (matchesAny(rel, config.detector?.ignoreFiles ?? [])) continue;
       try {
-        if (statSync6(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
+        if (statSync7(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
       } catch {
         continue;
       }
@@ -11040,7 +11530,7 @@ function runHook(io, env, stdinText) {
   const active = stop ? rules : immediateTier(rules);
   const { findings, vault } = scanFiles({
     root,
-    files: rels.map((r) => join9(root, r)),
+    files: rels.map((r) => join10(root, r)),
     rules: active,
     config,
     isSuppressed: buildFilter(config)
@@ -11102,15 +11592,15 @@ This write introduced a confirmed critical finding. Fix it before continuing.`);
 }
 function readStdin() {
   try {
-    return readFileSync10(0, "utf8");
+    return readFileSync11(0, "utf8");
   } catch {
     return "";
   }
 }
 
 // engine/src/hooks-admin.mjs
-import { readFileSync as readFileSync11, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname5, join as join10 } from "node:path";
+import { readFileSync as readFileSync12, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync7 } from "node:fs";
+import { dirname as dirname5, join as join11 } from "node:path";
 var SETTINGS = ".claude/settings.json";
 var CONFIG = ".airtight/config.json";
 var LAUNCHER = "${CLAUDE_PROJECT_DIR}/.claude/skills/airtight/scripts/airtight";
@@ -11126,7 +11616,7 @@ var MANIFEST = {
 };
 function readJson(path, fallback) {
   try {
-    return JSON.parse(readFileSync11(path, "utf8"));
+    return JSON.parse(readFileSync12(path, "utf8"));
   } catch {
     return fallback;
   }
@@ -11138,7 +11628,7 @@ function writeJson(path, value) {
 }
 var isOurs = (entry) => JSON.stringify(entry).includes("airtight");
 function install(root) {
-  const path = join10(root, SETTINGS);
+  const path = join11(root, SETTINGS);
   const settings = readJson(path, {});
   settings.hooks ??= {};
   for (const [event, entries] of Object.entries(MANIFEST)) {
@@ -11148,8 +11638,8 @@ function install(root) {
   return path;
 }
 function uninstall(root) {
-  const path = join10(root, SETTINGS);
-  if (!existsSync6(path)) return null;
+  const path = join11(root, SETTINGS);
+  if (!existsSync7(path)) return null;
   const settings = readJson(path, {});
   if (!settings.hooks) return null;
   for (const event of Object.keys(MANIFEST)) {
@@ -11161,7 +11651,7 @@ function uninstall(root) {
   return path;
 }
 function status(root) {
-  const settings = readJson(join10(root, SETTINGS), {});
+  const settings = readJson(join11(root, SETTINGS), {});
   const events = Object.keys(MANIFEST).filter((e) => (settings.hooks?.[e] ?? []).some(isOurs));
   const config = loadConfig(root);
   const d = config.detector ?? {};
@@ -11178,7 +11668,7 @@ function status(root) {
   };
 }
 function mutateConfig(root, fn) {
-  const path = join10(root, CONFIG);
+  const path = join11(root, CONFIG);
   const config = readJson(path, { detector: { ignoreRules: [], ignoreFiles: [], ignoreValues: [] } });
   config.detector ??= {};
   config.detector.ignoreRules ??= [];
@@ -11189,7 +11679,7 @@ function mutateConfig(root, fn) {
   return path;
 }
 function setEnabled(root, enabled) {
-  const path = join10(root, CONFIG);
+  const path = join11(root, CONFIG);
   const config = readJson(path, {});
   config.hook = { ...config.hook ?? {}, enabled };
   writeJson(path, config);
@@ -11235,6 +11725,7 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
   airtight detect [paths...]        scan for security findings (default: .)
   airtight rules                    list loaded rules
   airtight map [paths...]           map HTTP entry points and nearby sinks
+  airtight correlate [paths...]     correlate IaC exposure with application sinks
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
@@ -11246,6 +11737,8 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 Options
   --format <type>        output format: text, json, sarif (default: text)
   --json                 machine-readable output (alias for --format json)
+  --with-exposure        annotate route discovery with IaC exposure
+  --correlate            elevate findings on internet-facing routes to critical
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
   --count-by-pack        display rule counts broken down by pack
@@ -11260,12 +11753,12 @@ Options
 `;
 function checkStaleRules(bundlePath) {
   try {
-    const rulesDir = join11(HERE, "..", "rules");
-    if (!existsSync7(rulesDir)) return;
-    const bundleStat = statSync7(bundlePath);
-    const yamlFiles = readdirSync5(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+    const rulesDir = join12(HERE, "..", "rules");
+    if (!existsSync8(rulesDir)) return;
+    const bundleStat = statSync8(bundlePath);
+    const yamlFiles = readdirSync6(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const f of yamlFiles) {
-      const yamlStat = statSync7(join11(rulesDir, f));
+      const yamlStat = statSync8(join12(rulesDir, f));
       if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
         process.stderr.write(
           `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules
@@ -11280,12 +11773,12 @@ function checkStaleRules(bundlePath) {
 function loadRules2(env) {
   const candidates = [
     env.AIRTIGHT_RULES,
-    join11(HERE, "..", "rules.json"),
-    join11(HERE, "..", "build", "rules.json")
+    join12(HERE, "..", "rules.json"),
+    join12(HERE, "..", "build", "rules.json")
   ].filter(Boolean);
   for (const path of candidates) {
     try {
-      const data = JSON.parse(readFileSync12(path, "utf8"));
+      const data = JSON.parse(readFileSync13(path, "utf8"));
       checkStaleRules(path);
       return compileAll(data);
     } catch (err) {
@@ -11321,9 +11814,9 @@ function getChangedFilesSince(root, ref) {
     });
     const set = new Set(
       `${diffOut}
-${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve6(root, p)).filter((p) => {
+${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve7(root, p)).filter((p) => {
         try {
-          return statSync7(p).isFile();
+          return statSync8(p).isFile();
         } catch {
           return false;
         }
@@ -11346,6 +11839,8 @@ function parseArgs(argv) {
     else if (a === "--no-config") opts.useConfig = false;
     else if (a === "--pack") opts.packs.push(argv[++i]);
     else if (a === "--count-by-pack") opts.flags["count-by-pack"] = true;
+    else if (a === "--with-exposure") opts.flags["with-exposure"] = true;
+    else if (a === "--correlate") opts.flags["correlate"] = true;
     else if (a === "--file") (opts.files ??= []).push(argv[++i]);
     else if (a === "--tier") opts.tier = argv[++i];
     else if (FLAGS_WITH_VALUES.has(a)) opts.flags[a.slice(2)] = argv[++i];
@@ -11375,14 +11870,14 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.flags.since) {
     const changed = getChangedFilesSince(root, opts.flags.since);
     if (opts.paths.length) {
-      const targetPaths = opts.paths.map((p) => resolve6(root, p));
+      const targetPaths = opts.paths.map((p) => resolve7(root, p));
       files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith("/") ? t : `${t}/`)));
     } else {
       files = changed;
     }
   } else {
     const paths = opts.paths.length ? opts.paths : defaultPaths;
-    files = collectTargets(root, paths.map((p) => resolve6(root, p)));
+    files = collectTargets(root, paths.map((p) => resolve7(root, p)));
   }
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
   let findings = scanned.findings;
@@ -11392,7 +11887,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       const allDeps = [];
       for (const lf of lockfiles) {
         try {
-          const content = readFileSync12(lf, "utf8");
+          const content = readFileSync13(lf, "utf8");
           const parsed = parseLockfile(lf, content);
           if (parsed?.dependencies?.length) {
             allDeps.push(...parsed.dependencies);
@@ -11402,7 +11897,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       }
       if (allDeps.length > 0) {
         const advisories = queryOsv(allDeps, {
-          cacheDir: join11(root, ".airtight", "cache", "osv.json"),
+          cacheDir: join12(root, ".airtight", "cache", "osv.json"),
           offline: false
         });
         for (const adv of advisories) {
@@ -11417,9 +11912,27 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.useConfig && config.severityOverrides && Object.keys(config.severityOverrides).length > 0) {
     findings = applySeverityOverrides(findings, config.severityOverrides);
   }
+  if (opts.flags.correlate) {
+    try {
+      const targetPaths = opts.paths.length ? opts.paths : defaultPaths;
+      const correlation = correlateAttackSurface(targetPaths, { root });
+      if (correlation.attackPaths.length > 0) {
+        for (const ap of correlation.attackPaths) {
+          for (const f of findings) {
+            if (f.file === ap.routeFile) {
+              if (Math.abs(f.line - ap.sinkLine) <= 5 || Math.abs(f.line - ap.routeLine) <= 30) {
+                f.severity = "critical";
+              }
+            }
+          }
+        }
+      }
+    } catch {
+    }
+  }
   let baselineIgnored = 0;
   if (opts.flags.baseline) {
-    const baselineIds = loadBaseline(resolve6(root, opts.flags.baseline));
+    const baselineIds = loadBaseline(resolve7(root, opts.flags.baseline));
     const totalBefore = findings.length;
     findings = filterBaseline(findings, baselineIds);
     baselineIgnored = totalBefore - findings.length;
@@ -11666,7 +12179,7 @@ ${results.length} control(s): ${results.length - failing - broken - unverifiable
 function cmdSbom(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
-  const target = opts.paths.length ? resolve6(root, opts.paths[0]) : root;
+  const target = opts.paths.length ? resolve7(root, opts.paths[0]) : root;
   const sbom = generateCycloneDx({ root: target });
   io.out(sbom);
   return 0;
@@ -11675,8 +12188,50 @@ function cmdMap(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
   const paths = opts.paths.length ? opts.paths : ["."];
+  if (opts.flags["with-exposure"]) {
+    const correlation = correlateAttackSurface(paths, { root });
+    io.out(JSON.stringify(correlation, null, 2));
+    return 0;
+  }
   const attackMap = generateAttackSurfaceMap(paths, { root });
   io.out(JSON.stringify(attackMap, null, 2));
+  return 0;
+}
+function cmdCorrelate(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ["."];
+  const correlation = correlateAttackSurface(paths, { root });
+  if (opts.json) {
+    io.out(JSON.stringify(correlation, null, 2));
+    return correlation.attackPaths.length > 0 ? 2 : 0;
+  }
+  const { summary, attackPaths, ingressRules, servicePorts } = correlation;
+  io.out("airtight: cross-layer exposure correlation");
+  io.out(`  ingress rules: ${summary.totalPublicIngressRules} public, ${ingressRules.length - summary.totalPublicIngressRules} internal`);
+  io.out(`  discovered service ports: ${servicePorts.length ? servicePorts.map((sp) => sp.port).join(", ") : "none"}`);
+  io.out(`  routes analyzed: ${summary.totalRoutes} (${summary.totalExposedRoutes} internet-facing, ${summary.totalInternalRoutes} internal/unmapped)`);
+  io.out(`  correlated attack paths: ${summary.totalAttackPaths}`);
+  if (attackPaths.length > 0) {
+    io.out("\n[!] Discovered Attack Paths:");
+    for (const ap of attackPaths) {
+      io.out(`
+  [CRITICAL] ${ap.sinkType.toUpperCase()} Sink reachable from Internet`);
+      io.out(`    Exposure: ${ap.publicIngress.source} (${ap.publicIngress.cidr} -> port ${ap.exposedPort})`);
+      io.out(`    Route:    ${ap.method} ${ap.path} (${ap.routeFile}:${ap.routeLine})`);
+      io.out(`    Sink:     ${ap.sinkSnippet || ap.sinkType} (${ap.routeFile}:${ap.sinkLine})`);
+      io.out("    Attack Path Graph:");
+      io.out("      Internet [0.0.0.0/0]");
+      io.out(`      \u2502 (port ${ap.exposedPort} via ${ap.publicIngress.source})`);
+      io.out("      \u25BC");
+      io.out(`      ${ap.method} ${ap.path} (${ap.framework})`);
+      io.out("      \u2502");
+      io.out("      \u25BC");
+      io.out(`      Sink: ${ap.sinkType.toUpperCase()} (${ap.routeFile}:${ap.sinkLine})`);
+    }
+    return 2;
+  }
+  io.out("\nNo exposed attack paths discovered.");
   return 0;
 }
 function run(argv, io = defaultIo(), env = process.env) {
@@ -11702,6 +12257,8 @@ function run(argv, io = defaultIo(), env = process.env) {
         return cmdRules(rest, io, env);
       case "map":
         return cmdMap(rest, io, env);
+      case "correlate":
+        return cmdCorrelate(rest, io, env);
       case "findings":
         return cmdFindings(rest, io, env);
       case "context":

@@ -42,5 +42,9 @@
   "attest": {
     "description": "Export machine-verified control evidence and audit artifacts for SOC 2, ISO 27001, or internal compliance. Verifies automated controls, checks SLA overdue status, and generates proof packages. Use when preparing for a security audit, verifying SOC 2 or ISO compliance, or exporting control evidence.",
     "argumentHint": "[framework]"
+  },
+  "correlate": {
+    "description": "Correlate infrastructure ingress rules with application HTTP routes and sinks, constructing end-to-end Attack Path Graphs. Use when the user wants to understand external attack surface exposure, bridge IaC ingress with application code, or verify whether code vulnerabilities are reachable from the internet.",
+    "argumentHint": "[paths]"
   }
 }

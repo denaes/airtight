@@ -20,6 +20,7 @@ import { renderJson, renderText } from './render.mjs';
 import { renderSarif } from './render-sarif.mjs';
 import { generateCycloneDx } from './sbom.mjs';
 import { generateAttackSurfaceMap } from './map.mjs';
+import { correlateAttackSurface } from './correlate.mjs';
 import { detectLockfiles, parseLockfile } from './lockfile.mjs';
 import { queryOsv } from './osv.mjs';
 import * as store from './store.mjs';
@@ -36,6 +37,7 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
   airtight detect [paths...]        scan for security findings (default: .)
   airtight rules                    list loaded rules
   airtight map [paths...]           map HTTP entry points and nearby sinks
+  airtight correlate [paths...]     correlate IaC exposure with application sinks
   airtight findings <sub>           sync | list | accept | overdue
   airtight controls <sub>           verify | coverage
   airtight context                  project truth and session directives
@@ -47,6 +49,8 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
 Options
   --format <type>        output format: text, json, sarif (default: text)
   --json                 machine-readable output (alias for --format json)
+  --with-exposure        annotate route discovery with IaC exposure
+  --correlate            elevate findings on internet-facing routes to critical
   --tier immediate       only the rules the edit hook may interrupt on
   --pack <name>          restrict to one rule pack (repeatable)
   --count-by-pack        display rule counts broken down by pack
@@ -142,6 +146,8 @@ function parseArgs(argv) {
     else if (a === '--no-config') opts.useConfig = false;
     else if (a === '--pack') opts.packs.push(argv[++i]);
     else if (a === '--count-by-pack') opts.flags['count-by-pack'] = true;
+    else if (a === '--with-exposure') opts.flags['with-exposure'] = true;
+    else if (a === '--correlate') opts.flags['correlate'] = true;
     else if (a === '--file') (opts.files ??= []).push(argv[++i]);
     else if (a === '--tier') opts.tier = argv[++i];
     else if (FLAGS_WITH_VALUES.has(a)) opts.flags[a.slice(2)] = argv[++i];
@@ -221,6 +227,26 @@ function runScan(opts, env, { defaultPaths = ['.'] } = {}) {
 
   if (opts.useConfig && config.severityOverrides && Object.keys(config.severityOverrides).length > 0) {
     findings = applySeverityOverrides(findings, config.severityOverrides);
+  }
+
+  if (opts.flags.correlate) {
+    try {
+      const targetPaths = opts.paths.length ? opts.paths : defaultPaths;
+      const correlation = correlateAttackSurface(targetPaths, { root });
+      if (correlation.attackPaths.length > 0) {
+        for (const ap of correlation.attackPaths) {
+          for (const f of findings) {
+            if (f.file === ap.routeFile) {
+              if (Math.abs(f.line - ap.sinkLine) <= 5 || Math.abs(f.line - ap.routeLine) <= 30) {
+                f.severity = 'critical';
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Correlation fail-open guarantee
+    }
   }
 
   let baselineIgnored = 0;
@@ -496,8 +522,54 @@ function cmdMap(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
   const paths = opts.paths.length ? opts.paths : ['.'];
+  if (opts.flags['with-exposure']) {
+    const correlation = correlateAttackSurface(paths, { root });
+    io.out(JSON.stringify(correlation, null, 2));
+    return 0;
+  }
   const attackMap = generateAttackSurfaceMap(paths, { root });
   io.out(JSON.stringify(attackMap, null, 2));
+  return 0;
+}
+
+function cmdCorrelate(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ['.'];
+  const correlation = correlateAttackSurface(paths, { root });
+
+  if (opts.json) {
+    io.out(JSON.stringify(correlation, null, 2));
+    return correlation.attackPaths.length > 0 ? 2 : 0;
+  }
+
+  const { summary, attackPaths, ingressRules, servicePorts } = correlation;
+  io.out('airtight: cross-layer exposure correlation');
+  io.out(`  ingress rules: ${summary.totalPublicIngressRules} public, ${ingressRules.length - summary.totalPublicIngressRules} internal`);
+  io.out(`  discovered service ports: ${servicePorts.length ? servicePorts.map((sp) => sp.port).join(', ') : 'none'}`);
+  io.out(`  routes analyzed: ${summary.totalRoutes} (${summary.totalExposedRoutes} internet-facing, ${summary.totalInternalRoutes} internal/unmapped)`);
+  io.out(`  correlated attack paths: ${summary.totalAttackPaths}`);
+
+  if (attackPaths.length > 0) {
+    io.out('\n[!] Discovered Attack Paths:');
+    for (const ap of attackPaths) {
+      io.out(`\n  [CRITICAL] ${ap.sinkType.toUpperCase()} Sink reachable from Internet`);
+      io.out(`    Exposure: ${ap.publicIngress.source} (${ap.publicIngress.cidr} -> port ${ap.exposedPort})`);
+      io.out(`    Route:    ${ap.method} ${ap.path} (${ap.routeFile}:${ap.routeLine})`);
+      io.out(`    Sink:     ${ap.sinkSnippet || ap.sinkType} (${ap.routeFile}:${ap.sinkLine})`);
+      io.out('    Attack Path Graph:');
+      io.out('      Internet [0.0.0.0/0]');
+      io.out(`      │ (port ${ap.exposedPort} via ${ap.publicIngress.source})`);
+      io.out('      ▼');
+      io.out(`      ${ap.method} ${ap.path} (${ap.framework})`);
+      io.out('      │');
+      io.out('      ▼');
+      io.out(`      Sink: ${ap.sinkType.toUpperCase()} (${ap.routeFile}:${ap.sinkLine})`);
+    }
+    return 2;
+  }
+
+  io.out('\nNo exposed attack paths discovered.');
   return 0;
 }
 
@@ -515,6 +587,7 @@ export function run(argv, io = defaultIo(), env = process.env) {
       case 'detect': return cmdDetect(rest, io, env);
       case 'rules': return cmdRules(rest, io, env);
       case 'map': return cmdMap(rest, io, env);
+      case 'correlate': return cmdCorrelate(rest, io, env);
       case 'findings': return cmdFindings(rest, io, env);
       case 'context': return cmdContext(rest, io, env);
       case 'sbom': return cmdSbom(rest, io, env);
