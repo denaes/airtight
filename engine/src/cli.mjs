@@ -314,10 +314,11 @@ function cmdRules(argv, io, env) {
     return 0;
   }
   if (opts.json) { io.out(JSON.stringify(rules.map(stripCompiled), null, 2)); return 0; }
-  for (const r of rules) {
-    io.out(`${r.id.padEnd(40)} ${`${r.severity}/${r.confidence}`.padEnd(20)} ${r.tier.padEnd(9)} ${r.name}`);
-  }
-  io.out(`\n${rules.length} rule(s).`);
+  const lines = rules.map((r) =>
+    `${r.id.padEnd(40)} ${`${r.severity}/${r.confidence}`.padEnd(20)} ${r.tier.padEnd(9)} ${r.name}`
+  );
+  lines.push(`\n${rules.length} rule(s).`);
+  io.out(lines.join('\n'));
   return 0;
 }
 
@@ -678,14 +679,30 @@ function isEntryPoint() {
   }
 }
 
+function safeExit(code = 0) {
+  process.exitCode = code;
+  try { process.stdout._handle?.setBlocking?.(true); } catch {}
+  try { process.stderr._handle?.setBlocking?.(true); } catch {}
+  if (process.stdout.writableLength > 0 || process.stderr.writableLength > 0) {
+    let pending = 2;
+    const done = () => {
+      if (--pending <= 0) process.exit(code);
+    };
+    process.stdout.write('', done);
+    process.stderr.write('', done);
+  } else {
+    process.exit(code);
+  }
+}
+
 if (isEntryPoint()) {
   const result = run(process.argv.slice(2));
   if (result && typeof result.then === 'function') {
-    result.then((code) => process.exit(code ?? 0)).catch((err) => {
+    result.then((code) => safeExit(code ?? 0)).catch((err) => {
       process.stderr.write(`airtight: ${err.message}\n`);
-      process.exit(1);
+      safeExit(1);
     });
   } else {
-    process.exit(result);
+    safeExit(result);
   }
 }

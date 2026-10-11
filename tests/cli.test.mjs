@@ -21,7 +21,7 @@ const BUNDLE = resolve(ROOT, 'skill/scripts/engine/airtight.mjs');
 // spawnSync rather than execFileSync: warnings go to stderr, and
 // execFileSync discards stderr on success, which silently hid two assertions.
 function run(args, opts = {}) {
-  const r = spawnSync(process.execPath, args, { encoding: 'utf8', ...opts });
+  const r = spawnSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, ...opts });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 

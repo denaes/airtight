@@ -407,4 +407,20 @@ function isEntryPoint() {
   }
 }
 
-if (isEntryPoint()) process.exit(await main());
+function safeExit(code = 0) {
+  process.exitCode = code;
+  try { process.stdout._handle?.setBlocking?.(true); } catch {}
+  try { process.stderr._handle?.setBlocking?.(true); } catch {}
+  if (process.stdout.writableLength > 0 || process.stderr.writableLength > 0) {
+    let pending = 2;
+    const done = () => {
+      if (--pending <= 0) process.exit(code);
+    };
+    process.stdout.write('', done);
+    process.stderr.write('', done);
+  } else {
+    process.exit(code);
+  }
+}
+
+if (isEntryPoint()) safeExit(await main());
