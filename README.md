@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.5.0, installable from npm across 18 harnesses. Engine with 236
+> **Status:** v0.6.0, installable from npm across 18 harnesses. Engine with 236
 > rules, findings store, control register, 13 commands, edit hook, installer,
 > docs, and a demo. Benchmarked against 14 real repositories; see
 > [docs/benchmark.md](docs/benchmark.md) for what that
@@ -237,7 +237,7 @@ credential in three files is three edits to make but one key to rotate.
 Scan pull requests and push findings to GitHub Code Scanning via the composite action:
 
 ```yaml
-- uses: denaes/airtight@v0.5.0
+- uses: denaes/airtight@v0.6.0
   with:
     paths: '.'
     format: 'sarif'

@@ -5,6 +5,19 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-11
+
+### Added
+- **Automated Remediation Engine (`airtight fix`)**: Added `airtight fix [paths...]` command with automated surgical patch generation for unambiguous, mechanical rules across Docker Compose, CI/CD Actions SHA pinning, git secret hygiene, CloudFormation, Terraform, and insecure client options. Supports `--dry-run` git-compatible unified diff generation.
+- **Native Model Context Protocol (MCP) Server (`airtight mcp`)**: Zero-dependency stdio JSON-RPC 2.0 server exposing 7 native security tools (`airtight_detect`, `airtight_map`, `airtight_correlate`, `airtight_fix`, `airtight_findings`, `airtight_controls`, `airtight_sbom`) directly to agent IDE environments (Claude Desktop, Cursor, Windsurf, Cline, Zed).
+- **Cross-Layer Ingress & Exposure Correlation (`airtight correlate` / `map --with-exposure`)**: Correlates IaC network exposure (Terraform, CloudFormation, Kubernetes, Compose) with application listening ports across 10 frameworks. Elevates findings reachable from `0.0.0.0/0` to Critical (P0) with attack path visualization.
+- **CVSS 3.1 Scoring Engine**: Generates deterministic CVSS 3.1 vector strings and base scores for detected findings and SARIF / MCP exports.
+- **Rule Pack Expansion (236 rules)**: Added 36 new deterministic security rules covering GitHub Actions CI/CD workflows (`gh/`), CloudFormation (`cfn/`), Helm (`helm/`), Cloudflare Workers (`cloudflare/`), Nuxt 3, and SvelteKit.
+- **Real-World Infrastructure Benchmarks**: Expanded benchmark suite in `scripts/benchmark.mjs` measuring real-world repositories with sub-second latencies.
+
+### Changed
+- **CLI Process Stream Flushes**: Hardened `airtight` CLI wrapper and engine exit handlers (`safeExit`) with blocking stream mode and write drain callbacks to prevent stdout pipe truncation in spawned subshells and CI runners.
+
 ## [0.5.0] - 2026-10-04
 
 ### Added
