@@ -39,7 +39,7 @@ Read the actual library or framework behaviour when it matters. Do not assume a 
 
 ## Verdicts
 
-- **`confirmed`** — you tried to disprove it and could not. Give the exploit path in concrete terms: what an attacker sends, what happens, what they get.
+- **`confirmed`** — you tried to disprove it and could not. Give the exploit path as a concrete, non-destructive proof-of-concept (safe canary curl command, minimal HTTP request, or reproduction test snippet) showing what an attacker sends, what executes, and what is extracted.
 - **`plausible`** — the mechanism is real and one link is unproven. Name exactly which link, and what would settle it. This is a legitimate verdict, not a hedge; use it rather than rounding to confirmed.
 - **`refuted`** — you found the reason it does not hold. Name it and cite the file and line that shows it.
 
@@ -53,7 +53,7 @@ SEVERITY: <as given, or revised with the reason>
 CONFIDENCE: confirmed | firm | tentative
 EVIDENCE: <what you read, and where: file:line>
 REASONING: <two to four sentences: what you tried, and what decided it>
-EXPLOIT PATH: <concrete, when confirmed; the missing link, when plausible; omit when refuted>
+EXPLOIT PATH / POC: <concrete, non-destructive proof-of-concept when confirmed; the missing link when plausible; omit when refuted>
 ```
 
 Do not soften a refutation. The parent reports your verdict verbatim and has no authority to overturn it.

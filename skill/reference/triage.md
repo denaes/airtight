@@ -1,17 +1,20 @@
-Ingest, deduplicate, and triage third-party scanner reports (SARIF, Snyk, Dependabot, Trivy). Turn raw scanner alerts into actionable findings ranked by actual reachability.
+Ingest, deduplicate, and triage third-party scanner and penetration test reports (SARIF, Snyk, Dependabot, Trivy, Strix / pentest Markdown). Turn raw scanner alerts and offensive testing findings into actionable findings ranked by actual reachability.
 
-Third-party scanners are high-volume, low-context tools. They detect patterns and flag CVEs without knowing whether the code is reachable, whether compensating controls exist, or whether the package is a dev-only CLI tool. Triage filters the noise, verifies reachability, and integrates confirmed findings into Airtight's lifecycle.
+Third-party scanners and autonomous pen-test agents are high-volume tools. Scanners detect patterns and flag CVEs without knowing reachability, while pentest agents (such as Strix Claude Code) generate exploit PoCs that may target staging or test environments. Triage filters the noise, correlates offensive findings with local source code sinks, verifies reachability, and integrates confirmed findings into Airtight's lifecycle.
 
 ## Run
 
-1. **Read the report file**: Inspect the format (SARIF 2.1.0 JSON, Snyk CLI JSON, GitHub Dependabot alert export, or Trivy JSON).
-2. **Extract raw findings**: Extract rule ID, scanner source, file path, line numbers, CWE, CVSS score, and description.
+1. **Read the report file**: Inspect the format:
+   - **Machine scanners**: SARIF 2.1.0 JSON, Snyk CLI JSON, GitHub Dependabot alert export, or Trivy JSON.
+   - **Penetration test reports**: Markdown assessments (e.g. Strix reports with `### Title`, `**Severity:**`, `**CVSS Vector:**`, `#### Proof of Concept`).
+2. **Extract raw findings**: Extract rule/finding ID, source tool, file path/endpoint, line numbers, CWE, CVSS 3.1 score and vector, and PoC details.
 3. **Filter test paths & vendored noise**: Apply Airtight's test path policy. Test fixtures, mock servers, and demo files are downgraded or suppressed unless they contain real committed secrets.
-4. **Deduplicate across tools**: If Trivy, Snyk, and Dependabot all flag CVE-2024-XXXXX in the same lockfile, merge them into a single finding with multiple citations.
-5. **Verify reachability**:
+4. **Deduplicate across tools & static rules**: If Trivy, Snyk, and Dependabot all flag CVE-2024-XXXXX in the same lockfile, or if a Strix SQLi finding corresponds to a sink already flagged by `js/sql-template-concat`, merge them into a single finding citing both the offensive PoC and the static rule.
+5. **Verify reachability & local impact**:
    - For SAST findings (SARIF): Inspect the reported source file and line. Is the sink reachable from an untrusted entry point?
    - For SCA / dependency findings: Check whether the vulnerable function is actually imported and invoked, or whether it resides in an unimported sub-module or devDependency.
-6. **Assign Airtight priority**: Map scanner severities to P0-P3 based on real impact and reachability per [severity.md](severity.md). An "unreachable Critical" is P3 or informational; a "reachable High" in an auth path is P0.
+   - For dynamic / pentest findings (Strix): Trace the affected endpoint back to the application's routes using `airtight map`. If the finding was triggered against a live URL, verify that the vulnerable route exists in the current working tree.
+6. **Assign Airtight priority**: Map scanner and pentest severities to P0-P3 based on real impact and reachability per [severity.md](severity.md). When a CVSS 3.1 vector is provided, calculate the base score with `airtight_cvss`: scores ≥9.0 map to P0, ≥7.0 to P1, ≥4.0 to P2, <4.0 to P3. An "unreachable Critical" is downgraded to P3 or informational.
 
 ## Report
 

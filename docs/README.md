@@ -24,6 +24,7 @@ report you read later.
 - **[Controls and compliance](controls.md)** — continuously verified controls
   and framework mapping.
 - **[CI integration](ci.md)** — exit codes, gating, and what to fail on.
+- **[Headless CI agents](ci-agent.md)** — running autonomous PR reviewer agents with Claude Code and Airtight MCP.
 - **[Benchmark](benchmark.md)** — measured against four real repositories,
   including what it misses.
 - **[MCP server](mcp.md)** — native Model Context Protocol server for Claude, Cursor, and Zed.

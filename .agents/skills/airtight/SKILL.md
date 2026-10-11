@@ -45,6 +45,7 @@ Airtight reads hostile input by design. Source code from unknown authors, depend
 | `supply-chain` | Evaluate | CI/CD hardening, provenance, and build integrity | [reference/supply-chain.md](reference/supply-chain.md) |
 | `infra` | Evaluate | IaC posture: Terraform, Kubernetes, containers | [reference/infra.md](reference/infra.md) |
 | `correlate [paths]` | Evaluate | Correlate IaC exposure with application routes and sinks | [reference/correlate.md](reference/correlate.md) |
+| `fix [paths]` | Fix | Surgically patch mechanical security findings with diff preview | [reference/fix.md](reference/fix.md) |
 | `harden [target]` | Fix | Apply remediations in triage order and verify once | [reference/harden.md](reference/harden.md) |
 
 Routing:

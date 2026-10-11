@@ -351,4 +351,38 @@ test('cli sbom emits valid CycloneDX 1.5 JSON', () => {
   }
 });
 
+test('cli fix supports --dry-run and --json', () => {
+  const dir = project();
+  try {
+    const composeFile = join(dir, 'docker-compose.yml');
+    writeFileSync(composeFile, 'services:\n  redis:\n    image: redis\n    privileged: true\n');
+
+    // 1. Dry run output
+    const dryRun = run([CLI, 'fix', '--dry-run', '.'], { cwd: dir });
+    assert.equal(dryRun.code, 0, dryRun.out);
+    assert.match(dryRun.out, /previewing/);
+    assert.match(dryRun.out, /\[dry-run\] No files were modified/);
+    assert.match(dryRun.out, /privileged: true/);
+
+    // 2. JSON output
+    const jsonRes = run([CLI, 'fix', '--dry-run', '--json', '.'], { cwd: dir });
+    assert.equal(jsonRes.code, 0, jsonRes.out);
+    const parsed = JSON.parse(jsonRes.out);
+    assert.equal(parsed.dryRun, true);
+    assert.equal(parsed.filesCount, 1);
+    assert.equal(parsed.fixedCount, 1);
+
+    // 3. Apply fix
+    const applyRes = run([CLI, 'fix', '.'], { cwd: dir });
+    assert.equal(applyRes.code, 0, applyRes.out);
+    assert.match(applyRes.out, /Successfully applied fixes/);
+
+    const after = readFileSync(composeFile, 'utf8');
+    assert.doesNotMatch(after, /privileged: true/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+
 

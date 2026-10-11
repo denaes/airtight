@@ -35,6 +35,8 @@ const REPOS = [
   { repo: 'juice-shop/juice-shop', kind: 'vulnerable', suite: 'app', note: 'OWASP flagship modern vulnerable web app' },
   { repo: 'fastify/fastify', kind: 'clean', suite: 'app', note: 'actively maintained HTTP framework' },
   { repo: 'expressjs/express', kind: 'clean', suite: 'app', note: 'actively maintained HTTP framework' },
+  { repo: 'nestjs/typescript-starter', kind: 'clean', suite: 'app', note: 'official NestJS TypeScript starter template' },
+  { repo: 'nuxt/starter', kind: 'clean', suite: 'app', note: 'official Nuxt 3 starter template' },
   { repo: 'gin-gonic/gin', kind: 'clean', suite: 'app', note: 'high-performance Go web framework' },
   { repo: 'pallets/flask', kind: 'clean', suite: 'app', note: 'actively maintained Python web framework' },
   { repo: 'psf/requests', kind: 'clean', suite: 'app', note: 'actively maintained HTTP client' },
@@ -43,6 +45,8 @@ const REPOS = [
   { repo: 'bridgecrewio/terragoat', kind: 'vulnerable', suite: 'infra', note: 'Bridgecrew vulnerable Terraform benchmark' },
   { repo: 'bridgecrewio/k8sgoat', kind: 'vulnerable', suite: 'infra', note: 'Kubernetes intentionally vulnerable benchmark scenarios' },
   { repo: 'terraform-aws-modules/terraform-aws-vpc', kind: 'clean', suite: 'infra', note: 'Standard AWS VPC Terraform module' },
+  { repo: 'aws-samples/serverless-patterns', kind: 'clean', suite: 'infra', note: 'Official AWS Serverless SAM and CloudFormation patterns' },
+  { repo: 'helm/examples', kind: 'clean', suite: 'infra', note: 'Official Helm chart examples and templates' },
 ];
 
 const REPO_URL_OVERRIDES = {

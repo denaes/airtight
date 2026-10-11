@@ -112,6 +112,7 @@ Add to `~/.config/zed/settings.json`:
 | `airtight_findings` | Inspect and manage tracked findings | `action` (`list`, `sync`, `overdue`), `status` |
 | `airtight_controls` | Verify SOC 2 / ISO 27001 compliance controls | `sub` (`verify`, `coverage`), `framework` |
 | `airtight_sbom` | Generate CycloneDX 1.5 SBOM in JSON | `path` |
+| `airtight_cvss` | Calculate and parse CVSS 3.1 base scores, severity, and vector strings | `vector`, `metrics` |
 
 ---
 

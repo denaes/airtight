@@ -105,7 +105,7 @@ test('MCP server lists all Airtight tools with inputSchema', async () => {
 
     assert.strictEqual(client.responses.length, 1);
     const { tools } = client.responses[0].result;
-    assert.strictEqual(tools.length, 7);
+    assert.strictEqual(tools.length, 9);
 
     const names = tools.map((t) => t.name);
     assert.ok(names.includes('airtight_detect'));
@@ -115,6 +115,8 @@ test('MCP server lists all Airtight tools with inputSchema', async () => {
     assert.ok(names.includes('airtight_findings'));
     assert.ok(names.includes('airtight_controls'));
     assert.ok(names.includes('airtight_sbom'));
+    assert.ok(names.includes('airtight_cvss'));
+    assert.ok(names.includes('airtight_fix'));
 
     for (const tool of tools) {
       assert.ok(tool.description);
@@ -125,7 +127,7 @@ test('MCP server lists all Airtight tools with inputSchema', async () => {
   }
 });
 
-test('MCP server executes airtight_rules and airtight_sbom tools', async () => {
+test('MCP server executes airtight_rules, airtight_sbom, and airtight_cvss tools', async () => {
   const client = createMockMcpClient();
   try {
     // 1. airtight_rules
@@ -163,6 +165,27 @@ test('MCP server executes airtight_rules and airtight_sbom tools', async () => {
     const sbom = JSON.parse(sbomRes.content[0].text);
     assert.strictEqual(sbom.bomFormat, 'CycloneDX');
     assert.strictEqual(sbom.specVersion, '1.5');
+
+    // 3. airtight_cvss
+    await client.send({
+      jsonrpc: '2.0',
+      id: 12,
+      method: 'tools/call',
+      params: {
+        name: 'airtight_cvss',
+        arguments: {
+          vector: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H',
+        },
+      },
+    });
+
+    assert.strictEqual(client.responses.length, 3);
+    const cvssRes = client.responses[2].result;
+    assert.strictEqual(cvssRes.content[0].type, 'text');
+    const cvssData = JSON.parse(cvssRes.content[0].text);
+    assert.strictEqual(cvssData.score, 9.8);
+    assert.strictEqual(cvssData.severity, 'critical');
+    assert.strictEqual(cvssData.priority, 'P0');
   } finally {
     client.close();
   }

@@ -4,8 +4,8 @@ Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
 > **Status:** v0.5.0, installable from npm across 18 harnesses. Engine with 236
-> rules, findings store, control register, 12 commands, edit hook, installer,
-> docs, and a demo. Benchmarked against 10 real repositories; see
+> rules, findings store, control register, 13 commands, edit hook, installer,
+> docs, and a demo. Benchmarked against 14 real repositories; see
 > [docs/benchmark.md](docs/benchmark.md) for what that
 > covers and what it does not.
 
@@ -108,7 +108,7 @@ hardcoded private keys, unverified JWTs, public RDS instances, and privileged co
 
 ## Commands
 
-`skill/` is the source of truth. 12 commands in three categories:
+`skill/` is the source of truth. 13 commands in three categories:
 
 | Command | Category | Does |
 |---|---|---|
@@ -123,7 +123,8 @@ hardcoded private keys, unverified JWTs, public RDS instances, and privileged co
 | `correlate` | Evaluate | Cross-layer IaC exposure & application sink graph |
 | `triage` | Evaluate | Reconcile external scanner reports (SARIF, Snyk, Dependabot) |
 | `attest` | Evaluate | Machine-verified control evidence for SOC 2 / ISO 27001 |
-| `harden` | Fix | The only command that edits |
+| `fix` | Fix | Surgically patch mechanical security findings with diff preview |
+| `harden` | Fix | Interactive triage and remediation for complex findings |
 
 Both subagents are read-only by construction, and there is a test that fails if
 either gains `Write`. They exist to read hostile content and report on it; an

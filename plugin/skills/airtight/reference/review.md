@@ -30,6 +30,8 @@ Spawn both, then wait for both.
 
 **Then verify.** Every finding from A that claims exploitability goes to `airtight-verifier` before it enters the report. Findings from B that are `confirmed` skip verification; findings from B that are `tentative` go through it too.
 
+**Coverage checkpoint.** Before synthesis, audit coverage: did the review evaluate authentication, object-level authorization (IDOR/tenancy), input sanitization, and the specific trust boundaries declared in THREATS.md? Cross-check against the relevant framework card in [frameworks/](frameworks/) and class checklists in [classes/](classes/). Explicitly note evaluated boundaries in the report.
+
 ### Synthesis
 
 Merge, do not concatenate. A finding that both assessments found is one finding with two sources of evidence and higher confidence, not two entries.
@@ -70,7 +72,7 @@ For each, most severe first:
 - **Class**: CWE-nnn, and the OWASP category if it has one
 - **Reach**: who can trigger this — unauthenticated, any user, admin only, requires another bug
 - **Impact**: what they get
-- **Evidence**: the traced path, the rule that fired, or the verifier's verdict
+- **Evidence / PoC**: the traced path, the rule that fired, the verifier's verdict, and a concrete non-destructive reproduction snippet (canary curl payload or minimal test)
 - **Fix**: the specific change, not the principle
 - **Confidence**: confirmed | firm | tentative, and what would settle it if tentative
 

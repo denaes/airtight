@@ -21,6 +21,8 @@ import { detectLockfiles, parseLockfile } from './lockfile.mjs';
 import { queryOsv } from './osv.mjs';
 import * as store from './store.mjs';
 import { loadControls, verifyControls, frameworkCoverage, frameworksIn } from './controls.mjs';
+import { calculateCvss31, parseCvssVector } from './cvss.mjs';
+import { applyFixes } from './fix.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SERVER_NAME = 'airtight';
@@ -173,6 +175,55 @@ export const TOOLS = [
         path: {
           type: 'string',
           description: 'Target repository root (default: current directory)',
+        },
+      },
+    },
+  },
+  {
+    name: 'airtight_cvss',
+    description: 'Calculate CVSS 3.1 base score, severity rating, and vector from metrics or parse an existing CVSS 3.1 vector string.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vector: {
+          type: 'string',
+          description: 'CVSS 3.1 vector string to parse and score (e.g. "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")',
+        },
+        metrics: {
+          type: 'object',
+          description: 'CVSS 3.1 base metrics: av (N/A/L/P), ac (L/H), pr (N/L/H), ui (N/R), s (U/C), c (N/L/H), i (N/L/H), a (N/L/H)',
+          properties: {
+            av: { type: 'string', enum: ['N', 'A', 'L', 'P'] },
+            ac: { type: 'string', enum: ['L', 'H'] },
+            pr: { type: 'string', enum: ['N', 'L', 'H'] },
+            ui: { type: 'string', enum: ['N', 'R'] },
+            s: { type: 'string', enum: ['U', 'C'] },
+            c: { type: 'string', enum: ['N', 'L', 'H'] },
+            i: { type: 'string', enum: ['N', 'L', 'H'] },
+            a: { type: 'string', enum: ['N', 'L', 'H'] },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: 'airtight_fix',
+    description: 'Preview or apply automated surgical fixes for unambiguous mechanical security findings (Docker Compose privileged/host mode, unpinned CI actions, gitignore secrets, TLS verify flags, EBS/SQS encryption).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Paths to inspect and fix (default: ["."])',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'If true, returns unified diffs without modifying files on disk (default: true for MCP safety)',
+        },
+        rule: {
+          type: 'string',
+          description: 'Restrict fix to a specific rule ID',
         },
       },
     },
@@ -364,6 +415,29 @@ export async function handleToolCall(name, args = {}, { root = process.cwd(), en
       const sbom = generateCycloneDx({ root: target });
       return {
         content: [{ type: 'text', text: sbom }],
+      };
+    }
+
+    case 'airtight_cvss': {
+      let result;
+      if (args.vector) {
+        result = parseCvssVector(args.vector);
+      } else {
+        result = calculateCvss31(args.metrics || {});
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
+    case 'airtight_fix': {
+      const paths = args.paths?.length ? args.paths : ['.'];
+      const dryRun = args.dryRun !== false; // Default true for safety
+      const ruleFilter = args.rule || null;
+      const rules = loadRulesBundle(env);
+      const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };
     }
 

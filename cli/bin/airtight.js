@@ -167,7 +167,7 @@ function parse(argv) {
 }
 
 const ENGINE_VERBS = new Set([
-  'detect', 'rules', 'map', 'correlate', 'mcp', 'findings', 'controls', 'context',
+  'detect', 'rules', 'fix', 'map', 'correlate', 'mcp', 'findings', 'controls', 'context',
   'hook', 'hooks', 'engine-probe', 'sbom',
 ]);
 
@@ -215,6 +215,7 @@ Harness management
 Analysis and posture
   npx airtight detect [paths]   scan for security findings (default: .)
   npx airtight rules            list loaded rules
+  npx airtight fix [paths]      preview or apply automated surgical fixes
   npx airtight map [paths]      map HTTP entry points and nearby sinks
   npx airtight correlate [paths] correlate IaC exposure with application sinks
   npx airtight mcp              start Model Context Protocol (MCP) stdio server

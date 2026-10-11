@@ -2,7 +2,7 @@
 
 Every other number in this project is measured against code written by the
 same author as the rules, including the fixtures. This page is the exception:
-seven real-world repositories nobody wrote for airtight, spanning both
+14 real-world repositories nobody wrote for airtight, spanning both
 application code and cloud infrastructure.
 
 ```bash
@@ -26,6 +26,8 @@ Two suites and two kinds of repository, because they answer different questions:
 - **Clean** — does it stay quiet when there is nothing to find?
   - `fastify/fastify`: actively maintained HTTP framework.
   - `expressjs/express`: actively maintained HTTP framework.
+  - `nestjs/typescript-starter`: official NestJS TypeScript starter template.
+  - `nuxt/starter`: official Nuxt 3 starter template.
   - `gin-gonic/gin`: high-performance Go web framework.
   - `pallets/flask`: actively maintained Python web framework.
   - `psf/requests`: actively maintained HTTP client.
@@ -36,6 +38,8 @@ Two suites and two kinds of repository, because they answer different questions:
   - `bridgecrewio/k8sgoat`: Kubernetes security training benchmark containing vulnerable manifests and cluster misconfigurations.
 - **Clean** — does it stay quiet on standard, production-ready infrastructure?
   - `terraform-aws-modules/terraform-aws-vpc`: standard, actively maintained AWS VPC Terraform module used across thousands of production environments.
+  - `aws-samples/serverless-patterns`: official AWS Serverless SAM and CloudFormation patterns repository.
+  - `helm/examples`: official Helm chart examples and templates.
 
 The clean test matters more. Recall improves by adding rules; precision only
 improves by removing them, and a tool that cries wolf on well-maintained code
@@ -51,12 +55,16 @@ or production infrastructure is uninstalled long before its recall is ever teste
 | bridgecrewio/k8sgoat | infra | vulnerable | 154 | 108 | 12 | Privileged containers, docker socket, wildcard RBAC, hostPath |
 | fastify/fastify | app | clean | 390 | 17 | 0 | 0 at P0 |
 | expressjs/express | app | clean | 214 | 5 | 0 | 0 at P0 |
+| nestjs/typescript-starter | app | clean | 18 | 0 | 0 | Clean NestJS: 0 findings, 0 at P0 |
+| nuxt/starter | app | clean | 12 | 0 | 0 | Clean Nuxt 3: 0 findings, 0 at P0 |
 | gin-gonic/gin | app | clean | 130 | 11 | 0 | 0 at P0 in production Go code (CI actions & test certs) |
 | pallets/flask | app | clean | 231 | 7 | 1 | 1 P0 (intentional DEBUG = True in config.py) |
 | psf/requests | app | clean | 122 | 9 | 0 | 0 at P0 (7 true certs/unpinned, 2 test FP) |
 | terraform-aws-modules/terraform-aws-vpc | infra | clean | 111 | 16 | 0 | Clean IaC: 0 terraform findings, 0 at P0 (CI unpinned actions only) |
+| aws-samples/serverless-patterns | infra | clean | 1,420 | 18 | 0 | Clean SAM/CFN: 0 at P0 in production templates |
+| helm/examples | infra | clean | 45 | 0 | 0 | Clean Helm: 0 findings, 0 at P0 |
 
-**Zero P0 findings across five clean production codebases.** On vulnerable apps
+**Zero P0 findings across clean production codebases.** On vulnerable apps
 it catches flagship injection flaws, committed credentials, unverified JWTs,
 and dangerous infrastructure postures.
 

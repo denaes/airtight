@@ -21,6 +21,7 @@ import { renderSarif } from './render-sarif.mjs';
 import { generateCycloneDx } from './sbom.mjs';
 import { generateAttackSurfaceMap } from './map.mjs';
 import { correlateAttackSurface } from './correlate.mjs';
+import { applyFixes } from './fix.mjs';
 import { runMcpServer } from './mcp.mjs';
 import { detectLockfiles, parseLockfile } from './lockfile.mjs';
 import { queryOsv } from './osv.mjs';
@@ -37,6 +38,7 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
   airtight rules                    list loaded rules
+  airtight fix [paths...]           preview or apply automated surgical fixes
   airtight map [paths...]           map HTTP entry points and nearby sinks
   airtight correlate [paths...]     correlate IaC exposure with application sinks
   airtight mcp                      start Model Context Protocol (MCP) stdio server
@@ -51,6 +53,8 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
 Options
   --format <type>        output format: text, json, sarif (default: text)
   --json                 machine-readable output (alias for --format json)
+  --dry-run              preview unified diffs without modifying files
+  --rule <id>            restrict fix to a specific rule
   --with-exposure        annotate route discovery with IaC exposure
   --correlate            elevate findings on internet-facing routes to critical
   --tier immediate       only the rules the edit hook may interrupt on
@@ -107,7 +111,7 @@ function loadRules(env) {
 
 const FLAGS_WITH_VALUES = new Set([
   '--tier', '--pack', '--status', '--framework', '--reason', '--approver',
-  '--expires', '--fingerprint', '--baseline', '--since', '--format',
+  '--expires', '--fingerprint', '--baseline', '--since', '--format', '--rule',
 ]);
 
 function getChangedFilesSince(root, ref) {
@@ -146,6 +150,7 @@ function parseArgs(argv) {
     if (a === '--json') { opts.json = true; opts.format = 'json'; }
     else if (a === '--format') opts.format = argv[++i];
     else if (a === '--no-config') opts.useConfig = false;
+    else if (a === '--dry-run') opts.flags['dry-run'] = true;
     else if (a === '--pack') opts.packs.push(argv[++i]);
     else if (a === '--count-by-pack') opts.flags['count-by-pack'] = true;
     else if (a === '--with-exposure') opts.flags['with-exposure'] = true;
@@ -575,6 +580,42 @@ function cmdCorrelate(argv, io, env) {
   return 0;
 }
 
+function cmdFix(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = (opts.paths.length === 1 && existsSync(opts.paths[0]) && statSync(opts.paths[0]).isDirectory())
+    ? resolve(opts.paths[0])
+    : process.cwd();
+  const paths = opts.paths.length ? opts.paths : ['.'];
+  const dryRun = Boolean(opts.flags['dry-run']);
+  const ruleFilter = opts.flags.rule || null;
+  const rules = loadRules(env);
+
+  const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
+
+  if (opts.json) {
+    io.out(JSON.stringify(result, null, 2));
+    return 0;
+  }
+
+  if (result.filesCount === 0) {
+    io.out('airtight fix: no fixable mechanical findings found.');
+    return 0;
+  }
+
+  io.out(`airtight fix: ${dryRun ? 'previewing' : 'applied'} fixes across ${result.filesCount} file(s) (${result.fixedCount} finding(s)):`);
+  for (const diffObj of result.diffs) {
+    io.out(`\n# File: ${diffObj.file} (${diffObj.rules.join(', ')})`);
+    io.out(diffObj.diff);
+  }
+
+  if (dryRun) {
+    io.out('\n[dry-run] No files were modified. Re-run without --dry-run to apply these fixes.');
+  } else {
+    io.out(`\n[ok] Successfully applied fixes.${result.storeUpdated ? ' Updated .airtight/findings.ndjson.' : ''}`);
+  }
+  return 0;
+}
+
 export function run(argv, io = defaultIo(), env = process.env) {
   const [verb, ...rest] = argv;
   try {
@@ -588,6 +629,7 @@ export function run(argv, io = defaultIo(), env = process.env) {
       case 'engine-probe': io.out(`airtight-engine ${VERSION}`); return 0;
       case 'detect': return cmdDetect(rest, io, env);
       case 'rules': return cmdRules(rest, io, env);
+      case 'fix': return cmdFix(rest, io, env);
       case 'map': return cmdMap(rest, io, env);
       case 'correlate': return cmdCorrelate(rest, io, env);
       case 'mcp': return runMcpServer(io, env);

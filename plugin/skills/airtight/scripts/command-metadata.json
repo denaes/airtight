@@ -46,5 +46,9 @@
   "correlate": {
     "description": "Correlate infrastructure ingress rules with application HTTP routes and sinks, constructing end-to-end Attack Path Graphs. Use when the user wants to understand external attack surface exposure, bridge IaC ingress with application code, or verify whether code vulnerabilities are reachable from the internet.",
     "argumentHint": "[paths]"
+  },
+  "fix": {
+    "description": "Surgically patch unambiguous mechanical security findings with unified diff preview (Docker Compose privileged/host mode, CI action pinning, gitignore secrets, TLS verify flags, EBS/SQS encryption). Use when the user asks to automatically fix mechanical findings, apply safe automated remediation, or preview fixes with dry-run diffs.",
+    "argumentHint": "[paths]"
   }
 }

@@ -2,7 +2,7 @@
 
 # Commands
 
-12 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
+13 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
 
 ## Establish
 
@@ -97,6 +97,14 @@ Correlate IaC exposure with application routes and sinks
 [Playbook](../skill/reference/correlate.md)
 
 ## Fix
+
+### `/airtight fix [paths]`
+
+Surgically patch mechanical security findings with diff preview
+
+*When to use:* Use when the user asks to automatically fix mechanical findings, apply safe automated remediation, or preview fixes with dry-run diffs.
+
+[Playbook](../skill/reference/fix.md)
 
 ### `/airtight harden [target]`
 

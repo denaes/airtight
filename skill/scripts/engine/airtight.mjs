@@ -7371,9 +7371,9 @@ var require_dist = __commonJS({
 });
 
 // engine/src/cli.mjs
-import { execFileSync } from "node:child_process";
-import { readFileSync as readFileSync14, realpathSync as realpathSync2, statSync as statSync8, readdirSync as readdirSync6, existsSync as existsSync9 } from "node:fs";
-import { dirname as dirname7, join as join13, resolve as resolve8 } from "node:path";
+import { execFileSync as execFileSync2 } from "node:child_process";
+import { readFileSync as readFileSync15, realpathSync as realpathSync2, statSync as statSync9, readdirSync as readdirSync6, existsSync as existsSync10 } from "node:fs";
+import { dirname as dirname8, join as join14, resolve as resolve9 } from "node:path";
 import { fileURLToPath as fileURLToPath2, pathToFileURL } from "node:url";
 
 // engine/src/findings.mjs
@@ -10683,28 +10683,521 @@ function correlateAttackSurface(paths = ["."], { root = process.cwd() } = {}) {
   };
 }
 
+// engine/src/fix.mjs
+import { execFileSync } from "node:child_process";
+import { existsSync as existsSync4, readFileSync as readFileSync8, writeFileSync as writeFileSync2, statSync as statSync6 } from "node:fs";
+import { join as join7, relative as relative5, resolve as resolve5, dirname as dirname3 } from "node:path";
+
+// engine/src/store.mjs
+import { readFileSync as readFileSync7, writeFileSync, mkdirSync, existsSync as existsSync3, statSync as statSync5 } from "node:fs";
+import { dirname as dirname2, join as join6 } from "node:path";
+var STORE_PATH = ".airtight/findings.ndjson";
+var ACTIVE = /* @__PURE__ */ new Set(["open", "verified", "regressed"]);
+function isActive(record) {
+  return ACTIVE.has(record.status);
+}
+function load(root) {
+  const path = join6(root, STORE_PATH);
+  if (!existsSync3(path)) return /* @__PURE__ */ new Map();
+  const out = /* @__PURE__ */ new Map();
+  for (const line of readFileSync7(path, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec?.id) out.set(rec.id, rec);
+    } catch {
+    }
+  }
+  return out;
+}
+function loadBaseline(pathOrRoot) {
+  let filePath = pathOrRoot;
+  if (existsSync3(filePath) && statSync5(filePath).isDirectory()) {
+    filePath = join6(pathOrRoot, STORE_PATH);
+  }
+  if (!existsSync3(filePath)) {
+    throw new Error(`baseline file not found: ${pathOrRoot}`);
+  }
+  const content = readFileSync7(filePath, "utf8").trim();
+  const baselineIds = /* @__PURE__ */ new Set();
+  if (content.startsWith("[") || content.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(content);
+      const list = Array.isArray(parsed) ? parsed : parsed.findings ?? [];
+      for (const item of list) {
+        if (item.id) baselineIds.add(item.id);
+        if (item.valueFingerprint) baselineIds.add(item.valueFingerprint);
+      }
+      return baselineIds;
+    } catch {
+    }
+  }
+  for (const line of content.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec.id) baselineIds.add(rec.id);
+      if (rec.valueFingerprint) baselineIds.add(rec.valueFingerprint);
+    } catch {
+    }
+  }
+  return baselineIds;
+}
+function filterBaseline(findings, baselineIds) {
+  return findings.filter((f) => {
+    if (baselineIds.has(f.id)) return false;
+    if (f.valueFingerprint && baselineIds.has(f.valueFingerprint)) return false;
+    return true;
+  });
+}
+function save(root, records) {
+  const path = join6(root, STORE_PATH);
+  mkdirSync(dirname2(path), { recursive: true });
+  const lines = [...records.values()].sort((a, b) => a.id.localeCompare(b.id)).map((r) => JSON.stringify(r));
+  writeFileSync(path, lines.length ? `${lines.join("\n")}
+` : "");
+  return lines.length;
+}
+var day = 864e5;
+function dueDate(firstSeen, severity) {
+  const days = SLA_DAYS[severity] ?? SLA_DAYS.low;
+  return new Date(Date.parse(firstSeen) + days * day).toISOString();
+}
+function reconcile(store, findings, { now = (/* @__PURE__ */ new Date()).toISOString() } = {}) {
+  const seen = /* @__PURE__ */ new Set();
+  const events = { added: 0, regressed: 0, fixed: 0, unchanged: 0, waiverExpired: 0 };
+  const next = new Map(store);
+  for (const f of findings) {
+    seen.add(f.id);
+    const prior = next.get(f.id);
+    if (!prior) {
+      next.set(f.id, {
+        id: f.id,
+        rule: f.rule,
+        title: f.title,
+        domain: f.domain,
+        severity: f.severity,
+        confidence: f.confidence,
+        disposition: f.disposition,
+        cwe: f.cwe,
+        owasp: f.owasp,
+        location: `${f.file}:${f.line}`,
+        status: "open",
+        provenance: f.provenance,
+        evidence: [],
+        owner: null,
+        firstSeen: now,
+        lastSeen: now,
+        due: dueDate(now, f.severity),
+        ...f.valueFingerprint ? { valueFingerprint: f.valueFingerprint } : {}
+      });
+      events.added += 1;
+      continue;
+    }
+    const updated = { ...prior, lastSeen: now, location: `${f.file}:${f.line}` };
+    if (prior.status === "fixed") {
+      updated.status = "regressed";
+      updated.regressedAt = now;
+      events.regressed += 1;
+    } else if (prior.status === "accepted" && prior.waiver?.expires && Date.parse(prior.waiver.expires) < Date.parse(now)) {
+      updated.status = "open";
+      updated.waiverExpiredAt = now;
+      events.waiverExpired += 1;
+    } else {
+      events.unchanged += 1;
+    }
+    next.set(f.id, updated);
+  }
+  for (const [id, rec] of next) {
+    if (seen.has(id) || !isActive(rec)) continue;
+    next.set(id, { ...rec, status: "fixed", fixedAt: now });
+    events.fixed += 1;
+  }
+  return { records: next, events };
+}
+function accept(store, id, { reason, approver, expires, now = (/* @__PURE__ */ new Date()).toISOString(), waiverPolicy } = {}) {
+  const rec = store.get(id);
+  if (!rec) throw new Error(`no finding with id ${id}`);
+  if (!reason || !approver) {
+    throw new Error("accepting a finding requires both --reason and --approver");
+  }
+  if (waiverPolicy) {
+    validateWaiverPolicy({ waiverPolicy, reason, approver, expires, now });
+  }
+  const next = new Map(store);
+  next.set(id, { ...rec, status: "accepted", waiver: { reason, approver, expires: expires ?? null, acceptedAt: now } });
+  return next;
+}
+function overdue(store, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  const t = Date.parse(now);
+  return [...store.values()].filter((r) => isActive(r) && r.due && Date.parse(r.due) < t);
+}
+function summarize(store) {
+  const byStatus = {};
+  const bySeverity = {};
+  for (const r of store.values()) {
+    byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+    if (isActive(r)) bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
+  }
+  return { total: store.size, byStatus, bySeverity };
+}
+
+// engine/src/fix.mjs
+var WELL_KNOWN_ACTION_SHAS = {
+  "actions/checkout@v4": "actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1",
+  "actions/checkout@v3": "actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0",
+  "actions/setup-node@v4": "actions/setup-node@60edb5dd545a775178f525247059d64022d91244 # v4.0.2",
+  "actions/setup-node@v3": "actions/setup-node@e33196f7422957bea03ed53f6fbb155025ffc7b8 # v3.8.1",
+  "docker/build-push-action@v5": "docker/build-push-action@4a13e500e55cf31b7a5d59a38ab204004f42cbde # v5.1.0",
+  "docker/login-action@v3": "docker/login-action@343f7c43817330c53721907f0c12f4366b57d549 # v3.0.1",
+  "docker/setup-buildx-action@v3": "docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0",
+  "slackapi/slack-github-action@v1": "slackapi/slack-github-action@6c661ce58804a1a20f6dc5fbee7f0381b469e001 # v1.25.0",
+  "codecov/codecov-action@v4": "codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0",
+  "aquasecurity/trivy-action@master": "aquasecurity/trivy-action@fbd16365eb88e12433951383f5e99bd901fc618f # v0.18.0",
+  "some-vendor/deploy@v2": "some-vendor/deploy@8f4b7c2e1d9a6035fe2cb14d7a09e853b6c1f240 # v2",
+  "another/thing@main": "another/thing@3d1a9f7e2b8c460512ad7e93cf04b6812d7e5a09 # main"
+};
+function resolveActionSha(actionRef) {
+  if (WELL_KNOWN_ACTION_SHAS[actionRef]) {
+    return WELL_KNOWN_ACTION_SHAS[actionRef];
+  }
+  const match = actionRef.match(/^([^@]+)@([^@]+)$/);
+  if (!match) return null;
+  const [, repo, ref] = match;
+  try {
+    const url = `https://github.com/${repo}.git`;
+    const out = execFileSync("git", ["ls-remote", url, `refs/tags/${ref}`, `refs/heads/${ref}`, ref], {
+      timeout: 1500,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    const line = out.trim().split("\n")[0];
+    if (line) {
+      const sha = line.split(/\s+/)[0];
+      if (/^[0-9a-f]{40}$/i.test(sha)) {
+        return `${repo}@${sha} # ${ref}`;
+      }
+    }
+  } catch {
+  }
+  return null;
+}
+var FIXERS = {
+  "compose/privileged-true": {
+    name: "Strip privileged: true in Docker Compose",
+    fix(content) {
+      const next = content.replace(/^[ \t]*privileged:\s*true[ \t]*(?:\r?\n|$)/gm, "");
+      return next !== content ? next : null;
+    }
+  },
+  "compose/host-network-mode": {
+    name: 'Replace network_mode: "host" with bridge in Docker Compose',
+    fix(content) {
+      const next = content.replace(/([ \t]*network_mode:\s*)(["']?host["']?)/g, '$1"bridge"');
+      return next !== content ? next : null;
+    }
+  },
+  "ci/unpinned-third-party-action": {
+    name: "Pin third-party GitHub Action to immutable commit SHA",
+    fix(content) {
+      let modified = false;
+      const next = content.replace(/([ \t]*-\s*uses:\s*)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@(?![0-9a-f]{40}\b)[^\s#]+)/g, (full, prefix, actionRef) => {
+        if (/^(?:actions|github)\//.test(actionRef)) return full;
+        const pinned = resolveActionSha(actionRef);
+        if (pinned) {
+          modified = true;
+          return `${prefix}${pinned}`;
+        }
+        return full;
+      });
+      return modified ? next : null;
+    }
+  },
+  "js/tls-reject-unauthorized": {
+    name: "Enable TLS certificate validation (rejectUnauthorized: true)",
+    fix(content) {
+      let next = content.replace(/\brejectUnauthorized\s*:\s*false\b/g, "rejectUnauthorized: true");
+      next = next.replace(/\bNODE_TLS_REJECT_UNAUTHORIZED\s*([=:])\s*["']?0["']?/g, 'NODE_TLS_REJECT_UNAUTHORIZED $1 "1"');
+      return next !== content ? next : null;
+    }
+  },
+  "py/requests-verify-false": {
+    name: "Enable TLS verification in Python requests (verify=True)",
+    fix(content) {
+      const next = content.replace(/\bverify\s*=\s*False\b/g, "verify=True");
+      return next !== content ? next : null;
+    }
+  },
+  "py/flask-debug-enabled": {
+    name: "Disable Flask debug mode (debug=False)",
+    fix(content) {
+      const next = content.replace(/\bdebug\s*=\s*True\b/g, "debug=False");
+      return next !== content ? next : null;
+    }
+  },
+  "go/tls-insecure-skip-verify": {
+    name: "Disable TLS InsecureSkipVerify in Go",
+    fix(content) {
+      const next = content.replace(/\bInsecureSkipVerify\s*:\s*true\b/g, "InsecureSkipVerify: false");
+      return next !== content ? next : null;
+    }
+  },
+  "cfn/ebs-unencrypted": {
+    name: "Enable EBS volume encryption in CloudFormation (Encrypted: true)",
+    fix(content) {
+      let next = content.replace(/([ \t]*Encrypted:\s*)false/g, "$1true");
+      if (next !== content) return next;
+      const lines = content.split(/\r?\n/);
+      let inVolume = false;
+      let inProps = false;
+      let propsIndent = 0;
+      let modified = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/Type:\s*AWS::EC2::Volume\b/.test(line)) {
+          inVolume = true;
+        } else if (inVolume && /Properties:\s*$/.test(line)) {
+          inProps = true;
+          propsIndent = line.search(/\S/) + 2;
+        } else if (inProps) {
+          const curIndent = line.search(/\S/);
+          if (curIndent >= 0 && curIndent < propsIndent) {
+            lines.splice(i, 0, `${" ".repeat(propsIndent)}Encrypted: true`);
+            modified = true;
+            inVolume = false;
+            inProps = false;
+            i++;
+          } else if (/Encrypted:\s*/.test(line)) {
+            inVolume = false;
+            inProps = false;
+          }
+        }
+      }
+      if (inProps && !modified) {
+        lines.push(`${" ".repeat(propsIndent)}Encrypted: true`);
+        modified = true;
+      }
+      return modified ? lines.join("\n") : null;
+    }
+  },
+  "terraform/sqs-unencrypted": {
+    name: "Enable SQS server-side encryption in Terraform (sqs_managed_sse_enabled = true)",
+    fix(content) {
+      const lines = content.split(/\r?\n/);
+      let inSqs = false;
+      let sqsIndent = 0;
+      let modified = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/resource\s+"aws_sqs_queue"\s+"[^"]+"\s*\{/.test(line)) {
+          inSqs = true;
+          sqsIndent = line.search(/\S/) + 2;
+        } else if (inSqs && /^\s*\}/.test(line)) {
+          lines.splice(i, 0, `${" ".repeat(sqsIndent)}sqs_managed_sse_enabled = true`);
+          modified = true;
+          inSqs = false;
+          i++;
+        }
+      }
+      return modified ? lines.join("\n") : null;
+    }
+  }
+};
+function generateUnifiedDiff(filePath, oldContent, newContent) {
+  if (oldContent === newContent) return "";
+  const oldLines = oldContent.split(/\r?\n/);
+  const newLines = newContent.split(/\r?\n/);
+  let prefix = 0;
+  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) {
+    prefix++;
+  }
+  let oldSuffix = oldLines.length - 1;
+  let newSuffix = newLines.length - 1;
+  while (oldSuffix >= prefix && newSuffix >= prefix && oldLines[oldSuffix] === newLines[newSuffix]) {
+    oldSuffix--;
+    newSuffix--;
+  }
+  const contextLines = 3;
+  const startOld = Math.max(0, prefix - contextLines);
+  const endOld = Math.min(oldLines.length, oldSuffix + 1 + contextLines);
+  const startNew = Math.max(0, prefix - contextLines);
+  const endNew = Math.min(newLines.length, newSuffix + 1 + contextLines);
+  const diffLines = [
+    `--- a/${filePath}`,
+    `+++ b/${filePath}`,
+    `@@ -${startOld + 1},${endOld - startOld} +${startNew + 1},${endNew - startNew} @@`
+  ];
+  for (let i = startOld; i < prefix; i++) {
+    diffLines.push(` ${oldLines[i]}`);
+  }
+  for (let i = prefix; i <= oldSuffix; i++) {
+    diffLines.push(`-${oldLines[i]}`);
+  }
+  for (let i = prefix; i <= newSuffix; i++) {
+    diffLines.push(`+${newLines[i]}`);
+  }
+  for (let i = oldSuffix + 1; i < endOld; i++) {
+    diffLines.push(` ${oldLines[i]}`);
+  }
+  return diffLines.join("\n");
+}
+function fixGitignore(root, patterns) {
+  const gitignorePath = join7(root, ".gitignore");
+  let content = existsSync4(gitignorePath) ? readFileSync8(gitignorePath, "utf8") : "";
+  const added = [];
+  for (const pat of patterns) {
+    const escaped = pat.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(^|\\n)${escaped}(\\r?(\\n|$))`);
+    if (!regex.test(content)) {
+      added.push(pat);
+    }
+  }
+  if (added.length === 0) return null;
+  const header = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+  const newContent = `${content}${header}# Added by airtight fix
+${added.join("\n")}
+`;
+  return {
+    path: ".gitignore",
+    oldContent: content,
+    newContent,
+    patterns: added
+  };
+}
+function applyFixes(targetPaths = ["."], {
+  root = process.cwd(),
+  dryRun = false,
+  ruleFilter = null,
+  rules = null
+} = {}) {
+  const files = collectTargets(root, targetPaths);
+  const { findings } = scanFiles({
+    root,
+    files,
+    rules: rules || [],
+    testMode: true
+  });
+  const fixableRules = new Set(Object.keys(FIXERS));
+  const candidateFindings = findings.filter((f) => {
+    if (ruleFilter && f.rule !== ruleFilter) return false;
+    return fixableRules.has(f.rule) || f.rule === "secret/env-file-tracked" || f.rule === "secret/private-key-pem";
+  });
+  const filesToModify = /* @__PURE__ */ new Map();
+  const fixedFindings = [];
+  const diffs = [];
+  for (const f of candidateFindings) {
+    if (f.rule === "secret/env-file-tracked" || f.rule === "secret/private-key-pem") {
+      continue;
+    }
+    const absPath = resolve5(root, f.file);
+    if (!filesToModify.has(absPath)) {
+      try {
+        filesToModify.set(absPath, {
+          relPath: f.file,
+          content: readFileSync8(absPath, "utf8"),
+          rules: /* @__PURE__ */ new Set()
+        });
+      } catch {
+        continue;
+      }
+    }
+    filesToModify.get(absPath).rules.add(f.rule);
+  }
+  for (const [absPath, fileInfo] of filesToModify.entries()) {
+    let current = fileInfo.content;
+    const rulesApplied = [];
+    for (const ruleId of fileInfo.rules) {
+      const fixer = FIXERS[ruleId];
+      if (!fixer) continue;
+      const patched = fixer.fix(current);
+      if (patched !== null && patched !== current) {
+        current = patched;
+        rulesApplied.push(ruleId);
+        fixedFindings.push({ rule: ruleId, file: fileInfo.relPath, description: fixer.name });
+      }
+    }
+    if (current !== fileInfo.content) {
+      const diff = generateUnifiedDiff(fileInfo.relPath, fileInfo.content, current);
+      diffs.push({
+        file: fileInfo.relPath,
+        diff,
+        rules: rulesApplied
+      });
+      if (!dryRun) {
+        writeFileSync2(absPath, current, "utf8");
+      }
+    }
+  }
+  const secretEnv = candidateFindings.some((f) => f.rule === "secret/env-file-tracked");
+  const secretPem = candidateFindings.some((f) => f.rule === "secret/private-key-pem");
+  const gitignorePatterns = [];
+  if (secretEnv) gitignorePatterns.push(".env", ".env.*");
+  if (secretPem) gitignorePatterns.push("*.pem");
+  if (gitignorePatterns.length > 0) {
+    const giFix = fixGitignore(root, gitignorePatterns);
+    if (giFix) {
+      const diff = generateUnifiedDiff(giFix.path, giFix.oldContent, giFix.newContent);
+      diffs.push({
+        file: giFix.path,
+        diff,
+        rules: secretEnv ? ["secret/env-file-tracked"] : ["secret/private-key-pem"]
+      });
+      if (secretEnv) {
+        fixedFindings.push({ rule: "secret/env-file-tracked", file: giFix.path, description: "Added .env to .gitignore" });
+      }
+      if (secretPem) {
+        fixedFindings.push({ rule: "secret/private-key-pem", file: giFix.path, description: "Added *.pem to .gitignore" });
+      }
+      if (!dryRun) {
+        writeFileSync2(join7(root, giFix.path), giFix.newContent, "utf8");
+      }
+    }
+  }
+  let storeUpdated = false;
+  if (!dryRun && existsSync4(join7(root, STORE_PATH))) {
+    const currentStore = load(root);
+    const rescanned = scanFiles({
+      root,
+      files,
+      rules: rules || [],
+      testMode: true
+    });
+    const { records } = reconcile(currentStore, rescanned.findings);
+    save(root, records);
+    storeUpdated = true;
+  }
+  return {
+    dryRun,
+    fixedCount: fixedFindings.length,
+    filesCount: diffs.length,
+    fixedFindings,
+    diffs,
+    storeUpdated
+  };
+}
+
 // engine/src/mcp.mjs
 import { createInterface } from "node:readline";
-import { readFileSync as readFileSync10, existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname4, join as join9, resolve as resolve6 } from "node:path";
+import { readFileSync as readFileSync11, existsSync as existsSync7 } from "node:fs";
+import { dirname as dirname5, join as join10, resolve as resolve7 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // engine/src/osv.mjs
-import { existsSync as existsSync3, mkdirSync, readFileSync as readFileSync7, writeFileSync } from "node:fs";
-import { dirname as dirname2, join as join6, relative as relative5, resolve as resolve5 } from "node:path";
+import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync9, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname4, join as join8, relative as relative6, resolve as resolve6 } from "node:path";
 function resolveCacheFile(cacheDir) {
   if (!cacheDir) {
-    return join6(process.cwd(), ".airtight", "cache", "osv.json");
+    return join8(process.cwd(), ".airtight", "cache", "osv.json");
   }
   if (cacheDir.endsWith(".json")) {
-    return resolve5(cacheDir);
+    return resolve6(cacheDir);
   }
-  return join6(resolve5(cacheDir), "osv.json");
+  return join8(resolve6(cacheDir), "osv.json");
 }
 function readCache(filePath) {
   try {
-    if (existsSync3(filePath)) {
-      const data = JSON.parse(readFileSync7(filePath, "utf8"));
+    if (existsSync5(filePath)) {
+      const data = JSON.parse(readFileSync9(filePath, "utf8"));
       if (data && typeof data === "object") return data;
     }
   } catch {
@@ -10713,8 +11206,8 @@ function readCache(filePath) {
 }
 function writeCache(filePath, data) {
   try {
-    mkdirSync(dirname2(filePath), { recursive: true });
-    writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+    mkdirSync2(dirname4(filePath), { recursive: true });
+    writeFileSync3(filePath, JSON.stringify(data, null, 2), "utf8");
   } catch {
   }
 }
@@ -10865,7 +11358,7 @@ async function queryOsv(dependencies, { cacheDir, offline = false, timeoutMs = 3
     const cacheKey2 = `${dep.ecosystem}:${dep.name}@${dep.version}`;
     const vulns = cache2[cacheKey2];
     if (!Array.isArray(vulns) || vulns.length === 0) continue;
-    let relFile = dep.lockfile ? relative5(process.cwd(), resolve5(dep.lockfile)) : "lockfile";
+    let relFile = dep.lockfile ? relative6(process.cwd(), resolve6(dep.lockfile)) : "lockfile";
     relFile = relFile.replace(/\\/g, "/");
     for (const vuln of vulns) {
       if (!vuln || !vuln.id) continue;
@@ -10912,169 +11405,15 @@ async function queryOsv(dependencies, { cacheDir, offline = false, timeoutMs = 3
   return sortFindings(findings);
 }
 
-// engine/src/store.mjs
-import { readFileSync as readFileSync8, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, existsSync as existsSync4, statSync as statSync5 } from "node:fs";
-import { dirname as dirname3, join as join7 } from "node:path";
-var STORE_PATH = ".airtight/findings.ndjson";
-var ACTIVE = /* @__PURE__ */ new Set(["open", "verified", "regressed"]);
-function isActive(record) {
-  return ACTIVE.has(record.status);
-}
-function load(root) {
-  const path = join7(root, STORE_PATH);
-  if (!existsSync4(path)) return /* @__PURE__ */ new Map();
-  const out = /* @__PURE__ */ new Map();
-  for (const line of readFileSync8(path, "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const rec = JSON.parse(line);
-      if (rec?.id) out.set(rec.id, rec);
-    } catch {
-    }
-  }
-  return out;
-}
-function loadBaseline(pathOrRoot) {
-  let filePath = pathOrRoot;
-  if (existsSync4(filePath) && statSync5(filePath).isDirectory()) {
-    filePath = join7(pathOrRoot, STORE_PATH);
-  }
-  if (!existsSync4(filePath)) {
-    throw new Error(`baseline file not found: ${pathOrRoot}`);
-  }
-  const content = readFileSync8(filePath, "utf8").trim();
-  const baselineIds = /* @__PURE__ */ new Set();
-  if (content.startsWith("[") || content.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(content);
-      const list = Array.isArray(parsed) ? parsed : parsed.findings ?? [];
-      for (const item of list) {
-        if (item.id) baselineIds.add(item.id);
-        if (item.valueFingerprint) baselineIds.add(item.valueFingerprint);
-      }
-      return baselineIds;
-    } catch {
-    }
-  }
-  for (const line of content.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const rec = JSON.parse(line);
-      if (rec.id) baselineIds.add(rec.id);
-      if (rec.valueFingerprint) baselineIds.add(rec.valueFingerprint);
-    } catch {
-    }
-  }
-  return baselineIds;
-}
-function filterBaseline(findings, baselineIds) {
-  return findings.filter((f) => {
-    if (baselineIds.has(f.id)) return false;
-    if (f.valueFingerprint && baselineIds.has(f.valueFingerprint)) return false;
-    return true;
-  });
-}
-function save(root, records) {
-  const path = join7(root, STORE_PATH);
-  mkdirSync2(dirname3(path), { recursive: true });
-  const lines = [...records.values()].sort((a, b) => a.id.localeCompare(b.id)).map((r) => JSON.stringify(r));
-  writeFileSync2(path, lines.length ? `${lines.join("\n")}
-` : "");
-  return lines.length;
-}
-var day = 864e5;
-function dueDate(firstSeen, severity) {
-  const days = SLA_DAYS[severity] ?? SLA_DAYS.low;
-  return new Date(Date.parse(firstSeen) + days * day).toISOString();
-}
-function reconcile(store, findings, { now = (/* @__PURE__ */ new Date()).toISOString() } = {}) {
-  const seen = /* @__PURE__ */ new Set();
-  const events = { added: 0, regressed: 0, fixed: 0, unchanged: 0, waiverExpired: 0 };
-  const next = new Map(store);
-  for (const f of findings) {
-    seen.add(f.id);
-    const prior = next.get(f.id);
-    if (!prior) {
-      next.set(f.id, {
-        id: f.id,
-        rule: f.rule,
-        title: f.title,
-        domain: f.domain,
-        severity: f.severity,
-        confidence: f.confidence,
-        disposition: f.disposition,
-        cwe: f.cwe,
-        owasp: f.owasp,
-        location: `${f.file}:${f.line}`,
-        status: "open",
-        provenance: f.provenance,
-        evidence: [],
-        owner: null,
-        firstSeen: now,
-        lastSeen: now,
-        due: dueDate(now, f.severity),
-        ...f.valueFingerprint ? { valueFingerprint: f.valueFingerprint } : {}
-      });
-      events.added += 1;
-      continue;
-    }
-    const updated = { ...prior, lastSeen: now, location: `${f.file}:${f.line}` };
-    if (prior.status === "fixed") {
-      updated.status = "regressed";
-      updated.regressedAt = now;
-      events.regressed += 1;
-    } else if (prior.status === "accepted" && prior.waiver?.expires && Date.parse(prior.waiver.expires) < Date.parse(now)) {
-      updated.status = "open";
-      updated.waiverExpiredAt = now;
-      events.waiverExpired += 1;
-    } else {
-      events.unchanged += 1;
-    }
-    next.set(f.id, updated);
-  }
-  for (const [id, rec] of next) {
-    if (seen.has(id) || !isActive(rec)) continue;
-    next.set(id, { ...rec, status: "fixed", fixedAt: now });
-    events.fixed += 1;
-  }
-  return { records: next, events };
-}
-function accept(store, id, { reason, approver, expires, now = (/* @__PURE__ */ new Date()).toISOString(), waiverPolicy } = {}) {
-  const rec = store.get(id);
-  if (!rec) throw new Error(`no finding with id ${id}`);
-  if (!reason || !approver) {
-    throw new Error("accepting a finding requires both --reason and --approver");
-  }
-  if (waiverPolicy) {
-    validateWaiverPolicy({ waiverPolicy, reason, approver, expires, now });
-  }
-  const next = new Map(store);
-  next.set(id, { ...rec, status: "accepted", waiver: { reason, approver, expires: expires ?? null, acceptedAt: now } });
-  return next;
-}
-function overdue(store, now = (/* @__PURE__ */ new Date()).toISOString()) {
-  const t = Date.parse(now);
-  return [...store.values()].filter((r) => isActive(r) && r.due && Date.parse(r.due) < t);
-}
-function summarize(store) {
-  const byStatus = {};
-  const bySeverity = {};
-  for (const r of store.values()) {
-    byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
-    if (isActive(r)) bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
-  }
-  return { total: store.size, byStatus, bySeverity };
-}
-
 // engine/src/controls.mjs
-import { readFileSync as readFileSync9, existsSync as existsSync5 } from "node:fs";
-import { join as join8 } from "node:path";
+import { readFileSync as readFileSync10, existsSync as existsSync6 } from "node:fs";
+import { join as join9 } from "node:path";
 var CONTROLS_PATH = ".airtight/controls.json";
 function loadControls(root) {
-  const path = join8(root, CONTROLS_PATH);
-  if (!existsSync5(path)) return { schemaVersion: 1, controls: [] };
+  const path = join9(root, CONTROLS_PATH);
+  if (!existsSync6(path)) return { schemaVersion: 1, controls: [] };
   try {
-    const parsed = JSON.parse(readFileSync9(path, "utf8"));
+    const parsed = JSON.parse(readFileSync10(path, "utf8"));
     return { schemaVersion: parsed.schemaVersion ?? 1, controls: parsed.controls ?? [] };
   } catch (err) {
     throw new Error(`${CONTROLS_PATH} is not valid JSON: ${err.message}`);
@@ -11147,23 +11486,172 @@ function frameworksIn(controls) {
   return [...out].sort();
 }
 
+// engine/src/cvss.mjs
+var CVSS_METRICS = {
+  av: {
+    N: 0.85,
+    // Network
+    A: 0.62,
+    // Adjacent
+    L: 0.55,
+    // Local
+    P: 0.2
+    // Physical
+  },
+  ac: {
+    L: 0.77,
+    // Low
+    H: 0.44
+    // High
+  },
+  pr: {
+    // Unchanged scope
+    U: {
+      N: 0.85,
+      // None
+      L: 0.62,
+      // Low
+      H: 0.27
+      // High
+    },
+    // Changed scope
+    C: {
+      N: 0.85,
+      // None
+      L: 0.68,
+      // Low
+      H: 0.5
+      // High
+    }
+  },
+  ui: {
+    N: 0.85,
+    // None
+    R: 0.62
+    // Required
+  },
+  s: {
+    U: "U",
+    // Unchanged
+    C: "C"
+    // Changed
+  },
+  cia: {
+    N: 0,
+    // None
+    L: 0.22,
+    // Low
+    H: 0.56
+    // High
+  }
+};
+function roundup(input) {
+  const intInput = Math.round(input * 1e5);
+  if (intInput % 1e4 === 0) {
+    return intInput / 1e5;
+  }
+  return (Math.floor(intInput / 1e4) + 1) / 10;
+}
+function calculateCvss31(metrics = {}) {
+  const av = (metrics.av || "N").toUpperCase();
+  const ac = (metrics.ac || "L").toUpperCase();
+  const pr = (metrics.pr || "N").toUpperCase();
+  const ui = (metrics.ui || "N").toUpperCase();
+  const s = (metrics.s || "U").toUpperCase();
+  const c = (metrics.c || "N").toUpperCase();
+  const i = (metrics.i || "N").toUpperCase();
+  const a = (metrics.a || "N").toUpperCase();
+  const avScore = CVSS_METRICS.av[av] ?? 0.85;
+  const acScore = CVSS_METRICS.ac[ac] ?? 0.77;
+  const prScore = s === "C" ? CVSS_METRICS.pr.C[pr] ?? 0.85 : CVSS_METRICS.pr.U[pr] ?? 0.85;
+  const uiScore = CVSS_METRICS.ui[ui] ?? 0.85;
+  const cScore = CVSS_METRICS.cia[c] ?? 0;
+  const iScore = CVSS_METRICS.cia[i] ?? 0;
+  const aScore = CVSS_METRICS.cia[a] ?? 0;
+  const iss = 1 - (1 - cScore) * (1 - iScore) * (1 - aScore);
+  let impact;
+  if (s === "U") {
+    impact = 6.42 * iss;
+  } else {
+    impact = 7.52 * (iss - 0.029) - 3.25 * Math.pow(iss - 0.02, 15);
+  }
+  const exploitability = 8.22 * avScore * acScore * prScore * uiScore;
+  let score = 0;
+  if (impact <= 0) {
+    score = 0;
+  } else if (s === "U") {
+    score = roundup(Math.min(impact + exploitability, 10));
+  } else {
+    score = roundup(Math.min(1.08 * (impact + exploitability), 10));
+  }
+  let severity = "none";
+  if (score === 0) {
+    severity = "none";
+  } else if (score < 4) {
+    severity = "low";
+  } else if (score < 7) {
+    severity = "medium";
+  } else if (score < 9) {
+    severity = "high";
+  } else {
+    severity = "critical";
+  }
+  const priority = score >= 9 ? "P0" : score >= 7 ? "P1" : score >= 4 ? "P2" : "P3";
+  const vector = `CVSS:3.1/AV:${av}/AC:${ac}/PR:${pr}/UI:${ui}/S:${s}/C:${c}/I:${i}/A:${a}`;
+  return {
+    score,
+    severity,
+    vector,
+    priority,
+    iss: Number(iss.toFixed(4)),
+    impact: Number(impact.toFixed(4)),
+    exploitability: Number(exploitability.toFixed(4))
+  };
+}
+function parseCvssVector(vectorStr) {
+  if (typeof vectorStr !== "string") {
+    throw new TypeError("CVSS vector must be a string");
+  }
+  const cleaned = vectorStr.trim();
+  const parts = cleaned.split("/");
+  if (!parts[0].startsWith("CVSS:3.1") && !parts[0].startsWith("CVSS:3.0")) {
+    throw new Error(`Unsupported or invalid CVSS vector prefix: '${parts[0]}'. Expected 'CVSS:3.1'`);
+  }
+  const metrics = {};
+  for (let idx = 1; idx < parts.length; idx++) {
+    const pair = parts[idx].split(":");
+    if (pair.length === 2) {
+      const key = pair[0].toLowerCase();
+      const val = pair[1].toUpperCase();
+      metrics[key] = val;
+    }
+  }
+  const required = ["av", "ac", "pr", "ui", "s", "c", "i", "a"];
+  for (const req of required) {
+    if (!metrics[req]) {
+      throw new Error(`Missing required CVSS metric in vector: '${req.toUpperCase()}'`);
+    }
+  }
+  return calculateCvss31(metrics);
+}
+
 // engine/src/mcp.mjs
-var HERE = dirname4(fileURLToPath(import.meta.url));
+var HERE = dirname5(fileURLToPath(import.meta.url));
 var SERVER_NAME = "airtight";
 var SERVER_VERSION = "0.5.0";
 var PROTOCOL_VERSION = "2024-11-05";
 function loadRulesBundle(env = process.env) {
-  if (env.AIRTIGHT_RULES && existsSync6(env.AIRTIGHT_RULES)) {
-    return compileAll(JSON.parse(readFileSync10(env.AIRTIGHT_RULES, "utf8")));
+  if (env.AIRTIGHT_RULES && existsSync7(env.AIRTIGHT_RULES)) {
+    return compileAll(JSON.parse(readFileSync11(env.AIRTIGHT_RULES, "utf8")));
   }
   const candidates = [
-    join9(HERE, "..", "build", "rules.json"),
-    join9(HERE, "..", "..", "skill", "scripts", "rules.json"),
-    join9(HERE, "..", "..", "rules.json")
+    join10(HERE, "..", "build", "rules.json"),
+    join10(HERE, "..", "..", "skill", "scripts", "rules.json"),
+    join10(HERE, "..", "..", "rules.json")
   ];
   for (const p of candidates) {
-    if (existsSync6(p)) {
-      return compileAll(JSON.parse(readFileSync10(p, "utf8")));
+    if (existsSync7(p)) {
+      return compileAll(JSON.parse(readFileSync11(p, "utf8")));
     }
   }
   return [];
@@ -11300,6 +11788,55 @@ var TOOLS = [
         }
       }
     }
+  },
+  {
+    name: "airtight_cvss",
+    description: "Calculate CVSS 3.1 base score, severity rating, and vector from metrics or parse an existing CVSS 3.1 vector string.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        vector: {
+          type: "string",
+          description: 'CVSS 3.1 vector string to parse and score (e.g. "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")'
+        },
+        metrics: {
+          type: "object",
+          description: "CVSS 3.1 base metrics: av (N/A/L/P), ac (L/H), pr (N/L/H), ui (N/R), s (U/C), c (N/L/H), i (N/L/H), a (N/L/H)",
+          properties: {
+            av: { type: "string", enum: ["N", "A", "L", "P"] },
+            ac: { type: "string", enum: ["L", "H"] },
+            pr: { type: "string", enum: ["N", "L", "H"] },
+            ui: { type: "string", enum: ["N", "R"] },
+            s: { type: "string", enum: ["U", "C"] },
+            c: { type: "string", enum: ["N", "L", "H"] },
+            i: { type: "string", enum: ["N", "L", "H"] },
+            a: { type: "string", enum: ["N", "L", "H"] }
+          }
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_fix",
+    description: "Preview or apply automated surgical fixes for unambiguous mechanical security findings (Docker Compose privileged/host mode, unpinned CI actions, gitignore secrets, TLS verify flags, EBS/SQS encryption).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Paths to inspect and fix (default: ["."])'
+        },
+        dryRun: {
+          type: "boolean",
+          description: "If true, returns unified diffs without modifying files on disk (default: true for MCP safety)"
+        },
+        rule: {
+          type: "string",
+          description: "Restrict fix to a specific rule ID"
+        }
+      }
+    }
   }
 ];
 async function handleToolCall(name, args = {}, { root = process.cwd(), env = process.env } = {}) {
@@ -11317,7 +11854,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
       }
       if (args.tier === "immediate") rules = immediateTier(rules);
       if (args.packs?.length) rules = rules.filter((r) => args.packs.includes(r.pack));
-      const files = collectTargets(root, paths.map((p) => resolve6(root, p)));
+      const files = collectTargets(root, paths.map((p) => resolve7(root, p)));
       const scanned = scanFiles({ root, files, rules, config, isSuppressed });
       let findings = scanned.findings;
       if (args.tier !== "immediate" && (!args.packs?.length || args.packs.includes("dep"))) {
@@ -11326,7 +11863,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
           const allDeps = [];
           for (const lf of lockfiles) {
             try {
-              const content = readFileSync10(lf, "utf8");
+              const content = readFileSync11(lf, "utf8");
               const parsed = parseLockfile(lf, content);
               if (parsed?.dependencies?.length) allDeps.push(...parsed.dependencies);
             } catch {
@@ -11334,7 +11871,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
           }
           if (allDeps.length > 0) {
             const advisories = queryOsv(allDeps, {
-              cacheDir: join9(root, ".airtight", "cache", "osv.json"),
+              cacheDir: join10(root, ".airtight", "cache", "osv.json"),
               offline: false
             });
             for (const adv of advisories) {
@@ -11472,10 +12009,31 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
       };
     }
     case "airtight_sbom": {
-      const target = args.path ? resolve6(root, args.path) : root;
+      const target = args.path ? resolve7(root, args.path) : root;
       const sbom = generateCycloneDx({ root: target });
       return {
         content: [{ type: "text", text: sbom }]
+      };
+    }
+    case "airtight_cvss": {
+      let result;
+      if (args.vector) {
+        result = parseCvssVector(args.vector);
+      } else {
+        result = calculateCvss31(args.metrics || {});
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+    case "airtight_fix": {
+      const paths = args.paths?.length ? args.paths : ["."];
+      const dryRun = args.dryRun !== false;
+      const ruleFilter = args.rule || null;
+      const rules = loadRulesBundle(env);
+      const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
       };
     }
     default:
@@ -11574,7 +12132,7 @@ function createMcpServer({ root = process.cwd(), env = process.env, input = proc
   };
 }
 function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = process.env) {
-  return new Promise((resolve9) => {
+  return new Promise((resolve10) => {
     const server = createMcpServer({
       root: process.cwd(),
       env,
@@ -11586,7 +12144,7 @@ function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = proces
       if (finished) return;
       finished = true;
       server.close();
-      resolve9(0);
+      resolve10(0);
     };
     process.stdin.on("close", finish);
     process.stdin.on("end", finish);
@@ -11594,8 +12152,8 @@ function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = proces
 }
 
 // engine/src/context.mjs
-import { existsSync as existsSync7, readFileSync as readFileSync11, statSync as statSync6 } from "node:fs";
-import { join as join10 } from "node:path";
+import { existsSync as existsSync8, readFileSync as readFileSync12, statSync as statSync7 } from "node:fs";
+import { join as join11 } from "node:path";
 var SEP = "\n\n---\n\n";
 function detectStack(root, ignoreFiles = []) {
   const stack = {
@@ -11621,7 +12179,7 @@ function detectStack(root, ignoreFiles = []) {
     else if (base === "go.mod") stack.go = true;
     else if (/\.ya?ml$/.test(rel) && !rel.startsWith(".github/")) {
       try {
-        const head = readFileSync11(abs, "utf8").slice(0, 2048);
+        const head = readFileSync12(abs, "utf8").slice(0, 2048);
         if (/^\s*apiVersion:/m.test(head) && /^\s*kind:/m.test(head)) stack.kubernetes = true;
       } catch {
       }
@@ -11630,18 +12188,18 @@ function detectStack(root, ignoreFiles = []) {
   return stack;
 }
 function readIfPresent(root, name) {
-  const path = join10(root, name);
+  const path = join11(root, name);
   try {
-    return statSync6(path).isFile() ? readFileSync11(path, "utf8") : null;
+    return statSync7(path).isFile() ? readFileSync12(path, "utf8") : null;
   } catch {
     return null;
   }
 }
 function hookActive(root) {
-  const settings = join10(root, ".claude", "settings.json");
-  if (!existsSync7(settings)) return false;
+  const settings = join11(root, ".claude", "settings.json");
+  if (!existsSync8(settings)) return false;
   try {
-    return readFileSync11(settings, "utf8").includes("airtight");
+    return readFileSync12(settings, "utf8").includes("airtight");
   } catch {
     return false;
   }
@@ -11761,8 +12319,8 @@ ${JSON.stringify({
 }
 
 // engine/src/hook.mjs
-import { readFileSync as readFileSync12, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3, statSync as statSync7, realpathSync } from "node:fs";
-import { dirname as dirname5, join as join11, relative as relative6, resolve as resolve7, sep as sep5 } from "node:path";
+import { readFileSync as readFileSync13, writeFileSync as writeFileSync4, mkdirSync as mkdirSync3, statSync as statSync8, realpathSync } from "node:fs";
+import { dirname as dirname6, join as join12, relative as relative7, resolve as resolve8, sep as sep5 } from "node:path";
 var ENVELOPE = "[airtight@1]";
 var CACHE_PATH = ".airtight/hook.cache.json";
 var MAX_SESSIONS = 8;
@@ -11822,14 +12380,14 @@ function payload(text, eventName, harness) {
 }
 function loadCache(root) {
   try {
-    return JSON.parse(readFileSync12(join11(root, CACHE_PATH), "utf8"));
+    return JSON.parse(readFileSync13(join12(root, CACHE_PATH), "utf8"));
   } catch {
     return { sessions: {} };
   }
 }
 function saveCache(root, cache2) {
   try {
-    if (!statSync7(join11(root, ".airtight")).isDirectory()) return;
+    if (!statSync8(join12(root, ".airtight")).isDirectory()) return;
   } catch {
     return;
   }
@@ -11838,8 +12396,8 @@ function saveCache(root, cache2) {
     for (const id of ids.slice(0, ids.length - MAX_SESSIONS)) delete cache2.sessions[id];
   }
   try {
-    mkdirSync3(dirname5(join11(root, CACHE_PATH)), { recursive: true });
-    writeFileSync3(join11(root, CACHE_PATH), JSON.stringify(cache2));
+    mkdirSync3(dirname6(join12(root, CACHE_PATH)), { recursive: true });
+    writeFileSync4(join12(root, CACHE_PATH), JSON.stringify(cache2));
   } catch {
   }
 }
@@ -11867,7 +12425,7 @@ function insideProject(root, abs) {
         return realpathSync(probe).startsWith(realRoot);
       } catch {
       }
-      const parent = dirname5(probe);
+      const parent = dirname6(probe);
       if (parent === probe) return false;
       probe = parent;
     }
@@ -11918,11 +12476,11 @@ function clampToBudget(text, maxChars) {
   return `${withShort.slice(0, Math.max(0, maxChars - 1))}\u2026`;
 }
 function loadRules(env, root) {
-  const here = dirname5(new URL(import.meta.url).pathname);
-  for (const path of [env.AIRTIGHT_RULES, join11(here, "..", "rules.json"), join11(here, "..", "build", "rules.json")]) {
+  const here = dirname6(new URL(import.meta.url).pathname);
+  for (const path of [env.AIRTIGHT_RULES, join12(here, "..", "rules.json"), join12(here, "..", "build", "rules.json")]) {
     if (!path) continue;
     try {
-      return compileAll(JSON.parse(readFileSync12(path, "utf8")));
+      return compileAll(JSON.parse(readFileSync13(path, "utf8")));
     } catch {
     }
   }
@@ -11956,15 +12514,15 @@ function runHook(io, env, stdinText) {
   } else {
     rels = [];
     for (const p of resolveTargets(input)) {
-      const abs = resolve7(root, p);
+      const abs = resolve8(root, p);
       if (!insideProject(root, abs)) continue;
-      const rel = relative6(root, abs).split(sep5).join("/");
+      const rel = relative7(root, abs).split(sep5).join("/");
       if (rel.startsWith("..")) continue;
       if (GENERATED.test(`/${rel}`) || GENERATED_FILE.test(rel)) continue;
       if (!isScannable(rel)) continue;
       if (matchesAny(rel, config.detector?.ignoreFiles ?? [])) continue;
       try {
-        if (statSync7(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
+        if (statSync8(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
       } catch {
         continue;
       }
@@ -11980,7 +12538,7 @@ function runHook(io, env, stdinText) {
   const active = stop ? rules : immediateTier(rules);
   const { findings, vault } = scanFiles({
     root,
-    files: rels.map((r) => join11(root, r)),
+    files: rels.map((r) => join12(root, r)),
     rules: active,
     config,
     isSuppressed: buildFilter(config)
@@ -12042,15 +12600,15 @@ This write introduced a confirmed critical finding. Fix it before continuing.`);
 }
 function readStdin() {
   try {
-    return readFileSync12(0, "utf8");
+    return readFileSync13(0, "utf8");
   } catch {
     return "";
   }
 }
 
 // engine/src/hooks-admin.mjs
-import { readFileSync as readFileSync13, writeFileSync as writeFileSync4, mkdirSync as mkdirSync4, existsSync as existsSync8 } from "node:fs";
-import { dirname as dirname6, join as join12 } from "node:path";
+import { readFileSync as readFileSync14, writeFileSync as writeFileSync5, mkdirSync as mkdirSync4, existsSync as existsSync9 } from "node:fs";
+import { dirname as dirname7, join as join13 } from "node:path";
 var SETTINGS = ".claude/settings.json";
 var CONFIG = ".airtight/config.json";
 var LAUNCHER = "${CLAUDE_PROJECT_DIR}/.claude/skills/airtight/scripts/airtight";
@@ -12066,19 +12624,19 @@ var MANIFEST = {
 };
 function readJson(path, fallback) {
   try {
-    return JSON.parse(readFileSync13(path, "utf8"));
+    return JSON.parse(readFileSync14(path, "utf8"));
   } catch {
     return fallback;
   }
 }
 function writeJson(path, value) {
-  mkdirSync4(dirname6(path), { recursive: true });
-  writeFileSync4(path, `${JSON.stringify(value, null, 2)}
+  mkdirSync4(dirname7(path), { recursive: true });
+  writeFileSync5(path, `${JSON.stringify(value, null, 2)}
 `);
 }
 var isOurs = (entry) => JSON.stringify(entry).includes("airtight");
 function install(root) {
-  const path = join12(root, SETTINGS);
+  const path = join13(root, SETTINGS);
   const settings = readJson(path, {});
   settings.hooks ??= {};
   for (const [event, entries] of Object.entries(MANIFEST)) {
@@ -12088,8 +12646,8 @@ function install(root) {
   return path;
 }
 function uninstall(root) {
-  const path = join12(root, SETTINGS);
-  if (!existsSync8(path)) return null;
+  const path = join13(root, SETTINGS);
+  if (!existsSync9(path)) return null;
   const settings = readJson(path, {});
   if (!settings.hooks) return null;
   for (const event of Object.keys(MANIFEST)) {
@@ -12101,7 +12659,7 @@ function uninstall(root) {
   return path;
 }
 function status(root) {
-  const settings = readJson(join12(root, SETTINGS), {});
+  const settings = readJson(join13(root, SETTINGS), {});
   const events = Object.keys(MANIFEST).filter((e) => (settings.hooks?.[e] ?? []).some(isOurs));
   const config = loadConfig(root);
   const d = config.detector ?? {};
@@ -12118,7 +12676,7 @@ function status(root) {
   };
 }
 function mutateConfig(root, fn) {
-  const path = join12(root, CONFIG);
+  const path = join13(root, CONFIG);
   const config = readJson(path, { detector: { ignoreRules: [], ignoreFiles: [], ignoreValues: [] } });
   config.detector ??= {};
   config.detector.ignoreRules ??= [];
@@ -12129,7 +12687,7 @@ function mutateConfig(root, fn) {
   return path;
 }
 function setEnabled(root, enabled) {
-  const path = join12(root, CONFIG);
+  const path = join13(root, CONFIG);
   const config = readJson(path, {});
   config.hook = { ...config.hook ?? {}, enabled };
   writeJson(path, config);
@@ -12168,12 +12726,13 @@ function ignoreRule(root, rule) {
 var ESCALATION_NOTICE = "ignore-file and ignore-rule suppress far more than one finding, including rules that do not exist yet. Confirm with the user before running this, and never run it to get past a blocked write.";
 
 // engine/src/cli.mjs
-var HERE2 = dirname7(fileURLToPath2(import.meta.url));
+var HERE2 = dirname8(fileURLToPath2(import.meta.url));
 var VERSION = "0.5.0";
 var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
   airtight rules                    list loaded rules
+  airtight fix [paths...]           preview or apply automated surgical fixes
   airtight map [paths...]           map HTTP entry points and nearby sinks
   airtight correlate [paths...]     correlate IaC exposure with application sinks
   airtight mcp                      start Model Context Protocol (MCP) stdio server
@@ -12188,6 +12747,8 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 Options
   --format <type>        output format: text, json, sarif (default: text)
   --json                 machine-readable output (alias for --format json)
+  --dry-run              preview unified diffs without modifying files
+  --rule <id>            restrict fix to a specific rule
   --with-exposure        annotate route discovery with IaC exposure
   --correlate            elevate findings on internet-facing routes to critical
   --tier immediate       only the rules the edit hook may interrupt on
@@ -12204,12 +12765,12 @@ Options
 `;
 function checkStaleRules(bundlePath) {
   try {
-    const rulesDir = join13(HERE2, "..", "rules");
-    if (!existsSync9(rulesDir)) return;
-    const bundleStat = statSync8(bundlePath);
+    const rulesDir = join14(HERE2, "..", "rules");
+    if (!existsSync10(rulesDir)) return;
+    const bundleStat = statSync9(bundlePath);
     const yamlFiles = readdirSync6(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const f of yamlFiles) {
-      const yamlStat = statSync8(join13(rulesDir, f));
+      const yamlStat = statSync9(join14(rulesDir, f));
       if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
         process.stderr.write(
           `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules
@@ -12224,12 +12785,12 @@ function checkStaleRules(bundlePath) {
 function loadRules2(env) {
   const candidates = [
     env.AIRTIGHT_RULES,
-    join13(HERE2, "..", "rules.json"),
-    join13(HERE2, "..", "build", "rules.json")
+    join14(HERE2, "..", "rules.json"),
+    join14(HERE2, "..", "build", "rules.json")
   ].filter(Boolean);
   for (const path of candidates) {
     try {
-      const data = JSON.parse(readFileSync14(path, "utf8"));
+      const data = JSON.parse(readFileSync15(path, "utf8"));
       checkStaleRules(path);
       return compileAll(data);
     } catch (err) {
@@ -12249,25 +12810,26 @@ var FLAGS_WITH_VALUES = /* @__PURE__ */ new Set([
   "--fingerprint",
   "--baseline",
   "--since",
-  "--format"
+  "--format",
+  "--rule"
 ]);
 function getChangedFilesSince(root, ref) {
   try {
-    const diffOut = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMR", ref], {
+    const diffOut = execFileSync2("git", ["diff", "--name-only", "--diff-filter=ACMR", ref], {
       cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
     });
-    const untrackedOut = execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
+    const untrackedOut = execFileSync2("git", ["ls-files", "--others", "--exclude-standard"], {
       cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
     });
     const set = new Set(
       `${diffOut}
-${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve8(root, p)).filter((p) => {
+${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve9(root, p)).filter((p) => {
         try {
-          return statSync8(p).isFile();
+          return statSync9(p).isFile();
         } catch {
           return false;
         }
@@ -12288,6 +12850,7 @@ function parseArgs(argv) {
       opts.format = "json";
     } else if (a === "--format") opts.format = argv[++i];
     else if (a === "--no-config") opts.useConfig = false;
+    else if (a === "--dry-run") opts.flags["dry-run"] = true;
     else if (a === "--pack") opts.packs.push(argv[++i]);
     else if (a === "--count-by-pack") opts.flags["count-by-pack"] = true;
     else if (a === "--with-exposure") opts.flags["with-exposure"] = true;
@@ -12321,14 +12884,14 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.flags.since) {
     const changed = getChangedFilesSince(root, opts.flags.since);
     if (opts.paths.length) {
-      const targetPaths = opts.paths.map((p) => resolve8(root, p));
+      const targetPaths = opts.paths.map((p) => resolve9(root, p));
       files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith("/") ? t : `${t}/`)));
     } else {
       files = changed;
     }
   } else {
     const paths = opts.paths.length ? opts.paths : defaultPaths;
-    files = collectTargets(root, paths.map((p) => resolve8(root, p)));
+    files = collectTargets(root, paths.map((p) => resolve9(root, p)));
   }
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
   let findings = scanned.findings;
@@ -12338,7 +12901,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       const allDeps = [];
       for (const lf of lockfiles) {
         try {
-          const content = readFileSync14(lf, "utf8");
+          const content = readFileSync15(lf, "utf8");
           const parsed = parseLockfile(lf, content);
           if (parsed?.dependencies?.length) {
             allDeps.push(...parsed.dependencies);
@@ -12348,7 +12911,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       }
       if (allDeps.length > 0) {
         const advisories = queryOsv(allDeps, {
-          cacheDir: join13(root, ".airtight", "cache", "osv.json"),
+          cacheDir: join14(root, ".airtight", "cache", "osv.json"),
           offline: false
         });
         for (const adv of advisories) {
@@ -12383,7 +12946,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   }
   let baselineIgnored = 0;
   if (opts.flags.baseline) {
-    const baselineIds = loadBaseline(resolve8(root, opts.flags.baseline));
+    const baselineIds = loadBaseline(resolve9(root, opts.flags.baseline));
     const totalBefore = findings.length;
     findings = filterBaseline(findings, baselineIds);
     baselineIgnored = totalBefore - findings.length;
@@ -12630,7 +13193,7 @@ ${results.length} control(s): ${results.length - failing - broken - unverifiable
 function cmdSbom(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
-  const target = opts.paths.length ? resolve8(root, opts.paths[0]) : root;
+  const target = opts.paths.length ? resolve9(root, opts.paths[0]) : root;
   const sbom = generateCycloneDx({ root: target });
   io.out(sbom);
   return 0;
@@ -12685,6 +13248,36 @@ function cmdCorrelate(argv, io, env) {
   io.out("\nNo exposed attack paths discovered.");
   return 0;
 }
+function cmdFix(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = opts.paths.length === 1 && existsSync10(opts.paths[0]) && statSync9(opts.paths[0]).isDirectory() ? resolve9(opts.paths[0]) : process.cwd();
+  const paths = opts.paths.length ? opts.paths : ["."];
+  const dryRun = Boolean(opts.flags["dry-run"]);
+  const ruleFilter = opts.flags.rule || null;
+  const rules = loadRules2(env);
+  const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
+  if (opts.json) {
+    io.out(JSON.stringify(result, null, 2));
+    return 0;
+  }
+  if (result.filesCount === 0) {
+    io.out("airtight fix: no fixable mechanical findings found.");
+    return 0;
+  }
+  io.out(`airtight fix: ${dryRun ? "previewing" : "applied"} fixes across ${result.filesCount} file(s) (${result.fixedCount} finding(s)):`);
+  for (const diffObj of result.diffs) {
+    io.out(`
+# File: ${diffObj.file} (${diffObj.rules.join(", ")})`);
+    io.out(diffObj.diff);
+  }
+  if (dryRun) {
+    io.out("\n[dry-run] No files were modified. Re-run without --dry-run to apply these fixes.");
+  } else {
+    io.out(`
+[ok] Successfully applied fixes.${result.storeUpdated ? " Updated .airtight/findings.ndjson." : ""}`);
+  }
+  return 0;
+}
 function run(argv, io = defaultIo(), env = process.env) {
   const [verb, ...rest] = argv;
   try {
@@ -12706,6 +13299,8 @@ function run(argv, io = defaultIo(), env = process.env) {
         return cmdDetect(rest, io, env);
       case "rules":
         return cmdRules(rest, io, env);
+      case "fix":
+        return cmdFix(rest, io, env);
       case "map":
         return cmdMap(rest, io, env);
       case "correlate":
