@@ -5,6 +5,14 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-17
+
+### Added
+- **Source-to-Sink Taint & Reachability Analysis Engine (`engine/src/taint.mjs`)**: Intra-procedural taint analysis across JavaScript/TypeScript, Python, Go, Java, PHP, and C#. Tracks untrusted request parameters, headers, and bodies through local assignments and string interpolations to dangerous sinks (SQL, command execution, SSRF, eval, file I/O). Findings with verified taint paths are elevated to confirmed confidence and priority, and annotated with full provenance chains in JSON, SARIF, and MCP exports.
+- **PHP / Laravel Security Pack (`php/`)**: Added 4 deterministic rules detecting raw SQL concatenation (`php/sql-concatenation`), PHP object injection via `unserialize()` (`php/unserialize-untrusted`), arbitrary command execution (`php/command-exec`), and unescaped Blade `{!! !!}` output XSS (`php/blade-unescaped-xss`).
+- **.NET / C# Security Pack (`dotnet/`)**: Added 4 deterministic rules detecting raw SQL injection in EF Core / ADO.NET (`dotnet/sql-string-concat`), shell command injection via `Process.Start` (`dotnet/command-injection`), insecure object deserialization via `BinaryFormatter` / Json.NET `TypeNameHandling` (`dotnet/insecure-deserialization`), and weak password hashing algorithms (`dotnet/weak-password-hash`).
+- **Catalog & Demo Expansion**: Catalog expanded to 244 rules (180 immediate tier) across 18 rule packs. Added PHP and .NET components to `demo/vulnerable-shop`.
+
 ## [0.6.0] - 2026-10-11
 
 ### Added

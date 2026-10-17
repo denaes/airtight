@@ -26,7 +26,7 @@ import { applyFixes } from './fix.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SERVER_NAME = 'airtight';
-export const SERVER_VERSION = '0.6.0';
+export const SERVER_VERSION = '0.7.0';
 export const PROTOCOL_VERSION = '2024-11-05';
 
 function loadRulesBundle(env = process.env) {
