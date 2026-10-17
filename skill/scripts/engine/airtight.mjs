@@ -8466,6 +8466,238 @@ function matchStructured(rule, { content, lines, relPath, parseCache, isWaived }
   return findings;
 }
 
+// engine/src/taint.mjs
+var SOURCE_PATTERNS = [
+  // JavaScript / TypeScript (Express, Fastify, Next.js, Nuxt, SvelteKit, NestJS, Koa, Hono)
+  {
+    lang: "js",
+    type: "request-param",
+    regex: /(?:\b(?:req|request)\.(?:body|query|params|headers|cookies)(?:\.[\w$]+|\[[^\]]+\])?|\b(?:c\.req)\.(?:param|query|header)\s*\([^)]*\)|\burl\.searchParams\.get\s*\([^)]*\))/i,
+    extractVars: (line) => {
+      const destrMatch = /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*(?:req|request)\.(?:body|query|params|headers|cookies)/i.exec(line);
+      if (destrMatch) {
+        return destrMatch[1].split(",").map((s) => s.trim().split(":")[0].trim()).filter(Boolean);
+      }
+      const assignMatch = /(?:const|let|var)\s+([\w$]+)\s*=\s*(?:req|request)\.(?:body|query|params|headers|cookies|c\.req|url\.searchParams)/i.exec(line);
+      if (assignMatch) return [assignMatch[1]];
+      return [];
+    }
+  },
+  // Python (Flask, FastAPI, Django, Tornado)
+  {
+    lang: "py",
+    type: "request-param",
+    regex: /(?:\brequest\.(?:args|form|values|GET|POST|headers)(?:\.get\s*\([^)]*\)|\[[^\]]+\])|\brequest\.(?:json|body|data)\b|\bparams\.get\s*\([^)]*\))/i,
+    extractVars: (line) => {
+      const match = /^\s*([a-zA-Z_]\w*)\s*=\s*(?:request\.(?:args|form|values|GET|POST|json|body|headers)|params\.get)/i.exec(line);
+      return match ? [match[1]] : [];
+    }
+  },
+  // Go (Gin, Echo, Chi, net/http)
+  {
+    lang: "go",
+    type: "request-param",
+    regex: /(?:\bc\.(?:Query|Param|PostForm|GetString|DefaultQuery)\s*\([^)]*\)|\br\.(?:URL\.Query\(\)\.Get|FormValue|PostFormValue)\s*\([^)]*\)|\bio\.ReadAll\s*\(\s*r\.Body\s*\))/i,
+    extractVars: (line) => {
+      const match = /^\s*([a-zA-Z_]\w*)\s*(?::=|=)\s*(?:c\.(?:Query|Param|PostForm|GetString|DefaultQuery)|r\.(?:URL\.Query|FormValue|PostFormValue)|io\.ReadAll)/i.exec(line);
+      return match ? [match[1]] : [];
+    }
+  },
+  // Java (Spring, JAX-RS, Servlet)
+  {
+    lang: "java",
+    type: "request-param",
+    regex: /(?:\brequest\.getParameter\s*\([^)]*\)|\brequest\.getHeader\s*\([^)]*\)|@RequestParam\b|@PathVariable\b|@RequestBody\b)/i,
+    extractVars: (line) => {
+      const match = /(?:String|var|Object|[A-Z]\w*)\s+([a-zA-Z_]\w*)\s*=\s*request\.getParameter/i.exec(line);
+      if (match) return [match[1]];
+      const annotMatch = /@(?:RequestParam|PathVariable|RequestBody)[^)]*\)?\s*(?:(?:final\s+)?(?:String|var|[A-Z]\w*)\s+)?([a-zA-Z_]\w*)/i.exec(line);
+      return annotMatch ? [annotMatch[1]] : [];
+    }
+  },
+  // PHP (Vanilla, Laravel, Symfony)
+  {
+    lang: "php",
+    type: "request-param",
+    regex: /(?:\$_(?:GET|POST|REQUEST)\[[^\]]+\]|\$request->(?:input|get|query|all)\s*\([^)]*\)|\$request->[\w$]+)/i,
+    extractVars: (line) => {
+      const match = /^\s*(\$[a-zA-Z_]\w*)\s*=\s*(?:\$_(?:GET|POST|REQUEST)|\$request->)/i.exec(line);
+      return match ? [match[1]] : [];
+    }
+  },
+  // C# / .NET (ASP.NET Core / MVC)
+  {
+    lang: "dotnet",
+    type: "request-param",
+    regex: /(?:\bRequest\.(?:Query|Form|Headers)\[[^\]]+\]|\bRequest\.Query\.TryGetValue\s*\(|\[FromQuery\]|\[FromRoute\]|\[FromBody\])/i,
+    extractVars: (line) => {
+      const match = /(?:string|var|object|[A-Z]\w*)\s+([a-zA-Z_]\w*)\s*=\s*Request\.(?:Query|Form|Headers)/i.exec(line);
+      return match ? [match[1]] : [];
+    }
+  }
+];
+var SINK_PATTERNS = [
+  {
+    type: "sql",
+    regex: /(?:\$?(?:db|conn|connection|client|pool|session|cursor|jdbcTemplate|em|dataSource|entityManager|DB)(?:\.|->)(?:query|execute|rawQuery|queryRaw|executeRaw|executeUpdate|executeQuery|Query|QueryRow|Exec|createNativeQuery|raw|select|selectRaw)\s*\(|\b(?:knex|prisma|sequelize)\.raw\s*\(|`[^`]*(?:SELECT|INSERT|UPDATE|DELETE)[^`]*`|["'](?:SELECT|INSERT|UPDATE|DELETE)\s+[^"']*["'])/i
+  },
+  {
+    type: "exec",
+    regex: /(?:\b(?:child_process\.)?(?:exec|execSync|spawn|spawnSync|execFile|execFileSync)\s*\(|\bsubprocess\.(?:run|Popen|call|check_output|check_call)\s*\(|\bos\.(?:system|popen|spawn[a-z]*)\s*\(|\bexec\.Command(?:Context)?\s*\(|\bRuntime\.getRuntime\(\)\.exec\s*\(|\bnew\s+ProcessBuilder\s*\(|\bProcess\.Start\s*\(|\b(?:shell_exec|system|passthru|exec)\s*\()/
+  },
+  {
+    type: "eval",
+    regex: /(?:(?<![\w$])(?:eval|Function)\s*\(|\bvm\.(?:runInContext|runInNewContext|runInThisContext)\s*\(|(?<![\w$.])exec\s*\([^)]*\))/
+  },
+  {
+    type: "ssrf",
+    regex: /(?:(?<![\w$])(?:fetch|superagent|got)\s*\(|\baxios(?:\.(?:get|post|put|delete|patch|request))?\s*\(|\b(?:http|https)\.(?:get|request)\s*\(|\brequests\.(?:get|post|put|delete|patch|request)\s*\(|\burllib\.request\.urlopen\s*\(|\bhttpx\.(?:get|post|put|delete|patch|request)\s*\(|\bhttp\.(?:Get|Post|Head|PostForm|NewRequest(?:WithContext)?)\s*\(|\bHttpClient\.newHttpClient\s*\(|\brestTemplate\.(?:getForObject|getForEntity|postForObject|postForEntity|exchange)\s*\(|\bcurl_init\s*\(|\bfile_get_contents\s*\()/i
+  },
+  {
+    type: "file",
+    regex: /(?:\bfs(?:\.promises)?\.(?:readFile|readFileSync|writeFile|writeFileSync|createReadStream|createWriteStream|appendFile|appendFileSync)\s*\(|(?<![\w$])open\s*\([^)]*['"][rwa]|(?<![\w$])aiofiles\.open\s*\(|\bos\.(?:ReadFile|WriteFile|Open|OpenFile|Create)\s*\(|\bio(?:util)?\.(?:ReadFile|WriteFile)\s*\(|\bFiles\.(?:readAllBytes|readAllLines|readString|write|writeString|newInputStream|newOutputStream)\s*\(|\bnew\s+(?:FileInputStream|FileOutputStream|FileReader|FileWriter)\s*\(|\bFile\.(?:Open|ReadAllText|ReadAllBytes|WriteAllText)\s*\()/i
+  }
+];
+function traceFileTaint(content, lines, ext = "") {
+  const taintedVars = /* @__PURE__ */ new Map();
+  const taintHistory = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const lineNo = i + 1;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("#") || trimmed.startsWith("/*")) {
+      continue;
+    }
+    for (const pat of SOURCE_PATTERNS) {
+      if (pat.regex.test(line)) {
+        const extracted = pat.extractVars ? pat.extractVars(line) : [];
+        const sourceMatch = pat.regex.exec(line);
+        const sourceExpr = sourceMatch ? sourceMatch[0] : "user-input";
+        if (extracted.length > 0) {
+          for (const v of extracted) {
+            const entry = {
+              name: v,
+              line: lineNo,
+              sourceExpr,
+              hops: [sourceExpr, v]
+            };
+            taintedVars.set(v, entry);
+            taintHistory.push(entry);
+          }
+        } else {
+          const genericAssign = /^\s*(?:(?:const|let|var|string|var|val|\$)\s+)?([$a-zA-Z_]\w*)\s*(?::=|=)\s*(.+)$/.exec(line);
+          if (genericAssign) {
+            const varName = genericAssign[1];
+            const entry = {
+              name: varName,
+              line: lineNo,
+              sourceExpr,
+              hops: [sourceExpr, varName]
+            };
+            taintedVars.set(varName, entry);
+            taintHistory.push(entry);
+          }
+        }
+      }
+    }
+    if (taintedVars.size > 0) {
+      const assignMatch = /^\s*(?:(?:const|let|var|string|var|val|\$)\s+)?([$a-zA-Z_]\w*)\s*(?::=|=)\s*(.+)$/.exec(line);
+      if (assignMatch) {
+        const destVar = assignMatch[1];
+        const rhs = assignMatch[2];
+        for (const [taintedName, prev] of taintedVars.entries()) {
+          const varRegex = createVarRegex(taintedName);
+          if (varRegex.test(rhs) && destVar !== taintedName) {
+            const newHops = [...prev.hops, destVar];
+            const entry = {
+              name: destVar,
+              line: lineNo,
+              sourceExpr: prev.sourceExpr,
+              hops: newHops
+            };
+            taintedVars.set(destVar, entry);
+            taintHistory.push(entry);
+            break;
+          }
+        }
+      }
+    }
+  }
+  return {
+    taintedVars,
+    taintHistory
+  };
+}
+function createVarRegex(varName) {
+  if (varName.startsWith("$")) {
+    return new RegExp(`(?:^|[^a-zA-Z0-9_])${escapeRegex(varName)}\\b`);
+  }
+  return new RegExp(`\\b${escapeRegex(varName)}\\b`);
+}
+function findTaintPathForSink(taintTracker, sinkLineNo, snippet, windowLines = 3) {
+  if (!taintTracker || taintTracker.taintedVars.size === 0) {
+    return null;
+  }
+  for (const [varName, info] of taintTracker.taintedVars.entries()) {
+    if (info.line > sinkLineNo) continue;
+    if (sinkLineNo - info.line > 100) continue;
+    const varRegex = createVarRegex(varName);
+    if (varRegex.test(snippet)) {
+      let sinkType = "sink";
+      for (const s of SINK_PATTERNS) {
+        if (s.regex.test(snippet)) {
+          sinkType = s.type;
+          break;
+        }
+      }
+      const fullHops = [...info.hops, sinkType];
+      const pathSummary = fullHops.join(" -> ");
+      return {
+        hasTaint: true,
+        source: { expr: info.sourceExpr, line: info.line },
+        variable: varName,
+        hops: fullHops,
+        pathSummary,
+        sinkType,
+        sinkLine: sinkLineNo
+      };
+    }
+  }
+  return null;
+}
+function enrichFindingsWithTaint(findings, fileContentMap) {
+  if (!findings || findings.length === 0) return findings;
+  const fileTaintCache = /* @__PURE__ */ new Map();
+  for (const f of findings) {
+    if (!f.file || !f.line) continue;
+    let taintData = fileTaintCache.get(f.file);
+    if (!taintData && fileContentMap.has(f.file)) {
+      const content = fileContentMap.get(f.file);
+      const lines = content.split(/\r?\n/);
+      const extMatch = /\.[^.]+$/.exec(f.file);
+      const ext = extMatch ? extMatch[0].toLowerCase() : "";
+      taintData = traceFileTaint(content, lines, ext);
+      fileTaintCache.set(f.file, taintData);
+    }
+    if (taintData) {
+      const taint = findTaintPathForSink(taintData, f.line, f.snippet ?? "");
+      if (taint) {
+        f.taintPath = taint.pathSummary;
+        f.reachable = true;
+        if (f.confidence !== "confirmed") {
+          f.confidence = "confirmed";
+          if (f.priority === "P2" && f.severity === "high") f.priority = "P1";
+          if (f.priority === "P1" && f.severity === "critical") f.priority = "P0";
+        }
+      }
+    }
+  }
+  return findings;
+}
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // engine/src/scan.mjs
 var SKIP_DIRS = /* @__PURE__ */ new Set([
   ".git",
@@ -8521,6 +8753,7 @@ function scanFiles({ root, files, rules, config, isSuppressed, testMode = true }
   const maxBytes = config?.scan?.maxFileBytes ?? 1048576;
   const findings = [];
   const skipped = [];
+  const fileContentMap = /* @__PURE__ */ new Map();
   for (const absPath of files) {
     const relPath = toPosix(relative(root, absPath));
     let buf;
@@ -8543,6 +8776,7 @@ function scanFiles({ root, files, rules, config, isSuppressed, testMode = true }
     const applicable = rules.filter((r) => matchesAny(relPath, r.files) && !matchesAny(relPath, r.exclude)).map((r) => applyTestMode(r, inTest)).filter(Boolean);
     if (applicable.length === 0) continue;
     const content = buf.toString("utf8");
+    fileContentMap.set(relPath, content);
     const lines = content.split(/\r?\n/);
     const isWaived = buildWaiverIndex(lines);
     const parseCache = /* @__PURE__ */ new Map();
@@ -8565,6 +8799,7 @@ function scanFiles({ root, files, rules, config, isSuppressed, testMode = true }
       }
     }
   }
+  enrichFindingsWithTaint(findings, fileContentMap);
   const kept = isSuppressed ? findings.filter((f) => !isSuppressed(f)) : findings;
   return { findings: sortFindings(kept), vault, skipped };
 }
@@ -8808,6 +9043,9 @@ function renderText({ findings, vault, meta }) {
       out.push(`  L${f.line} [${f.priority}] ${f.rule}${cwe} \xB7 ${f.severity}/${f.confidence}`);
       out.push(`       ${f.message}`);
       out.push(`       ${f.snippet}`);
+      if (f.taintPath) {
+        out.push(`       taint: ${f.taintPath}`);
+      }
       out.push(`       fix: ${f.fix}`);
     }
     out.push("");
@@ -8909,6 +9147,7 @@ Fix: ${f.fix}` : ""}`
       priority: f.priority,
       severity: f.severity,
       confidence: f.confidence,
+      ...f.taintPath ? { taintPath: f.taintPath, reachable: Boolean(f.reachable) } : {},
       ...f.cwe ? { cwe: f.cwe } : {},
       ...f.owasp ? { owasp: f.owasp } : {}
     }
@@ -9433,7 +9672,7 @@ function* walk2(root, dir = root) {
     }
   }
 }
-var SINK_PATTERNS = [
+var SINK_PATTERNS2 = [
   {
     type: "sql",
     regex: /(?:\b(?:db|conn|connection|client|pool|session|cursor|jdbcTemplate|em|dataSource|entityManager)\.(?:query|execute|rawQuery|queryRaw|executeRaw|executeUpdate|executeQuery|Query|QueryRow|Exec|createNativeQuery)\s*\(|\b(?:knex|prisma|sequelize)\.raw\s*\(|`[^`]*(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^`]*`|["'](?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM)[^"']*["'])/i
@@ -9460,7 +9699,7 @@ function detectSinksInLines(lines) {
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const lineNo = i + 1;
-    for (const { type, regex } of SINK_PATTERNS) {
+    for (const { type, regex } of SINK_PATTERNS2) {
       if (regex.test(line)) {
         sinks.push({
           type,
@@ -10151,6 +10390,14 @@ function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
     }
     if (fileRoutes.length === 0) continue;
     const fileSinks = detectSinksInLines(lines);
+    const taintTracker = traceFileTaint(content, lines, ext);
+    for (const s of fileSinks) {
+      const taint = findTaintPathForSink(taintTracker, s.line, s.snippet);
+      if (taint) {
+        s.taintPath = taint.pathSummary;
+        s.reachable = true;
+      }
+    }
     fileRoutes.sort((a, b) => a.line - b.line);
     for (let rIdx = 0; rIdx < fileRoutes.length; rIdx += 1) {
       const currentRoute = fileRoutes[rIdx];

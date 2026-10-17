@@ -91,6 +91,7 @@ export function renderSarif({ findings = [], vault, meta, rules = [], version = 
       priority: f.priority,
       severity: f.severity,
       confidence: f.confidence,
+      ...(f.taintPath ? { taintPath: f.taintPath, reachable: Boolean(f.reachable) } : {}),
       ...(f.cwe ? { cwe: f.cwe } : {}),
       ...(f.owasp ? { owasp: f.owasp } : {}),
     },

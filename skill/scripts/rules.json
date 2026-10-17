@@ -1553,6 +1553,82 @@
     "fix": "Pin to a caret or exact range, and let a bot propose upgrades so they pass through review."
   },
   {
+    "id": "dotnet/command-injection",
+    "name": "Process execution invoked with shell interpreter and dynamic command string",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.cs"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|\\*|/\\*)).*?(?:\\bProcess\\.Start\\s*\\(\\s*([\"'])(?:(?!\\1).)*\\b(?:cmd(?:\\.exe)?|powershell(?:\\.exe)?|(?:/(?:usr/)?bin/)?(?:ba|z)?sh)\\b(?:(?!\\1).)*\\1\\s*,\\s*(?:\\$\"(?:[^\"]*)\\{[a-zA-Z_]|([\"'])(?:(?!\\2).)*(?:[/-]c|-Command)\\b(?:(?!\\2).)*\\2\\s*\\+)|\\bnew\\s+ProcessStartInfo\\s*\\(\\s*([\"'])(?:(?!\\3).)*\\b(?:cmd(?:\\.exe)?|powershell(?:\\.exe)?|(?:/(?:usr/)?bin/)?(?:ba|z)?sh)\\b(?:(?!\\3).)*\\3\\s*,\\s*\\$\")"
+    },
+    "message": "Process.Start invokes shell interpreter with concatenated or interpolated command string",
+    "why": "Invoking a shell interpreter (cmd.exe, powershell.exe, sh, bash) with dynamic arguments allows command injection through shell metacharacters and operators.",
+    "fix": "Pass arguments safely as separate items using ProcessStartInfo.ArgumentList without invoking a shell."
+  },
+  {
+    "id": "dotnet/insecure-deserialization",
+    "name": "Arbitrary object deserialization from untrusted streams",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "files": [
+      "**/*.cs"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|\\*|/\\*)).*?(?:\\b(?:BinaryFormatter|NetDataContractSerializer|SoapFormatter)\\b.*?\\.\\s*Deserialize\\s*\\(|\\bTypeNameHandling\\s*=\\s*TypeNameHandling\\.(?:Auto|All|Objects|Arrays)\\b)"
+    },
+    "message": "BinaryFormatter or Json.NET TypeNameHandling allows remote code execution via object deserialization",
+    "why": "BinaryFormatter and Json.NET TypeNameHandling automatically resolve and instantiate arbitrary types specified in serialized payloads, enabling remote code execution via gadget chains.",
+    "fix": "Use System.Text.Json with explicit DTO types, or set TypeNameHandling = TypeNameHandling.None in Newtonsoft.Json."
+  },
+  {
+    "id": "dotnet/sql-string-concat",
+    "name": "SQL statement executed with dynamic string concatenation or interpolation",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.cs"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|\\*|/\\*)).*?(?:\\b(?:FromSqlRaw|ExecuteSqlRaw|ExecuteSqlRawAsync|FromSqlInterpolated|SqlCommand)\\s*\\(\\s*(?:([\"'])(?:(?!\\1).)*(?:\\bSELECT\\b(?:(?!\\1).)*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b(?:(?!\\1).)*\\bSET\\b|\\bDELETE\\s+FROM\\b)(?:(?!\\1).)*\\1\\s*\\+|\\$\"(?:[^\"]*)\\b(?:SELECT\\b[^\"]*\\bFROM\\b|INSERT\\s+INTO|UPDATE\\b[^\"]*\\bSET\\b|DELETE\\s+FROM)[^\"]*\\{[a-zA-Z_]))"
+    },
+    "message": "SQL statement constructed via string concatenation or interpolated string instead of parameterized parameters",
+    "why": "Concatenating or interpolating variables into raw SQL queries in EF Core or ADO.NET bypasses query parameterization, allowing attackers to inject arbitrary SQL statements.",
+    "fix": "Use parameterized query overloads (FromSqlRaw with parameter markers {0}, {1} or SqlParameter) or EF Core 7+ FromSql with FormattableString interpolation."
+  },
+  {
+    "id": "dotnet/weak-password-hash",
+    "name": "Insecure hash algorithm used for password hashing",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-328",
+    "owasp": "A02:2021",
+    "files": [
+      "**/*.cs"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|\\*|/\\*)).*?(?:\\b(?:MD5|SHA1)\\.(?:Create|ComputeHash)\\b.*?(?:pwd|pass|password|hashpassword|passwd|userpassword))"
+    },
+    "message": "MD5 or SHA1 hash algorithm used for password hashing",
+    "why": "MD5 and SHA1 are cryptographically broken, un-salted, and computationally fast algorithms vulnerable to rainbow table attacks and high-speed GPU hash cracking.",
+    "fix": "Use ASP.NET Core PasswordHasher<T>, PBKDF2 (Rfc2898DeriveBytes), or Argon2id with random salts."
+  },
+  {
     "id": "go/bind-all-interfaces",
     "name": "Server listening on all network interfaces",
     "domain": "infrastructure",
@@ -4120,6 +4196,84 @@
     "message": "Container does not set readOnlyRootFilesystem",
     "why": "A writable root filesystem lets an attacker who achieves execution persist a payload, modify application code, or drop a binary the next restart will run.",
     "fix": "Set readOnlyRootFilesystem = true and mount an emptyDir for the paths the process legitimately writes."
+  },
+  {
+    "id": "php/blade-unescaped-xss",
+    "name": "Blade template unescaped raw output rendering variables",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-79",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.blade.php",
+      "**/*.php"
+    ],
+    "match": {
+      "regex": "\\{!!\\s*\\$(?!(?:safe|trusted|errors|csrf|slot|svg|icon)\\b)[a-zA-Z_]\\w*(?:\\[[^\\]]+\\]|->\\w+)*\\s*!!\\}"
+    },
+    "message": "Blade raw tag {!! !!} renders unescaped variable content without HTML entity encoding",
+    "why": "Using raw unescaped Blade tags ({!! !!}) bypasses Laravel's default htmlspecialchars() protection, leaving the rendered view vulnerable to Cross-Site Scripting (XSS).",
+    "fix": "Use standard double-brace escaping ({{ $variable }}) instead of raw tags ({!! $variable !!}) unless rendering sanitized HTML."
+  },
+  {
+    "id": "php/command-exec",
+    "name": "Operating system command executed via shell with dynamic arguments",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.php"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*|#)).*?\\b(?:system|exec|passthru|shell_exec|popen|proc_open)\\s*\\(\\s*(?:([\"'])(?:(?!\\1).)*\\1\\s*\\.\\s*\\$|\\$|\\\"(?:[^\\\"]*)\\$[a-zA-Z_])"
+    },
+    "message": "Shell execution function invoked with dynamic variable arguments",
+    "why": "Passing unescaped or concatenated user variables to system shell execution functions allows attackers to inject arbitrary shell metacharacters and execute OS commands.",
+    "fix": "Avoid shell execution where possible, or use escapeshellarg() and escapeshellcmd() on all dynamic arguments."
+  },
+  {
+    "id": "php/sql-concatenation",
+    "name": "SQL query built by string concatenation or variable interpolation",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.php"
+    ],
+    "match": {
+      "regex": "(?i)^(?!\\s*(?://|\\*|/\\*|#)).*?(?:\\b(?:(?:pdo|db|conn|connection|mysqli)\\s*->\\s*(?:query|exec|prepare|raw|select|statement)|\\bDB\\s*::\\s*(?:raw|select|statement|unprepared))\\s*\\(\\s*(?:([\"'])(?:(?!\\1).)*(?:\\bSELECT\\b(?:(?!\\1).)*\\bFROM\\b|\\bINSERT\\s+INTO\\b|\\bUPDATE\\b(?:(?!\\1).)*\\bSET\\b|\\bDELETE\\s+FROM\\b)(?:(?!\\1).)*\\1\\s*\\.\\s*\\$|\\$query|\\\"SELECT\\b[^\\\"]*\\$[a-zA-Z_]))"
+    },
+    "message": "SQL statement executed with dynamic string concatenation or unescaped variable interpolation",
+    "why": "Concatenating or interpolating dynamic variables into raw SQL queries allows attackers to manipulate query structure and logic, enabling unauthorized data exfiltration or tampering.",
+    "fix": "Use parameterized prepared statements with PDO (prepare/execute with placeholders) or Laravel query builder parameter bindings instead of string concatenation."
+  },
+  {
+    "id": "php/unserialize-untrusted",
+    "name": "Arbitrary object deserialization from untrusted input",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "files": [
+      "**/*.php"
+    ],
+    "match": {
+      "regex": "^(?!\\s*(?://|\\*|/\\*|#)).*?\\bunserialize\\s*\\(\\s*(?!\\s*(?:true|false|null|[\"']\\w+[\"']))\\s*(?:\\$[a-zA-Z_]\\w*|\\$_(?:GET|POST|COOKIE|REQUEST)|file_get_contents|base64_decode)",
+      "not_regex": "allowed_classes"
+    },
+    "message": "PHP unserialize() invoked on dynamic input, enabling PHP Object Injection",
+    "why": "Deserializing untrusted data with PHP unserialize() invokes magic methods (__wakeup, __destruct, __toString) on instantiated classes, enabling remote code execution via gadget chains.",
+    "fix": "Use json_decode() for structured data exchange, or specify allowed_classes => false in the unserialize options array."
   },
   {
     "id": "py/assert-for-authorization",

@@ -5,6 +5,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
+import { traceFileTaint, findTaintPathForSink } from './taint.mjs';
 
 const SKIP_DIRS = new Set([
   '.git', 'node_modules', 'dist', 'build', 'out', '.next', '.nuxt', '.cache',
@@ -912,6 +913,15 @@ export function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
 
     // Detect sinks in the file
     const fileSinks = detectSinksInLines(lines);
+    const taintTracker = traceFileTaint(content, lines, ext);
+
+    for (const s of fileSinks) {
+      const taint = findTaintPathForSink(taintTracker, s.line, s.snippet);
+      if (taint) {
+        s.taintPath = taint.pathSummary;
+        s.reachable = true;
+      }
+    }
 
     // Associate sinks with routes by line proximity / handler scope
     // Sort routes by line

@@ -10,6 +10,7 @@ import { matchCustom } from './match/custom.mjs';
 import { createVault } from './redact.mjs';
 import { sortFindings } from './findings.mjs';
 import { isTestPath, applyTestMode } from './testpath.mjs';
+import { enrichFindingsWithTaint } from './taint.mjs';
 
 /**
  * Directories with nothing authored in them. Note what is absent: we do not
@@ -73,6 +74,7 @@ export function scanFiles({ root, files, rules, config, isSuppressed, testMode =
   const maxBytes = config?.scan?.maxFileBytes ?? 1_048_576;
   const findings = [];
   const skipped = [];
+  const fileContentMap = new Map();
 
   for (const absPath of files) {
     const relPath = toPosix(relative(root, absPath));
@@ -99,6 +101,7 @@ export function scanFiles({ root, files, rules, config, isSuppressed, testMode =
     if (applicable.length === 0) continue;
 
     const content = buf.toString('utf8');
+    fileContentMap.set(relPath, content);
     const lines = content.split(/\r?\n/);
     const isWaived = buildWaiverIndex(lines);
     // One parse per tier per file, shared across every rule that needs it.
@@ -122,6 +125,7 @@ export function scanFiles({ root, files, rules, config, isSuppressed, testMode =
     }
   }
 
+  enrichFindingsWithTaint(findings, fileContentMap);
   const kept = isSuppressed ? findings.filter((f) => !isSuppressed(f)) : findings;
   return { findings: sortFindings(kept), vault, skipped };
 }

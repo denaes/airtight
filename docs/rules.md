@@ -2,7 +2,7 @@
 
 # Rule reference
 
-236 rules across 16 packs. 172 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+244 rules across 18 packs. 180 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -17,11 +17,13 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`compose`](#compose) | 5 | 4 | Docker Compose |
 | [`container`](#container) | 11 | 6 | Containers |
 | [`dep`](#dep) | 12 | 7 | Dependencies and supply chain |
+| [`dotnet`](#dotnet) | 4 | 4 | dotnet |
 | [`go`](#go) | 19 | 16 | Go |
 | [`helm`](#helm) | 4 | 3 | helm |
 | [`java`](#java) | 18 | 17 | Java |
 | [`js`](#js) | 36 | 25 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 21 | 10 | Kubernetes |
+| [`php`](#php) | 4 | 4 | php |
 | [`py`](#py) | 34 | 28 | Python |
 | [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
@@ -696,6 +698,59 @@ Any publish by the maintainer, or by anyone who compromises their account, is in
 **Fix.** Pin to a caret or exact range, and let a bot propose upgrades so they pass through review.
 
 <sub>Waive: `airtight hooks ignore-value dep/wildcard-version "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line dep/wildcard-version -- <reason>`</sub>
+
+
+## dotnet
+
+dotnet. 4 rules.
+
+### `dotnet/command-injection`
+
+Process execution invoked with shell interpreter and dynamic command string
+
+**critical** / firm · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Invoking a shell interpreter (cmd.exe, powershell.exe, sh, bash) with dynamic arguments allows command injection through shell metacharacters and operators.
+
+**Fix.** Pass arguments safely as separate items using ProcessStartInfo.ArgumentList without invoking a shell.
+
+<sub>Waive: `airtight hooks ignore-value dotnet/command-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line dotnet/command-injection -- <reason>`</sub>
+
+### `dotnet/insecure-deserialization`
+
+Arbitrary object deserialization from untrusted streams
+
+**critical** / confirmed · `P0` · CWE-502 · A08:2021 · fires on edit
+
+BinaryFormatter and Json.NET TypeNameHandling automatically resolve and instantiate arbitrary types specified in serialized payloads, enabling remote code execution via gadget chains.
+
+**Fix.** Use System.Text.Json with explicit DTO types, or set TypeNameHandling = TypeNameHandling.None in Newtonsoft.Json.
+
+<sub>Waive: `airtight hooks ignore-value dotnet/insecure-deserialization "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line dotnet/insecure-deserialization -- <reason>`</sub>
+
+### `dotnet/sql-string-concat`
+
+SQL statement executed with dynamic string concatenation or interpolation
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+Concatenating or interpolating variables into raw SQL queries in EF Core or ADO.NET bypasses query parameterization, allowing attackers to inject arbitrary SQL statements.
+
+**Fix.** Use parameterized query overloads (FromSqlRaw with parameter markers {0}, {1} or SqlParameter) or EF Core 7+ FromSql with FormattableString interpolation.
+
+<sub>Waive: `airtight hooks ignore-value dotnet/sql-string-concat "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line dotnet/sql-string-concat -- <reason>`</sub>
+
+### `dotnet/weak-password-hash`
+
+Insecure hash algorithm used for password hashing
+
+**high** / confirmed · `P1` · CWE-328 · A02:2021 · fires on edit
+
+MD5 and SHA1 are cryptographically broken, un-salted, and computationally fast algorithms vulnerable to rainbow table attacks and high-speed GPU hash cracking.
+
+**Fix.** Use ASP.NET Core PasswordHasher<T>, PBKDF2 (Rfc2898DeriveBytes), or Argon2id with random salts.
+
+<sub>Waive: `airtight hooks ignore-value dotnet/weak-password-hash "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line dotnet/weak-password-hash -- <reason>`</sub>
 
 
 ## go
@@ -1897,6 +1952,59 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 **Fix.** Set readOnlyRootFilesystem = true and mount an emptyDir for the paths the process legitimately writes.
 
 <sub>Waive: `airtight hooks ignore-value k8s/writable-root-filesystem "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line k8s/writable-root-filesystem -- <reason>`</sub>
+
+
+## php
+
+php. 4 rules.
+
+### `php/blade-unescaped-xss`
+
+Blade template unescaped raw output rendering variables
+
+**high** / firm · `P1` · CWE-79 · A03:2021 · fires on edit
+
+Using raw unescaped Blade tags ({!! !!}) bypasses Laravel's default htmlspecialchars() protection, leaving the rendered view vulnerable to Cross-Site Scripting (XSS).
+
+**Fix.** Use standard double-brace escaping ({{ $variable }}) instead of raw tags ({!! $variable !!}) unless rendering sanitized HTML.
+
+<sub>Waive: `airtight hooks ignore-value php/blade-unescaped-xss "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/blade-unescaped-xss -- <reason>`</sub>
+
+### `php/command-exec`
+
+Operating system command executed via shell with dynamic arguments
+
+**critical** / firm · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Passing unescaped or concatenated user variables to system shell execution functions allows attackers to inject arbitrary shell metacharacters and execute OS commands.
+
+**Fix.** Avoid shell execution where possible, or use escapeshellarg() and escapeshellcmd() on all dynamic arguments.
+
+<sub>Waive: `airtight hooks ignore-value php/command-exec "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/command-exec -- <reason>`</sub>
+
+### `php/sql-concatenation`
+
+SQL query built by string concatenation or variable interpolation
+
+**critical** / firm · `P0` · CWE-89 · A03:2021 · fires on edit
+
+Concatenating or interpolating dynamic variables into raw SQL queries allows attackers to manipulate query structure and logic, enabling unauthorized data exfiltration or tampering.
+
+**Fix.** Use parameterized prepared statements with PDO (prepare/execute with placeholders) or Laravel query builder parameter bindings instead of string concatenation.
+
+<sub>Waive: `airtight hooks ignore-value php/sql-concatenation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/sql-concatenation -- <reason>`</sub>
+
+### `php/unserialize-untrusted`
+
+Arbitrary object deserialization from untrusted input
+
+**critical** / confirmed · `P0` · CWE-502 · A08:2021 · fires on edit
+
+Deserializing untrusted data with PHP unserialize() invokes magic methods (__wakeup, __destruct, __toString) on instantiated classes, enabling remote code execution via gadget chains.
+
+**Fix.** Use json_decode() for structured data exchange, or specify allowed_classes => false in the unserialize options array.
+
+<sub>Waive: `airtight hooks ignore-value php/unserialize-untrusted "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/unserialize-untrusted -- <reason>`</sub>
 
 
 ## py

@@ -32,6 +32,9 @@ export function renderText({ findings, vault, meta }) {
       out.push(`  L${f.line} [${f.priority}] ${f.rule}${cwe} · ${f.severity}/${f.confidence}`);
       out.push(`       ${f.message}`);
       out.push(`       ${f.snippet}`);
+      if (f.taintPath) {
+        out.push(`       taint: ${f.taintPath}`);
+      }
       out.push(`       fix: ${f.fix}`);
     }
     out.push('');
