@@ -11899,7 +11899,7 @@ function parseCvssVector(vectorStr) {
 // engine/src/mcp.mjs
 var HERE = dirname5(fileURLToPath(import.meta.url));
 var SERVER_NAME = "airtight";
-var SERVER_VERSION = "0.8.0";
+var SERVER_VERSION = "0.9.0";
 var PROTOCOL_VERSION = "2024-11-05";
 function loadRulesBundle(env = process.env) {
   if (env.AIRTIGHT_RULES && existsSync7(env.AIRTIGHT_RULES)) {
@@ -12988,7 +12988,7 @@ var ESCALATION_NOTICE = "ignore-file and ignore-rule suppress far more than one 
 
 // engine/src/cli.mjs
 var HERE2 = dirname8(fileURLToPath2(import.meta.url));
-var VERSION = "0.8.0";
+var VERSION = "0.9.0";
 var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)

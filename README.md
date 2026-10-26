@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.7.0, installable from npm across 18 harnesses. Engine with 250
+> **Status:** v0.9.0, installable from npm across 18 harnesses. Engine with 250
 > rules, findings store, control register, 13 commands, edit hook, installer,
 > docs, and a demo. Benchmarked against 14 real repositories; see
 > [docs/benchmark.md](docs/benchmark.md) for what that
@@ -239,7 +239,7 @@ credential in three files is three edits to make but one key to rotate.
 Scan pull requests and push findings to GitHub Code Scanning via the composite action:
 
 ```yaml
-- uses: denaes/airtight@v0.7.0
+- uses: denaes/airtight@v0.9.0
   with:
     paths: '.'
     format: 'sarif'
@@ -255,6 +255,8 @@ Scan pull requests and push findings to GitHub Code Scanning via the composite a
 npm install
 npm run build
 npm test
+npm run preflight                               # verify full GitHub CI and npm compliance
+npm run preflight:fix                           # auto-sync harnesses, docs, and goldens
 
 node engine/src/cli.mjs detect .                # exit 0 clean, 2 findings
 node engine/src/cli.mjs detect --format sarif . # SARIF 2.1.0 for Code Scanning
@@ -286,7 +288,7 @@ That is an operational choice, not an aesthetic one:
    $\ge 20$ exists, without transpile steps, tsconfig drift, or source-map
    misalignment during crashes.
 3. **Instant verification.** With Node's native test runner (`node:test`), the
-   entire test suite (550+ tests covering rules, lockfile parsers, OSV caching,
+   entire test suite (730+ tests covering rules, lockfile parsers, OSV caching,
    and secret redaction) runs in under two seconds with zero build step.
 4. **Data-driven invariants over compiler types.** Security rules are declared
    as data (`engine/rules/*.yaml`), validated at build time against eight classes

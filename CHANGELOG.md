@@ -5,6 +5,20 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-26
+
+### Added
+- **Proactive Vulnerability Flaw Detection & Prevention (Round 2)**: Added 3 new deterministic rules anticipating and preventing critical flaw patterns across AI tool execution, persistent worker runtimes, and archive extractions:
+  - `ai/tool-call-command-injection`: Proactively detects AI agent tool-call arguments passed directly into system shell executors (`child_process.exec`, `subprocess.run(shell=True)`, `os.system`), stopping prompt injection from escalating to host RCE.
+  - `php/worker-state-leak`: Flags per-request user, tenant, and session identity retained in static class properties, preventing cross-request state pollution in persistent runtimes (FrankenPHP worker mode, Laravel Octane, Swoole, RoadRunner).
+  - `js/zip-slip-archive-traversal`: Flags unvalidated archive extraction stream pipes and file writes that lack canonical target prefix checks, preventing arbitrary file overwrite via malicious `../` paths.
+  - Expanded catalog to **250 deterministic rules** (186 in immediate tier) with 100% fixture coverage across 18 rule packs.
+- **Local Preflight Verification & Git Compliance Automation (`npm run preflight`)**:
+  - Added `scripts/preflight.mjs`: comprehensive multi-phase preflight runner guaranteeing local parity with GitHub Actions CI and npm registry publishing.
+  - Automated Git Pre-Push Hook (`.git/hooks/pre-push` via `scripts/install-hooks.mjs`): automatically intercepts `git push` locally, executing all 732 tests, progress audit, demo golden checks, self-scan, and npm checks before code ever leaves the machine.
+  - Integrated with `package.json`: added `"preflight"`, `"preflight:fix"`, `"preflight:npm"`, `"preflight:github"`, `"prepare"`, and automatic preflight invocation in `"prepublishOnly"`.
+  - Added test coverage in `tests/build.test.mjs` verifying preflight dry-run and hook installation.
+
 ## [0.8.0] - 2026-10-26
 
 ### Added

@@ -32,7 +32,7 @@ import * as hooks from './hooks-admin.mjs';
 import { loadControls, verifyControls, frameworkCoverage, frameworksIn } from './controls.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const VERSION = '0.8.0';
+export const VERSION = '0.9.0';
 
 const USAGE = `airtight ${VERSION} — deterministic security rule engine
 

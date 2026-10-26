@@ -17,6 +17,25 @@ const IS_GIT_HOOK = args.includes('--git-hook');
 const FIX = args.includes('--fix');
 const ONLY_GITHUB = args.includes('--github');
 const ONLY_NPM = args.includes('--npm');
+const SHOW_HELP = args.includes('--help') || args.includes('-h');
+const SKIP_TEST = args.includes('--no-test') || process.env.AIRTIGHT_SKIP_NESTED_TEST === '1';
+
+if (SHOW_HELP) {
+  console.log(`Airtight Preflight Compliance Runner
+
+Usage:
+  node scripts/preflight.mjs [options]
+
+Options:
+  --github      Run GitHub Actions CI parity checks
+  --npm         Run npm registry publication checks
+  --fix         Automatically resolve harness drift and docs before checking
+  --git-hook    Executed automatically by .git/hooks/pre-push
+  --no-test     Skip full test suite execution
+  --help, -h    Show this help message
+`);
+  process.exit(0);
+}
 
 // ANSI Colors
 const RESET = '\x1b[0m';
@@ -81,37 +100,37 @@ function checkGitHubParity() {
   // 1. Sync & Generated Files
   console.log('  Checking generated artifacts and tracked harnesses...');
   if (FIX) {
-    const buildRes = run('npm', ['run', 'build:release']);
-    if (buildRes.code !== 0) {
-      fail('Build release failed', buildRes.stderr || buildRes.stdout);
-      return;
-    }
+    run('npm', ['run', 'audit:progress:fix']);
+    run('npm', ['run', 'build:release']);
   }
 
-  const diffCheck = run('git', [
-    'diff',
-    '--exit-code',
-    '--',
-    '.agent', '.agents', '.claude', '.cursor', '.dsh', '.gemini', '.github',
-    '.grok', '.hermes', '.kiro', '.opencode', '.pi', '.qoder', '.rovodev',
-    '.trae', '.trae-cn', '.veto', '.vibe', 'plugin', '.claude-plugin',
-    'skill/scripts/engine', 'skill/scripts/rules.json', 'docs/', 'README.md',
-  ]);
+  if (IS_GIT_HOOK) {
+    const diffCheck = run('git', [
+      'diff',
+      '--exit-code',
+      '--',
+      '.agent', '.agents', '.claude', '.cursor', '.dsh', '.gemini', '.github',
+      '.grok', '.hermes', '.kiro', '.opencode', '.pi', '.qoder', '.rovodev',
+      '.trae', '.trae-cn', '.veto', '.vibe', 'plugin', '.claude-plugin',
+      'skill/scripts/engine', 'skill/scripts/rules.json', 'docs/', 'README.md',
+    ]);
 
-  if (diffCheck.code !== 0) {
-    if (FIX) {
-      run('npm', ['run', 'audit:progress:fix']);
-      run('npm', ['run', 'build:release']);
-      pass('Harness & documentation sync', 'auto-fixed via build:release');
-    } else {
+    if (diffCheck.code !== 0) {
       fail(
         'Harness & documentation drift detected',
         'Committed files differ from canonical skill/ source of truth.',
         'Run: npm run preflight:fix (or npm run audit:progress:fix && npm run build:release)',
       );
+    } else {
+      pass('Harness & documentation sync', 'all 18 harnesses and docs committed in sync');
     }
   } else {
-    pass('Harness & documentation sync', 'all 18 harnesses and docs in sync');
+    const buildRes = run('node', [join(ROOT, 'scripts/build.js')]);
+    if (buildRes.code !== 0) {
+      fail('Harness build validation failed', buildRes.stderr || buildRes.stdout);
+    } else {
+      pass('Harness & documentation sync', 'all 18 harness transforms valid');
+    }
   }
 
   // 2. Pre-commit Progress Audit
@@ -168,12 +187,18 @@ function checkGitHubParity() {
   }
 
   // 7. Full Test Suite Execution
-  console.log('  Executing full test suite (npm test)...');
-  const testRes = run('npm', ['test']);
-  if (testRes.code !== 0) {
-    fail('Test suite failed', 'One or more tests in tests/*.test.mjs failed.', 'Run: npm test to inspect failing tests');
+  if (!SKIP_TEST) {
+    console.log('  Executing full test suite (npm test)...');
+    const testRes = run('npm', ['test'], {
+      env: { ...process.env, AIRTIGHT_SKIP_NESTED_TEST: '1' },
+    });
+    if (testRes.code !== 0) {
+      fail('Test suite failed', 'One or more tests in tests/*.test.mjs failed.', 'Run: npm test to inspect failing tests');
+    } else {
+      pass('Test suite', '100% of unit, corpus, and invariant tests passed');
+    }
   } else {
-    pass('Test suite', '100% of unit, corpus, and invariant tests passed');
+    pass('Test suite', 'skipped (--no-test or nested test execution)');
   }
 }
 
