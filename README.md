@@ -3,7 +3,7 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.7.0, installable from npm across 18 harnesses. Engine with 247
+> **Status:** v0.7.0, installable from npm across 18 harnesses. Engine with 250
 > rules, findings store, control register, 13 commands, edit hook, installer,
 > docs, and a demo. Benchmarked against 14 real repositories; see
 > [docs/benchmark.md](docs/benchmark.md) for what that
@@ -141,17 +141,17 @@ prevent.
 | `dep` | 12 | text | Install scripts, wildcard versions, plaintext registries, unpinned git refs |
 | `terraform` | 28 | hcl | Open ingress, wildcard IAM, public storage, unencrypted state |
 | `k8s` | 21 | yaml | Privileged pods, host namespaces, wildcard RBAC, runtime socket mounts |
-| `js` | 37 | text | Injection sinks, TLS/CORS misconfiguration, prototype pollution, JWT verification, body limits |
+| `js` | 38 | text | Injection sinks, TLS/CORS misconfiguration, prototype pollution, JWT verification, body limits |
 | `py` | 35 | text | Deserialization, `shell=True`, SQL injection, SSRF, JWT verification, deprecated SSL |
 | `go` | 19 | text | SQL injection, shell exec, TLS verification, temporary files, XXE, SSRF |
 | `java` | 18 | text | Command execution, SQL concat, XXE parsers, path traversal, LDAP, SSRF |
 | `rust` | 8 | text | Command injection, SQL formatting, insecure temporary files, weak RNG |
-| `ai` | 5 | text | LLM output to execution, unparameterized SQL, RAG interpolation, dangerous MCP tools, client API keys |
+| `ai` | 6 | text | LLM output to execution, unparameterized SQL, RAG interpolation, dangerous MCP tools, client API keys |
 | `compose` | 5 | yaml | Privileged mode, host network mode, docker socket mounts, root filesystem mounts |
 | `cloudflare` | 4 | text | Plaintext secrets in wrangler, worker SSRF, D1 SQL concatenation, CORS wildcard |
 | `cfn` | 6 | yaml | Public S3 buckets, open security group ingress, wildcard IAM, unencrypted EBS, public RDS, disabled CloudTrail |
 | `helm` | 4 | yaml | Privileged containers, host network namespace, missing resource limits, cluster-admin bindings |
-| `php` | 5 | text | SQL concatenation, object injection via unserialize, shell execution, unescaped Blade XSS |
+| `php` | 6 | text | SQL concatenation, object injection via unserialize, shell execution, unescaped Blade XSS |
 | `dotnet` | 4 | text | EF Core SQL concatenation, Process.Start command injection, BinaryFormatter deserialization, weak password hashing |
 
 ## The edit hook

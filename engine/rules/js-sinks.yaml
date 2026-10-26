@@ -899,3 +899,30 @@
   fix: "Specify a safe maxOutputLength option (e.g. { maxOutputLength: 10 * 1024 * 1024 })
     in zlib and brotli decompression calls to reject oversized outputs before allocating memory."
 
+- id: js/zip-slip-archive-traversal
+  name: Archive extraction without path traversal validation (Zip Slip)
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-22
+  owasp: A01:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: (?:\bfs(?:\.promises)?\.(?:createWriteStream|writeFile|writeFileSync)\s*\(\s*(?:path\.(?:join|resolve)\s*\([^)]*?\b(?:entry\.path|entry\.entryName|file\.path|header\.name)\b)|(?:entry|file|zipEntry)\.pipe\s*\(\s*fs\.createWriteStream\s*\(\s*path\.(?:join|resolve)\b)
+    not_regex: (?i)^\s*(//|\*|/\*)|\bstartsWith\b|\brelative\b
+  message: Archive entry written to filesystem without verifying canonical destination path
+  why: Extracting archive entries (zip, tar) by joining the target directory with entry names
+    without verifying that the resolved path starts with the destination directory allows directory
+    traversal (Zip Slip, CWE-22). Malicious archives containing '../' paths can overwrite arbitrary files,
+    cron jobs, or executable code on the host.
+  fix: Ensure the canonical destination path begins with the target directory using
+    path.resolve(targetDir, entry.path).startsWith(path.resolve(targetDir) + path.sep) before writing entries to disk.
+

@@ -142,6 +142,31 @@
     "fix": "Enclose untrusted context within distinct delimiters such as XML tags (<context>...</context>) or Markdown fences, and instruct the model to treat content within boundaries strictly as data."
   },
   {
+    "id": "ai/tool-call-command-injection",
+    "name": "AI agent tool call arguments executed in system shell",
+    "domain": "appsec",
+    "severity": "critical",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "(?:\\b(?:child_process\\.)?(?:exec|execSync)\\s*\\([^)]*?\\b(?:tool(?:Call)?\\.(?:arguments|args)|args\\.(?:cmd|command|query|input)|parameters\\.(?:cmd|command)|call\\.arguments)\\b|\\bsubprocess\\.(?:run|Popen|call|check_output)\\s*\\([^)]*?\\b(?:args\\.(?:cmd|command|input)|tool(?:_call)?\\.(?:arguments|args)|parameters\\.(?:cmd|command))\\b[^)]*shell\\s*=\\s*True|\\bos\\.system\\s*\\([^)]*?\\b(?:args\\.(?:cmd|command|input)|tool(?:_call)?\\.(?:arguments|args))\\b)",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "Tool call or agent function argument passed directly to shell execution",
+    "why": "Passing AI model tool call arguments (such as args.command or call.arguments) directly to a system shell (child_process.exec, subprocess with shell=True, or os.system) allows prompt injection, jailbreaks, or untrusted retrieved data to execute arbitrary operating system commands with host process privileges.",
+    "fix": "Avoid invoking shell interpreters from AI tool calls. Use strictly allowlisted argument vectors via execFile or subprocess without shell (shell=False), and sanitize all path and command parameters."
+  },
+  {
     "id": "cfn/cloudtrail-multi-region-disabled",
     "name": "CloudTrail multi-region logging is disabled",
     "domain": "infrastructure",
@@ -3477,6 +3502,33 @@
     "fix": "Do not set noent: true. Keep entity expansion disabled by defaulting noent to false, or omit the option when parsing untrusted XML."
   },
   {
+    "id": "js/zip-slip-archive-traversal",
+    "name": "Archive extraction without path traversal validation (Zip Slip)",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?:\\bfs(?:\\.promises)?\\.(?:createWriteStream|writeFile|writeFileSync)\\s*\\(\\s*(?:path\\.(?:join|resolve)\\s*\\([^)]*?\\b(?:entry\\.path|entry\\.entryName|file\\.path|header\\.name)\\b)|(?:entry|file|zipEntry)\\.pipe\\s*\\(\\s*fs\\.createWriteStream\\s*\\(\\s*path\\.(?:join|resolve)\\b)",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)|\\bstartsWith\\b|\\brelative\\b"
+    },
+    "message": "Archive entry written to filesystem without verifying canonical destination path",
+    "why": "Extracting archive entries (zip, tar) by joining the target directory with entry names without verifying that the resolved path starts with the destination directory allows directory traversal (Zip Slip, CWE-22). Malicious archives containing '../' paths can overwrite arbitrary files, cron jobs, or executable code on the host.",
+    "fix": "Ensure the canonical destination path begins with the target directory using path.resolve(targetDir, entry.path).startsWith(path.resolve(targetDir) + path.sep) before writing entries to disk."
+  },
+  {
     "id": "k8s/allow-privilege-escalation",
     "name": "Container allows privilege escalation",
     "domain": "infrastructure",
@@ -4323,6 +4375,26 @@
     "message": "PHP unserialize() invoked on dynamic input, enabling PHP Object Injection",
     "why": "Deserializing untrusted data with PHP unserialize() invokes magic methods (__wakeup, __destruct, __toString) on instantiated classes, enabling remote code execution via gadget chains.",
     "fix": "Use json_decode() for structured data exchange, or specify allowed_classes => false in the unserialize options array."
+  },
+  {
+    "id": "php/worker-state-leak",
+    "name": "Request or user identity retained in static class property in persistent runtime",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-488",
+    "owasp": "A01:2021",
+    "files": [
+      "**/*.php"
+    ],
+    "match": {
+      "regex": "(?:\\b(?:self|static)\\s*::\\s*\\$(?:user|currentUser|current_user|tenant|currentTenant|auth|session|currentRequest|request)\\s*=|public\\s+static\\s+(?:\\$[a-zA-Z_]\\w*\\s*)?(?:\\b(?:User|Tenant|Session|Request)\\b|\\$(?:currentUser|currentTenant|user|tenant|request)\\b))",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "Request or authentication context assigned to static class property",
+    "why": "Assigning per-request state (user, tenant, request, session) to static class properties leaks identity across concurrent or consecutive requests in persistent worker runtimes (FrankenPHP worker mode, Laravel Octane, Swoole, RoadRunner). In these environments, workers persist across requests, causing subsequent requests to execute under the previous caller's identity.",
+    "fix": "Avoid static properties for request-scoped state. Use Laravel context (Context::add()), dependency injection into controller methods, or request attributes ($request->attributes->set()) that are destroyed with each HTTP cycle."
   },
   {
     "id": "py/assert-for-authorization",

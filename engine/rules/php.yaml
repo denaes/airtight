@@ -92,3 +92,24 @@
     turning request memory amplification into arbitrary memory corruption and host denial of service.
   fix: Specify a concrete, bounded memory limit (such as ini_set('memory_limit', '512M'))
     or manage batch workloads using chunking and generator streams instead of removing safety caps.
+
+- id: php/worker-state-leak
+  name: Request or user identity retained in static class property in persistent runtime
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-488
+  owasp: A01:2021
+  files:
+    - "**/*.php"
+  match:
+    regex: (?:\b(?:self|static)\s*::\s*\$(?:user|currentUser|current_user|tenant|currentTenant|auth|session|currentRequest|request)\s*=|public\s+static\s+(?:\$[a-zA-Z_]\w*\s*)?(?:\b(?:User|Tenant|Session|Request)\b|\$(?:currentUser|currentTenant|user|tenant|request)\b))
+    not_regex: (?i)^\s*(//|\*|/\*|#)
+  message: Request or authentication context assigned to static class property
+  why: Assigning per-request state (user, tenant, request, session) to static class properties
+    leaks identity across concurrent or consecutive requests in persistent worker runtimes (FrankenPHP worker mode,
+    Laravel Octane, Swoole, RoadRunner). In these environments, workers persist across requests, causing subsequent
+    requests to execute under the previous caller's identity.
+  fix: Avoid static properties for request-scoped state. Use Laravel context (Context::add()), dependency
+    injection into controller methods, or request attributes ($request->attributes->set()) that are destroyed with each HTTP cycle.

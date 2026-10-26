@@ -113,3 +113,25 @@
   fix: >-
     Route AI requests through a backend server or API proxy where credentials
     remain securely stored in server-side environment variables.
+
+- id: ai/tool-call-command-injection
+  name: AI agent tool call arguments executed in system shell
+  domain: appsec
+  severity: critical
+  confidence: firm
+  tier: immediate
+  cwe: CWE-78
+  owasp: A03:2021
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.tsx', '**/*.py']
+  match:
+    regex: (?:\b(?:child_process\.)?(?:exec|execSync)\s*\([^)]*?\b(?:tool(?:Call)?\.(?:arguments|args)|args\.(?:cmd|command|query|input)|parameters\.(?:cmd|command)|call\.arguments)\b|\bsubprocess\.(?:run|Popen|call|check_output)\s*\([^)]*?\b(?:args\.(?:cmd|command|input)|tool(?:_call)?\.(?:arguments|args)|parameters\.(?:cmd|command))\b[^)]*shell\s*=\s*True|\bos\.system\s*\([^)]*?\b(?:args\.(?:cmd|command|input)|tool(?:_call)?\.(?:arguments|args))\b)
+    not_regex: (?i)^\s*(//|\*|/\*|#)
+  message: Tool call or agent function argument passed directly to shell execution
+  why: >-
+    Passing AI model tool call arguments (such as args.command or call.arguments) directly
+    to a system shell (child_process.exec, subprocess with shell=True, or os.system) allows
+    prompt injection, jailbreaks, or untrusted retrieved data to execute arbitrary operating
+    system commands with host process privileges.
+  fix: >-
+    Avoid invoking shell interpreters from AI tool calls. Use strictly allowlisted argument vectors
+    via execFile or subprocess without shell (shell=False), and sanitize all path and command parameters.

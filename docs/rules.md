@@ -2,7 +2,7 @@
 
 # Rule reference
 
-247 rules across 18 packs. 183 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+250 rules across 18 packs. 186 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -10,7 +10,7 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 
 | Pack | Rules | Immediate | Covers |
 |---|---:|---:|---|
-| [`ai`](#ai) | 5 | 5 | AI and LLM applications |
+| [`ai`](#ai) | 6 | 6 | AI and LLM applications |
 | [`cfn`](#cfn) | 6 | 6 | cfn |
 | [`ci`](#ci) | 10 | 7 | CI and build pipeline |
 | [`cloudflare`](#cloudflare) | 4 | 4 | cloudflare |
@@ -21,9 +21,9 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`go`](#go) | 19 | 16 | Go |
 | [`helm`](#helm) | 4 | 3 | helm |
 | [`java`](#java) | 18 | 17 | Java |
-| [`js`](#js) | 37 | 26 | JavaScript and TypeScript |
+| [`js`](#js) | 38 | 27 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 21 | 10 | Kubernetes |
-| [`php`](#php) | 5 | 5 | php |
+| [`php`](#php) | 6 | 6 | php |
 | [`py`](#py) | 35 | 29 | Python |
 | [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
@@ -31,7 +31,7 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 
 ## ai
 
-AI and LLM applications. 5 rules.
+AI and LLM applications. 6 rules.
 
 ### `ai/client-model-api-key`
 
@@ -92,6 +92,18 @@ Interpolating raw user data or retrieved context directly into system instructio
 **Fix.** Enclose untrusted context within distinct delimiters such as XML tags (<context>...</context>) or Markdown fences, and instruct the model to treat content within boundaries strictly as data.
 
 <sub>Waive: `airtight hooks ignore-value ai/rag-untrusted-interpolation "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/rag-untrusted-interpolation -- <reason>`</sub>
+
+### `ai/tool-call-command-injection`
+
+AI agent tool call arguments executed in system shell
+
+**critical** / firm · `P0` · CWE-78 · A03:2021 · fires on edit
+
+Passing AI model tool call arguments (such as args.command or call.arguments) directly to a system shell (child_process.exec, subprocess with shell=True, or os.system) allows prompt injection, jailbreaks, or untrusted retrieved data to execute arbitrary operating system commands with host process privileges.
+
+**Fix.** Avoid invoking shell interpreters from AI tool calls. Use strictly allowlisted argument vectors via execFile or subprocess without shell (shell=False), and sanitize all path and command parameters.
+
+<sub>Waive: `airtight hooks ignore-value ai/tool-call-command-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/tool-call-command-injection -- <reason>`</sub>
 
 
 ## cfn
@@ -1262,7 +1274,7 @@ Allowing external entity resolution or disabling secure processing enables XML E
 
 ## js
 
-JavaScript and TypeScript. 37 rules.
+JavaScript and TypeScript. 38 rules.
 
 ### `js/child-process-interpolation`
 
@@ -1708,6 +1720,18 @@ Setting noent: true in libxmljs causes the XML parser to expand external entitie
 
 <sub>Waive: `airtight hooks ignore-value js/xxe-libxml "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/xxe-libxml -- <reason>`</sub>
 
+### `js/zip-slip-archive-traversal`
+
+Archive extraction without path traversal validation (Zip Slip)
+
+**high** / firm · `P1` · CWE-22 · A01:2021 · fires on edit
+
+Extracting archive entries (zip, tar) by joining the target directory with entry names without verifying that the resolved path starts with the destination directory allows directory traversal (Zip Slip, CWE-22). Malicious archives containing '../' paths can overwrite arbitrary files, cron jobs, or executable code on the host.
+
+**Fix.** Ensure the canonical destination path begins with the target directory using path.resolve(targetDir, entry.path).startsWith(path.resolve(targetDir) + path.sep) before writing entries to disk.
+
+<sub>Waive: `airtight hooks ignore-value js/zip-slip-archive-traversal "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/zip-slip-archive-traversal -- <reason>`</sub>
+
 
 ## k8s
 
@@ -1968,7 +1992,7 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 
 ## php
 
-php. 5 rules.
+php. 6 rules.
 
 ### `php/blade-unescaped-xss`
 
@@ -2029,6 +2053,18 @@ Deserializing untrusted data with PHP unserialize() invokes magic methods (__wak
 **Fix.** Use json_decode() for structured data exchange, or specify allowed_classes => false in the unserialize options array.
 
 <sub>Waive: `airtight hooks ignore-value php/unserialize-untrusted "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/unserialize-untrusted -- <reason>`</sub>
+
+### `php/worker-state-leak`
+
+Request or user identity retained in static class property in persistent runtime
+
+**high** / firm · `P1` · CWE-488 · A01:2021 · fires on edit
+
+Assigning per-request state (user, tenant, request, session) to static class properties leaks identity across concurrent or consecutive requests in persistent worker runtimes (FrankenPHP worker mode, Laravel Octane, Swoole, RoadRunner). In these environments, workers persist across requests, causing subsequent requests to execute under the previous caller's identity.
+
+**Fix.** Avoid static properties for request-scoped state. Use Laravel context (Context::add()), dependency injection into controller methods, or request attributes ($request->attributes->set()) that are destroyed with each HTTP cycle.
+
+<sub>Waive: `airtight hooks ignore-value php/worker-state-leak "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/worker-state-leak -- <reason>`</sub>
 
 
 ## py
