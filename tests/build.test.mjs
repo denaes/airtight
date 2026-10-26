@@ -305,4 +305,25 @@ test('tracked harnesses use symlinks for reference and scripts rather than dupli
   }
 });
 
+test('install-hooks.mjs configures git pre-push compliance hook', () => {
+  const hookScript = resolve(ROOT, 'scripts/install-hooks.mjs');
+  assert.ok(existsSync(hookScript), 'scripts/install-hooks.mjs must exist');
+  execFileSync(process.execPath, [hookScript], { cwd: ROOT });
+  const hookFile = resolve(ROOT, '.git/hooks/pre-push');
+  assert.ok(existsSync(hookFile), '.git/hooks/pre-push must be installed');
+  const content = read(hookFile);
+  assert.match(content, /scripts\/preflight\.mjs --git-hook/);
+});
+
+test('preflight.mjs validates GitHub CI compliance in dry-run mode', () => {
+  const preflightScript = resolve(ROOT, 'scripts/preflight.mjs');
+  assert.ok(existsSync(preflightScript), 'scripts/preflight.mjs must exist');
+  const res = execFileSync(process.execPath, [preflightScript, '--github'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  assert.match(res, /GitHub Actions CI Parity Checks/);
+  assert.match(res, /Full compliance verified/);
+});
+
 

@@ -371,6 +371,20 @@ function auditGitStatus() {
     }
   }
 
+  // Verify pre-push hook is installed
+  const hookPath = join(ROOT, '.git/hooks/pre-push');
+  if (existsSync(join(ROOT, '.git')) && !existsSync(hookPath)) {
+    if (FIX) {
+      const hookRes = run(process.execPath, [join(ROOT, 'scripts/install-hooks.mjs')]);
+      if (hookRes.code === 0) pass('Git pre-push hook installed.');
+      else warn('Could not install git pre-push hook.');
+    } else {
+      warn('Git pre-push hook not installed. Run: npm run prepare');
+    }
+  } else if (existsSync(hookPath)) {
+    pass('Git pre-push compliance hook active.');
+  }
+
   pass(`Git status: ${modified.length} modified file(s), ${untracked.length} untracked file(s).`);
 }
 
