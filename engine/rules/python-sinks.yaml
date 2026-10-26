@@ -608,4 +608,24 @@
   why: ssl.wrap_socket() was deprecated in Python 3.7 and removed in 3.12 because it defaults to insecure legacy protocol versions and does not validate certificates by default. PROTOCOL_SSLv23 also permits obsolete TLS 1.0 and 1.1 versions.
   fix: Use ssl.create_default_context() and call context.wrap_socket(sock, server_hostname=...) to ensure certificate validation and modern TLS protocols.
 
+- id: py/unbounded-decompression
+  name: Unbounded decompression without max length limit
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-400
+  owasp: A05:2021
+  files:
+    - "**/*.py"
+  match:
+    regex: \b(?:zlib|brotli)\.decompress\s*\(
+    not_regex: (?i)^\s*#|\bmax_length\b|\b(?:zlib|brotli)\.compress\b
+  message: Decompression API invoked without max_length limit
+  why: Invoking zlib.decompress() or brotli.decompress() without specifying a max_length
+    cap permits malicious compressed payloads to expand uncontrollably (zip/brotli bombs),
+    exhausting process heap memory and triggering memory corruption in native decompression libraries (e.g. Brotli CVE-2026-111497).
+  fix: Pass max_length to decompress calls (e.g. zlib.decompress(data, max_length=10_000_000))
+    or validate compressed input byte size and enforce a strict uncompressed stream limit.
+
 

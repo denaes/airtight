@@ -871,3 +871,31 @@
   why: SvelteKit server load functions execute on the server and serialize their return values directly to the client browser. Querying sensitive database tables without verifying event.locals session authentication or scoping records to the authenticated tenant leaks private records across user boundaries.
   fix: Authenticate the caller using event.locals (or a session guard) and filter queries by the authenticated user's ID or organization ID (e.g. WHERE user_id = locals.user.id).
 
+- id: js/unbounded-decompression
+  name: Unbounded data decompression without output length limit
+  domain: appsec
+  severity: high
+  confidence: firm
+  tier: immediate
+  cwe: CWE-400
+  owasp: A05:2021
+  files:
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+    - "**/*.ts"
+    - "**/*.tsx"
+  exclude:
+    - "**/*.min.js"
+    - "**/*.d.ts"
+  match:
+    regex: (?<![\w$])(?:zlib\.)?(?:brotliDecompress(?:Sync)?|gunzip(?:Sync)?|inflate(?:Raw)?(?:Sync)?|unzip(?:Sync)?)\s*\(
+    not_regex: (?i)^\s*(//|\*|/\*)|\bmaxOutputLength\b
+    in_string: false
+  message: Decompression API invoked without maxOutputLength limit
+  why: Decompressing data without specifying maxOutputLength permits decompression bombs
+    and amplifications (CWE-400, CWE-409) that exhaust memory and crash the process. It also
+    exposes services to memory corruption vulnerabilities in native decompression libraries (such as Brotli CVE-2026-111497).
+  fix: "Specify a safe maxOutputLength option (e.g. { maxOutputLength: 10 * 1024 * 1024 })
+    in zlib and brotli decompression calls to reject oversized outputs before allocating memory."
+

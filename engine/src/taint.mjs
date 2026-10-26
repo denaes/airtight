@@ -63,9 +63,9 @@ export const SOURCE_PATTERNS = [
   {
     lang: 'php',
     type: 'request-param',
-    regex: /(?:\$_(?:GET|POST|REQUEST)\[[^\]]+\]|\$request->(?:input|get|query|all)\s*\([^)]*\)|\$request->[\w$]+)/i,
+    regex: /(?:\$_(?:GET|POST|REQUEST)\[[^\]]+\]|\$request->(?:input|get|query|all)\s*\([^)]*\)|\$request->[\w$]+|file_get_contents\s*\(\s*['"]php:\/\/input['"]\s*\))/i,
     extractVars: (line) => {
-      const match = /^\s*(\$[a-zA-Z_]\w*)\s*=\s*(?:\$_(?:GET|POST|REQUEST)|\$request->)/i.exec(line);
+      const match = /^\s*(\$[a-zA-Z_]\w*)\s*=\s*(?:\$_(?:GET|POST|REQUEST)|\$request->|file_get_contents\s*\(\s*['"]php:\/\/input)/i.exec(line);
       return match ? [match[1]] : [];
     },
   },
@@ -103,6 +103,10 @@ export const SINK_PATTERNS = [
   {
     type: 'file',
     regex: /(?:\bfs(?:\.promises)?\.(?:readFile|readFileSync|writeFile|writeFileSync|createReadStream|createWriteStream|appendFile|appendFileSync)\s*\(|(?<![\w$])open\s*\([^)]*['"][rwa]|(?<![\w$])aiofiles\.open\s*\(|\bos\.(?:ReadFile|WriteFile|Open|OpenFile|Create)\s*\(|\bio(?:util)?\.(?:ReadFile|WriteFile)\s*\(|\bFiles\.(?:readAllBytes|readAllLines|readString|write|writeString|newInputStream|newOutputStream)\s*\(|\bnew\s+(?:FileInputStream|FileOutputStream|FileReader|FileWriter)\s*\(|\bFile\.(?:Open|ReadAllText|ReadAllBytes|WriteAllText)\s*\()/i,
+  },
+  {
+    type: 'decompression',
+    regex: /(?:\bzlib\.(?:gunzip|gunzipSync|brotliDecompress|brotliDecompressSync|inflate|inflateSync|unzip|unzipSync)\s*\(|\bbrotli\.decompress\s*\(|\bzlib\.decompress\s*\(|\bgzdecode\s*\(|\bgzinflate\s*\(|\bgzuncompress\s*\()/i,
   },
 ];
 

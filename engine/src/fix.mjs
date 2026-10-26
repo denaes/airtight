@@ -199,6 +199,17 @@ export const FIXERS = {
       return modified ? lines.join('\n') : null;
     },
   },
+
+  'php/memory-limit-disabled': {
+    name: "Set bounded memory_limit ('512M') instead of disabling limits",
+    fix(content) {
+      const next = content.replace(
+        /\bini_set\s*\(\s*(["'])memory_limit\1\s*,\s*(?:["']-1["']|-1|["']0["']|0)\s*\)/g,
+        "ini_set('memory_limit', '512M')"
+      );
+      return next !== content ? next : null;
+    },
+  },
 };
 
 /**

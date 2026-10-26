@@ -166,3 +166,33 @@ test('enrichFindingsWithTaint: elevates confidence and attaches taintPath', () =
   assert.equal(enriched[0].priority, 'P1');
   assert.ok(enriched[0].taintPath.includes('q -> sql -> sql'));
 });
+
+test('Decompression sink: traces req.body to zlib.gunzipSync', () => {
+  const code = `
+    const userPayload = req.body.payload;
+    const decompressed = zlib.gunzipSync(userPayload); // airtight-disable-line js/unbounded-decompression
+  `;
+  const lines = code.split('\n');
+  const tracker = traceFileTaint(code, lines, '.js');
+
+  assert.ok(tracker.taintedVars.has('userPayload'));
+  const taint = findTaintPathForSink(tracker, 3, 'zlib.gunzipSync(userPayload);'); // airtight-disable-line js/unbounded-decompression
+  assert.ok(taint);
+  assert.equal(taint.sinkType, 'decompression');
+  assert.ok(taint.pathSummary.includes('userPayload -> decompression'));
+});
+
+test('PHP raw input: traces php://input to gzdecode sink', () => {
+  const code = `
+    $body = file_get_contents('php://input');
+    $uncompressed = gzdecode($body);
+  `;
+  const lines = code.split('\n');
+  const tracker = traceFileTaint(code, lines, '.php');
+
+  assert.ok(tracker.taintedVars.has('$body'));
+  const taint = findTaintPathForSink(tracker, 3, 'gzdecode($body);');
+  assert.ok(taint);
+  assert.equal(taint.sinkType, 'decompression');
+  assert.ok(taint.pathSummary.includes('$body -> decompression'));
+});

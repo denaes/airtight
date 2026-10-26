@@ -67,6 +67,11 @@ test('FIXERS unit transforms', () => {
   const cfnEbs = 'Resources:\n  Vol:\n    Type: AWS::EC2::Volume\n    Properties:\n      Size: 100\n';
   const cfnFixed = FIXERS['cfn/ebs-unencrypted'].fix(cfnEbs);
   assert.match(cfnFixed, /Encrypted: true/);
+
+  // 10. PHP memory limit disabled
+  const phpMem = "ini_set('memory_limit', '-1');";
+  const phpMemFixed = FIXERS['php/memory-limit-disabled'].fix(phpMem);
+  assert.equal(phpMemFixed, "ini_set('memory_limit', '512M');");
 });
 
 test('applyFixes dryRun produces unified diff without modifying files', () => {

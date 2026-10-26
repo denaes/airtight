@@ -3394,6 +3394,35 @@
     "fix": "Add the internal CA to the trust store, or pass it as `ca` on the request. Never disable verification in code that can reach production."
   },
   {
+    "id": "js/unbounded-decompression",
+    "name": "Unbounded data decompression without output length limit",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-400",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx"
+    ],
+    "exclude": [
+      "**/*.min.js",
+      "**/*.d.ts"
+    ],
+    "match": {
+      "regex": "(?<![\\w$])(?:zlib\\.)?(?:brotliDecompress(?:Sync)?|gunzip(?:Sync)?|inflate(?:Raw)?(?:Sync)?|unzip(?:Sync)?)\\s*\\(",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*)|\\bmaxOutputLength\\b",
+      "in_string": false
+    },
+    "message": "Decompression API invoked without maxOutputLength limit",
+    "why": "Decompressing data without specifying maxOutputLength permits decompression bombs and amplifications (CWE-400, CWE-409) that exhaust memory and crash the process. It also exposes services to memory corruption vulnerabilities in native decompression libraries (such as Brotli CVE-2026-111497).",
+    "fix": "Specify a safe maxOutputLength option (e.g. { maxOutputLength: 10 * 1024 * 1024 }) in zlib and brotli decompression calls to reject oversized outputs before allocating memory."
+  },
+  {
     "id": "js/weak-password-hash",
     "name": "Password hashed with a fast digest",
     "domain": "appsec",
@@ -4237,6 +4266,26 @@
     "fix": "Avoid shell execution where possible, or use escapeshellarg() and escapeshellcmd() on all dynamic arguments."
   },
   {
+    "id": "php/memory-limit-disabled",
+    "name": "PHP memory limit disabled",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "confirmed",
+    "tier": "immediate",
+    "cwe": "CWE-770",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.php"
+    ],
+    "match": {
+      "regex": "\\bini_set\\s*\\(\\s*([\"'])memory_limit\\1\\s*,\\s*(?:[\"']-1[\"']|-1|[\"']0[\"']|0)\\s*\\)",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "PHP memory limit disabled via ini_set, enabling memory exhaustion and allocator corruption",
+    "why": "Disabling PHP's memory limit (setting it to -1 or 0) removes Zend MM allocation guards. In persistent runtimes (FrankenPHP, Swoole, RoadRunner) and standard PHP-FPM, unbounded memory consumption triggers integer overflows and allocator corruption (e.g. PHP2Shell CVE-2026-109618, CVE-2026-109619), turning request memory amplification into arbitrary memory corruption and host denial of service.",
+    "fix": "Specify a concrete, bounded memory limit (such as ini_set('memory_limit', '512M')) or manage batch workloads using chunking and generator streams instead of removing safety caps."
+  },
+  {
     "id": "php/sql-concatenation",
     "name": "SQL query built by string concatenation or variable interpolation",
     "domain": "appsec",
@@ -4856,6 +4905,26 @@
     "message": "tempfile.mktemp is used to choose a path",
     "why": "mktemp returns a name without creating the file, so anything can create a symlink at that path before you open it and redirect your write.",
     "fix": "Use tempfile.NamedTemporaryFile or mkstemp, which create the file atomically."
+  },
+  {
+    "id": "py/unbounded-decompression",
+    "name": "Unbounded decompression without max length limit",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-400",
+    "owasp": "A05:2021",
+    "files": [
+      "**/*.py"
+    ],
+    "match": {
+      "regex": "\\b(?:zlib|brotli)\\.decompress\\s*\\(",
+      "not_regex": "(?i)^\\s*#|\\bmax_length\\b|\\b(?:zlib|brotli)\\.compress\\b"
+    },
+    "message": "Decompression API invoked without max_length limit",
+    "why": "Invoking zlib.decompress() or brotli.decompress() without specifying a max_length cap permits malicious compressed payloads to expand uncontrollably (zip/brotli bombs), exhausting process heap memory and triggering memory corruption in native decompression libraries (e.g. Brotli CVE-2026-111497).",
+    "fix": "Pass max_length to decompress calls (e.g. zlib.decompress(data, max_length=10_000_000)) or validate compressed input byte size and enforce a strict uncompressed stream limit."
   },
   {
     "id": "py/weak-password-hash",

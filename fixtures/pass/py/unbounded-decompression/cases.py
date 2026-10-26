@@ -1,0 +1,7 @@
+raw = zlib.decompress(payload, max_length=10_000_000)
+decoded = zlib.decompress(data, max_length=1024 * 1024)
+compressed = zlib.compress(payload)
+brotli_comp = brotli.compress(data)
+# raw = zlib.decompress(payload)
+d = zlib.decompressobj()
+content = zlib.decompress(payload, max_length=1048576)

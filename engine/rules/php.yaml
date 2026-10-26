@@ -71,3 +71,24 @@
     protection, leaving the rendered view vulnerable to Cross-Site Scripting (XSS).
   fix: Use standard double-brace escaping ({{ $variable }}) instead of raw tags ({!! $variable !!})
     unless rendering sanitized HTML.
+
+- id: php/memory-limit-disabled
+  name: PHP memory limit disabled
+  domain: appsec
+  severity: high
+  confidence: confirmed
+  tier: immediate
+  cwe: CWE-770
+  owasp: A05:2021
+  files:
+    - "**/*.php"
+  match:
+    regex: \bini_set\s*\(\s*(["'])memory_limit\1\s*,\s*(?:["']-1["']|-1|["']0["']|0)\s*\)
+    not_regex: (?i)^\s*(//|\*|/\*|#)
+  message: PHP memory limit disabled via ini_set, enabling memory exhaustion and allocator corruption
+  why: Disabling PHP's memory limit (setting it to -1 or 0) removes Zend MM allocation guards.
+    In persistent runtimes (FrankenPHP, Swoole, RoadRunner) and standard PHP-FPM, unbounded memory consumption
+    triggers integer overflows and allocator corruption (e.g. PHP2Shell CVE-2026-109618, CVE-2026-109619),
+    turning request memory amplification into arbitrary memory corruption and host denial of service.
+  fix: Specify a concrete, bounded memory limit (such as ini_set('memory_limit', '512M'))
+    or manage batch workloads using chunking and generator streams instead of removing safety caps.

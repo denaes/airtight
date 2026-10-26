@@ -2,7 +2,7 @@
 
 # Rule reference
 
-244 rules across 18 packs. 180 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+247 rules across 18 packs. 183 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -21,10 +21,10 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 | [`go`](#go) | 19 | 16 | Go |
 | [`helm`](#helm) | 4 | 3 | helm |
 | [`java`](#java) | 18 | 17 | Java |
-| [`js`](#js) | 36 | 25 | JavaScript and TypeScript |
+| [`js`](#js) | 37 | 26 | JavaScript and TypeScript |
 | [`k8s`](#k8s) | 21 | 10 | Kubernetes |
-| [`php`](#php) | 4 | 4 | php |
-| [`py`](#py) | 34 | 28 | Python |
+| [`php`](#php) | 5 | 5 | php |
+| [`py`](#py) | 35 | 29 | Python |
 | [`rust`](#rust) | 8 | 7 | Rust |
 | [`secret`](#secret) | 15 | 12 | Secrets and credentials |
 | [`terraform`](#terraform) | 28 | 15 | Terraform |
@@ -1262,7 +1262,7 @@ Allowing external entity resolution or disabling secure processing enables XML E
 
 ## js
 
-JavaScript and TypeScript. 36 rules.
+JavaScript and TypeScript. 37 rules.
 
 ### `js/child-process-interpolation`
 
@@ -1672,6 +1672,18 @@ Without verification, TLS gives you encryption to whoever answered, which is no 
 
 <sub>Waive: `airtight hooks ignore-value js/tls-verification-disabled "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/tls-verification-disabled -- <reason>`</sub>
 
+### `js/unbounded-decompression`
+
+Unbounded data decompression without output length limit
+
+**high** / firm · `P1` · CWE-400 · A05:2021 · fires on edit
+
+Decompressing data without specifying maxOutputLength permits decompression bombs and amplifications (CWE-400, CWE-409) that exhaust memory and crash the process. It also exposes services to memory corruption vulnerabilities in native decompression libraries (such as Brotli CVE-2026-111497).
+
+**Fix.** Specify a safe maxOutputLength option (e.g. { maxOutputLength: 10 * 1024 * 1024 }) in zlib and brotli decompression calls to reject oversized outputs before allocating memory.
+
+<sub>Waive: `airtight hooks ignore-value js/unbounded-decompression "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line js/unbounded-decompression -- <reason>`</sub>
+
 ### `js/weak-password-hash`
 
 Password hashed with a fast digest
@@ -1956,7 +1968,7 @@ A writable root filesystem lets an attacker who achieves execution persist a pay
 
 ## php
 
-php. 4 rules.
+php. 5 rules.
 
 ### `php/blade-unescaped-xss`
 
@@ -1981,6 +1993,18 @@ Passing unescaped or concatenated user variables to system shell execution funct
 **Fix.** Avoid shell execution where possible, or use escapeshellarg() and escapeshellcmd() on all dynamic arguments.
 
 <sub>Waive: `airtight hooks ignore-value php/command-exec "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/command-exec -- <reason>`</sub>
+
+### `php/memory-limit-disabled`
+
+PHP memory limit disabled
+
+**high** / confirmed · `P1` · CWE-770 · A05:2021 · fires on edit
+
+Disabling PHP's memory limit (setting it to -1 or 0) removes Zend MM allocation guards. In persistent runtimes (FrankenPHP, Swoole, RoadRunner) and standard PHP-FPM, unbounded memory consumption triggers integer overflows and allocator corruption (e.g. PHP2Shell CVE-2026-109618, CVE-2026-109619), turning request memory amplification into arbitrary memory corruption and host denial of service.
+
+**Fix.** Specify a concrete, bounded memory limit (such as ini_set('memory_limit', '512M')) or manage batch workloads using chunking and generator streams instead of removing safety caps.
+
+<sub>Waive: `airtight hooks ignore-value php/memory-limit-disabled "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line php/memory-limit-disabled -- <reason>`</sub>
 
 ### `php/sql-concatenation`
 
@@ -2009,7 +2033,7 @@ Deserializing untrusted data with PHP unserialize() invokes magic methods (__wak
 
 ## py
 
-Python. 34 rules.
+Python. 35 rules.
 
 ### `py/assert-for-authorization`
 
@@ -2370,6 +2394,18 @@ mktemp returns a name without creating the file, so anything can create a symlin
 **Fix.** Use tempfile.NamedTemporaryFile or mkstemp, which create the file atomically.
 
 <sub>Waive: `airtight hooks ignore-value py/tempfile-mktemp "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/tempfile-mktemp -- <reason>`</sub>
+
+### `py/unbounded-decompression`
+
+Unbounded decompression without max length limit
+
+**high** / firm · `P1` · CWE-400 · A05:2021 · fires on edit
+
+Invoking zlib.decompress() or brotli.decompress() without specifying a max_length cap permits malicious compressed payloads to expand uncontrollably (zip/brotli bombs), exhausting process heap memory and triggering memory corruption in native decompression libraries (e.g. Brotli CVE-2026-111497).
+
+**Fix.** Pass max_length to decompress calls (e.g. zlib.decompress(data, max_length=10_000_000)) or validate compressed input byte size and enforce a strict uncompressed stream limit.
+
+<sub>Waive: `airtight hooks ignore-value py/unbounded-decompression "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line py/unbounded-decompression -- <reason>`</sub>
 
 ### `py/weak-password-hash`
 

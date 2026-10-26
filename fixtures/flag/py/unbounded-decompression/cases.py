@@ -1,0 +1,5 @@
+raw = zlib.decompress(payload)
+decoded = brotli.decompress(compressed_data)
+content = zlib.decompress(req.body)
+unpacked = brotli.decompress(file_bytes)
+decompressed = zlib.decompress(data, 15)
