@@ -5,6 +5,17 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-26
+
+### Added
+- **Proactive Vulnerability Flaw Detection & Prevention**: Added deterministic rules anticipating and preventing critical memory corruption, amplification, and resource exhaustion vulnerabilities (including Brotli decoder CVE-2026-111497 and PHP2Shell CVE-2026-109618 / CVE-2026-109619):
+  - `js/unbounded-decompression`: Detects `zlib` and `brotli` decompression calls (`gunzipSync`, `brotliDecompressSync`, `inflateSync`, `unzipSync`) invoked without `maxOutputLength` caps.
+  - `py/unbounded-decompression`: Detects Python `zlib.decompress()` and `brotli.decompress()` without `max_length` bounds.
+  - `php/memory-limit-disabled`: Detects `ini_set('memory_limit', '-1')` and `ini_set('memory_limit', '0')`, preventing Zend MM allocator corruption and memory exhaustion DoS.
+- **Automated Fixer Expansion**: Added surgical fixer for `php/memory-limit-disabled` in `airtight fix`, replacing unbounded `-1` or `0` limits with safe, bounded allocations (`512M`).
+- **Decompression Sink & Raw Request Taint Tracking**: Expanded intra-procedural taint analysis in `engine/src/taint.mjs` with `decompression` sink patterns and `php://input` source tracking, elevating findings when untrusted user input directly reaches decompression routines.
+- **Rule Catalog Expansion**: Catalog expanded to 247 rules (183 immediate tier) across 18 rule packs with 100% test fixture coverage.
+
 ## [0.7.0] - 2026-10-17
 
 ### Added
