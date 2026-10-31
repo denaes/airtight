@@ -8772,29 +8772,71 @@ function extractFileImports(content, ext = "") {
   }
   return imports;
 }
+var CODE_EXTS = /* @__PURE__ */ new Set([".js", ".mjs", ".cjs", ".ts", ".jsx", ".tsx", ".py", ".go", ".java", ".php", ".cs"]);
+var CALL_IGNORE = /* @__PURE__ */ new Set([
+  "if",
+  "for",
+  "while",
+  "catch",
+  "switch",
+  "return",
+  "function",
+  "class",
+  "const",
+  "let",
+  "var",
+  "import",
+  "export",
+  "print",
+  "println",
+  "console",
+  "require",
+  "assert",
+  "describe",
+  "test",
+  "it",
+  "expect",
+  "sizeof",
+  "typeof"
+]);
 function traceProjectTaint(fileContentMap) {
   const fileTrackers = /* @__PURE__ */ new Map();
   const fileFunctions = /* @__PURE__ */ new Map();
   const fileImports = /* @__PURE__ */ new Map();
+  const fileLinesMap = /* @__PURE__ */ new Map();
+  const globalFnIndex = /* @__PURE__ */ new Map();
+  const taintedCallerFiles = /* @__PURE__ */ new Set();
   for (const [filePath, content] of fileContentMap.entries()) {
-    const lines = content.split(/\r?\n/);
     const extMatch = /\.[^.]+$/.exec(filePath);
     const ext = extMatch ? extMatch[0].toLowerCase() : "";
+    if (!CODE_EXTS.has(ext)) continue;
+    const lines = content.split(/\r?\n/);
+    fileLinesMap.set(filePath, lines);
     const tracker = traceFileTaint(content, lines, ext);
     fileTrackers.set(filePath, tracker);
-    fileFunctions.set(filePath, extractFileFunctions(content, ext));
+    if (tracker.taintedVars.size > 0) {
+      taintedCallerFiles.add(filePath);
+    }
+    const fns = extractFileFunctions(content, ext);
+    fileFunctions.set(filePath, fns);
+    for (const [fnName, fnDef] of fns.entries()) {
+      if (!globalFnIndex.has(fnName)) globalFnIndex.set(fnName, []);
+      globalFnIndex.get(fnName).push({ file: filePath, fnDef });
+    }
     fileImports.set(filePath, extractFileImports(content, ext));
   }
   let propagated = true;
   let iterations = 0;
   const MAX_ITERATIONS = 5;
-  while (propagated && iterations < MAX_ITERATIONS) {
+  while (propagated && iterations < MAX_ITERATIONS && taintedCallerFiles.size > 0) {
     propagated = false;
     iterations++;
-    for (const [callerPath, content] of fileContentMap.entries()) {
+    const callersToCheck = Array.from(taintedCallerFiles);
+    for (const callerPath of callersToCheck) {
       const tracker = fileTrackers.get(callerPath);
       if (!tracker || tracker.taintedVars.size === 0) continue;
-      const lines = content.split(/\r?\n/);
+      const lines = fileLinesMap.get(callerPath);
+      if (!lines) continue;
       const imports = fileImports.get(callerPath) || /* @__PURE__ */ new Map();
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -8805,40 +8847,48 @@ function traceProjectTaint(fileContentMap) {
         let callMatch;
         while ((callMatch = callRegex.exec(line)) !== null) {
           const calleeName = callMatch[2];
+          if (CALL_IGNORE.has(calleeName)) continue;
           const rawArgs = callMatch[3];
           if (!rawArgs.trim()) continue;
           const args = rawArgs.split(",").map((a) => a.trim());
           for (let argIdx = 0; argIdx < args.length; argIdx++) {
             const argExpr = args[argIdx];
             for (const [taintedName, prev] of tracker.taintedVars.entries()) {
+              if (!argExpr.includes(taintedName)) continue;
               const varRegex = createVarRegex(taintedName);
               if (varRegex.test(argExpr) && prev.line <= lineNo) {
                 let targetFile = null;
+                let targetFnDef = null;
                 const specifier = imports.get(calleeName);
                 if (specifier) {
                   targetFile = resolveImportPath(callerPath, specifier, fileContentMap);
+                  if (targetFile) {
+                    targetFnDef = fileFunctions.get(targetFile)?.get(calleeName);
+                  }
                 }
                 if (!targetFile) {
-                  for (const [otherFile, fns] of fileFunctions.entries()) {
-                    if (otherFile !== callerPath && fns.has(calleeName)) {
-                      targetFile = otherFile;
-                      break;
+                  const candidates = globalFnIndex.get(calleeName);
+                  if (candidates) {
+                    for (const c of candidates) {
+                      if (c.file !== callerPath) {
+                        targetFile = c.file;
+                        targetFnDef = c.fnDef;
+                        break;
+                      }
                     }
                   }
                 }
-                if (targetFile && fileTrackers.has(targetFile)) {
-                  const targetFns = fileFunctions.get(targetFile);
-                  const fnDef = targetFns?.get(calleeName);
-                  if (fnDef && fnDef.params[argIdx]) {
-                    const paramName = fnDef.params[argIdx];
+                if (targetFile && targetFnDef && fileTrackers.has(targetFile)) {
+                  if (targetFnDef.params[argIdx]) {
+                    const paramName = targetFnDef.params[argIdx];
                     const targetTracker = fileTrackers.get(targetFile);
                     if (!targetTracker.taintedVars.has(paramName)) {
                       const crossHop = `${callerPath}:${lineNo}:${calleeName}(${argExpr})`;
-                      const paramHop = `${targetFile}:${fnDef.line}:${paramName}`;
+                      const paramHop = `${targetFile}:${targetFnDef.line}:${paramName}`;
                       const newHops = [...prev.hops, crossHop, paramHop];
                       const paramEntry = {
                         name: paramName,
-                        line: fnDef.line,
+                        line: targetFnDef.line,
                         sourceExpr: prev.sourceExpr,
                         hops: newHops,
                         isCrossFile: true,
@@ -8846,30 +8896,34 @@ function traceProjectTaint(fileContentMap) {
                       };
                       targetTracker.taintedVars.set(paramName, paramEntry);
                       targetTracker.taintHistory.push(paramEntry);
+                      taintedCallerFiles.add(targetFile);
                       propagated = true;
-                      const targetLines = fileContentMap.get(targetFile).split(/\r?\n/);
-                      for (let j = fnDef.line - 1; j < targetLines.length; j++) {
-                        const tLine = targetLines[j];
-                        const tLineNo = j + 1;
-                        const assignMatch = /^\s*(?:(?:const|let|var|string|var|val|\$)\s+)?([$a-zA-Z_]\w*)\s*(?::=|=)\s*(.+)$/.exec(tLine);
-                        if (assignMatch) {
-                          const destVar = assignMatch[1];
-                          const rhs = assignMatch[2];
-                          for (const [tName, tPrev] of targetTracker.taintedVars.entries()) {
-                            const vReg = createVarRegex(tName);
-                            if (vReg.test(rhs) && destVar !== tName && !targetTracker.taintedVars.has(destVar)) {
-                              const destHops = [...tPrev.hops, `${targetFile}:${tLineNo}:${destVar}`];
-                              const destEntry = {
-                                name: destVar,
-                                line: tLineNo,
-                                sourceExpr: tPrev.sourceExpr,
-                                hops: destHops,
-                                isCrossFile: true
-                              };
-                              targetTracker.taintedVars.set(destVar, destEntry);
-                              targetTracker.taintHistory.push(destEntry);
-                              propagated = true;
-                              break;
+                      const targetLines = fileLinesMap.get(targetFile);
+                      if (targetLines) {
+                        for (let j = targetFnDef.line - 1; j < targetLines.length; j++) {
+                          const tLine = targetLines[j];
+                          const tLineNo = j + 1;
+                          const assignMatch = /^\s*(?:(?:const|let|var|string|var|val|\$)\s+)?([$a-zA-Z_]\w*)\s*(?::=|=)\s*(.+)$/.exec(tLine);
+                          if (assignMatch) {
+                            const destVar = assignMatch[1];
+                            const rhs = assignMatch[2];
+                            for (const [tName, tPrev] of targetTracker.taintedVars.entries()) {
+                              if (!rhs.includes(tName)) continue;
+                              const vReg = createVarRegex(tName);
+                              if (vReg.test(rhs) && destVar !== tName && !targetTracker.taintedVars.has(destVar)) {
+                                const destHops = [...tPrev.hops, `${targetFile}:${tLineNo}:${destVar}`];
+                                const destEntry = {
+                                  name: destVar,
+                                  line: tLineNo,
+                                  sourceExpr: tPrev.sourceExpr,
+                                  hops: destHops,
+                                  isCrossFile: true
+                                };
+                                targetTracker.taintedVars.set(destVar, destEntry);
+                                targetTracker.taintHistory.push(destEntry);
+                                propagated = true;
+                                break;
+                              }
                             }
                           }
                         }
@@ -9848,7 +9902,7 @@ var SKIP_DIRS3 = /* @__PURE__ */ new Set([
   ".airtight"
 ]);
 var SKIP_FILE2 = /\.(min\.(js|css)|map|lock\.hcl)$|^\.DS_Store$/;
-var CODE_EXTS = /* @__PURE__ */ new Set([
+var CODE_EXTS2 = /* @__PURE__ */ new Set([
   ".js",
   ".mjs",
   ".cjs",
@@ -10569,7 +10623,7 @@ function generateAttackSurfaceMap(paths, { root = process.cwd() } = {}) {
     const relPath = toPosix2(relative3(root, absPath));
     const extMatch = /\.[^.]+$/.exec(relPath);
     const ext = extMatch ? extMatch[0].toLowerCase() : "";
-    if (!CODE_EXTS.has(ext)) continue;
+    if (!CODE_EXTS2.has(ext)) continue;
     let buf;
     try {
       const st = statSync3(absPath);

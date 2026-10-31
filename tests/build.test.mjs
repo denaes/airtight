@@ -318,12 +318,16 @@ test('install-hooks.mjs configures git pre-push compliance hook', () => {
 test('preflight.mjs validates GitHub CI compliance in dry-run mode', () => {
   const preflightScript = resolve(ROOT, 'scripts/preflight.mjs');
   assert.ok(existsSync(preflightScript), 'scripts/preflight.mjs must exist');
-  const res = execFileSync(process.execPath, [preflightScript, '--github', '--no-test'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  });
-  assert.match(res, /GitHub Actions CI Parity Checks/);
-  assert.match(res, /Full compliance verified/);
+  try {
+    const res = execFileSync(process.execPath, [preflightScript, '--github', '--no-test'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    });
+    assert.match(res, /GitHub Actions CI Parity Checks/);
+    assert.match(res, /Full compliance verified/);
+  } catch (err) {
+    assert.fail(`preflight dry-run failed:\n${err.stdout}\n${err.stderr}`);
+  }
 });
 
 

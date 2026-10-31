@@ -125,7 +125,7 @@ function checkGitHubParity() {
       pass('Harness & documentation sync', 'all 18 harnesses and docs committed in sync');
     }
   } else {
-    const buildRes = run('node', [join(ROOT, 'scripts/build.js')]);
+    const buildRes = run(process.execPath, [join(ROOT, 'scripts/build.js')]);
     if (buildRes.code !== 0) {
       fail('Harness build validation failed', buildRes.stderr || buildRes.stdout);
     } else {
@@ -135,7 +135,7 @@ function checkGitHubParity() {
 
   // 2. Pre-commit Progress Audit
   console.log('  Running progress audit...');
-  const auditRes = run('node', ['scripts/progress-audit.mjs']);
+  const auditRes = run(process.execPath, ['scripts/progress-audit.mjs']);
   if (auditRes.code !== 0) {
     fail(
       'Progress audit failed',
@@ -148,7 +148,7 @@ function checkGitHubParity() {
 
   // 3. Airtight Self-Scan
   console.log('  Running Airtight self-scan (detect .)...');
-  const scanRes = run('node', ['engine/src/cli.mjs', 'detect', '.']);
+  const scanRes = run(process.execPath, ['engine/src/cli.mjs', 'detect', '.']);
   if (scanRes.code !== 0) {
     fail(
       'Airtight self-scan failed',
@@ -161,7 +161,7 @@ function checkGitHubParity() {
 
   // 4. Security Controls Verification
   console.log('  Verifying security controls...');
-  const controlsRes = run('node', ['engine/src/cli.mjs', 'controls', 'verify']);
+  const controlsRes = run(process.execPath, ['engine/src/cli.mjs', 'controls', 'verify']);
   if (controlsRes.code !== 0 || /\b[1-9]\d*\s+failing\b/.test(controlsRes.stdout)) {
     fail('Security controls verification failed', controlsRes.stdout);
   } else {
@@ -170,7 +170,7 @@ function checkGitHubParity() {
 
   // 5. Demo Output Drift
   console.log('  Checking demo golden output...');
-  const demoRes = run('node', ['scripts/demo.mjs', '--check']);
+  const demoRes = run(process.execPath, ['scripts/demo.mjs', '--check']);
   if (demoRes.code !== 0) {
     fail('Demo output drifted from golden', demoRes.stderr || demoRes.stdout, 'Run: node scripts/demo.mjs --write');
   } else {
@@ -179,7 +179,7 @@ function checkGitHubParity() {
 
   // 6. Self-Contained Engine Probe
   console.log('  Testing self-contained engine bundle probe...');
-  const probeRes = run('node', ['skill/scripts/engine/airtight.mjs', 'engine-probe']);
+  const probeRes = run(process.execPath, ['skill/scripts/engine/airtight.mjs', 'engine-probe']);
   if (probeRes.code !== 0) {
     fail('Engine probe failed', probeRes.stderr || probeRes.stdout);
   } else {
