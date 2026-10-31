@@ -50,5 +50,17 @@
   "fix": {
     "description": "Surgically patch unambiguous mechanical security findings with unified diff preview (Docker Compose privileged/host mode, CI action pinning, gitignore secrets, TLS verify flags, EBS/SQS encryption). Use when the user asks to automatically fix mechanical findings, apply safe automated remediation, or preview fixes with dry-run diffs.",
     "argumentHint": "[paths]"
+  },
+  "guard": {
+    "description": "Evaluate agent tool invocations in real time against destructive commands, credential leaks, and workspace breakout. Use when an autonomous agent is about to execute a tool, or when evaluating the safety of a command before running it.",
+    "argumentHint": "[tool] [args]"
+  },
+  "shield": {
+    "description": "Scan workspace files, documentation, and agent context for indirect prompt injection, hidden zero-width unicode smuggling, and instruction override attempts. Use when ingesting untrusted markdown or documentation, evaluating third-party pull requests, or protecting agent memory against prompt poisoning.",
+    "argumentHint": "[paths]"
+  },
+  "dashboard": {
+    "description": "Render interactive terminal dashboard visualizing compliance posture (SOC 2, ISO 27001), attack surface ingress exposure, and agent guardrail telemetry. Use when the user asks for a visual security overview, wants a terminal dashboard or UI, or needs to check overall posture metrics.",
+    "argumentHint": "[paths]"
   }
 }

@@ -29,10 +29,14 @@ import * as store from './store.mjs';
 import { buildContext } from './context.mjs';
 import { runHook, readStdin } from './hook.mjs';
 import * as hooks from './hooks-admin.mjs';
-import { loadControls, verifyControls, frameworkCoverage, frameworksIn } from './controls.mjs';
+import { loadControls, verifyControls, frameworkCoverage, frameworksIn, exportControls } from './controls.mjs';
+import { evaluateGuard } from './guard.mjs';
+import { runLspServer } from './lsp.mjs';
+import { scanWorkspaceShield } from './shield.mjs';
+import { compileDashboardData, renderTerminalDashboard } from './dashboard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const VERSION = '0.9.0';
+export const VERSION = '0.10.0';
 
 const USAGE = `airtight ${VERSION} — deterministic security rule engine
 
@@ -43,7 +47,11 @@ const USAGE = `airtight ${VERSION} — deterministic security rule engine
   airtight correlate [paths...]     correlate IaC exposure with application sinks
   airtight mcp                      start Model Context Protocol (MCP) stdio server
   airtight findings <sub>           sync | list | accept | overdue
-  airtight controls <sub>           verify | coverage
+  airtight controls <sub>           verify | coverage | export
+  airtight guard <tool> [args...]   evaluate agent tool call safety in real time
+  airtight shield [paths...]        scan context & documentation for prompt poisoning
+  airtight dashboard                render interactive posture & attack surface dashboard
+  airtight lsp                      start Language Server Protocol (LSP 3.17) stdio server
   airtight context                  project truth and session directives
   airtight sbom [paths...]          generate CycloneDX 1.5 SBOM from lockfiles
   airtight hook                     edit-hook entry point (reads stdin)
@@ -499,7 +507,16 @@ function cmdControls(argv, io, env) {
     return coverage.some((c) => !c.satisfied) ? 2 : 0;
   }
 
-  if (sub !== 'verify') { io.err('usage: airtight controls <verify|coverage>'); return 1; }
+  if (sub === 'export') {
+    const format = opts.flags.format || 'json';
+    const framework = opts.flags.framework || 'all';
+    const rules = loadRules(env);
+    const out = exportControls(root, { format, framework, findings, rules });
+    io.out(out);
+    return 0;
+  }
+
+  if (sub !== 'verify') { io.err('usage: airtight controls <verify|coverage|export>'); return 1; }
 
   if (opts.json) { io.out(JSON.stringify(results, null, 2)); }
   else {
@@ -617,6 +634,94 @@ function cmdFix(argv, io, env) {
   return 0;
 }
 
+function cmdGuard(argv, io, env) {
+  const [toolName, ...rest] = argv;
+  const opts = parseArgs(rest);
+
+  if (!toolName) {
+    io.err('usage: airtight guard <bash|write|sql|fetch> [target/command]');
+    return 1;
+  }
+
+  const tool = toolName.toLowerCase();
+  const input = { tool };
+  const target = opts.paths.join(' ');
+
+  if (tool === 'bash') input.command = target;
+  else if (tool === 'write') input.path = opts.paths[0] || target;
+  else if (tool === 'sql') input.query = target;
+  else if (tool === 'fetch') input.url = target;
+
+  const result = evaluateGuard(input);
+
+  if (opts.json) {
+    io.out(JSON.stringify(result, null, 2));
+    return result.verdict === 'block' ? 2 : 0;
+  }
+
+  if (result.verdict === 'block') {
+    io.err(`[BLOCKED] ${result.rule} (${result.cwe || 'CWE'}): ${result.reason}`);
+    if (result.suggestion) io.err(`Suggested:  ${result.suggestion}`);
+    return 2;
+  }
+
+  if (result.verdict === 'warn') {
+    io.out(`[WARNING] ${result.rule} (${result.cwe || 'CWE'}): ${result.reason}`);
+    if (result.suggestion) io.out(`Suggested:  ${result.suggestion}`);
+    return 0;
+  }
+
+  io.out(`[ALLOWED] ${result.reason}`);
+  return 0;
+}
+
+function cmdShield(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ['.'];
+  const sanitize = Boolean(opts.flags.sanitize || opts.flags.clean);
+
+  const result = scanWorkspaceShield(paths, { root, sanitize });
+
+  if (opts.json) {
+    io.out(JSON.stringify(result, null, 2));
+    return result.threatsCount > 0 ? 2 : 0;
+  }
+
+  if (result.threatsCount === 0) {
+    io.out(`airtight shield: clean across ${result.scannedFiles} file(s). No prompt poisoning or invisible unicode detected.`);
+    return 0;
+  }
+
+  io.err(`airtight shield: detected ${result.threatsCount} threat(s) across ${result.scannedFiles} file(s):`);
+  for (const t of result.threats) {
+    io.err(`\n[${t.severity.toUpperCase()}] ${t.file}:${t.line} — ${t.description} [${t.cwe}]`);
+    io.err(`  Snippet:     ${t.snippet}`);
+    io.err(`  Remediation: ${t.remediation}`);
+  }
+
+  if (sanitize && result.sanitizedCount > 0) {
+    io.out(`\n[ok] Sanitized invisible unicode characters in ${result.sanitizedCount} file(s).`);
+  }
+
+  return 2;
+}
+
+function cmdDashboard(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ['.'];
+  const data = compileDashboardData(root, { paths });
+
+  if (opts.json) {
+    io.out(JSON.stringify(data, null, 2));
+    return 0;
+  }
+
+  io.out(renderTerminalDashboard(data));
+  return 0;
+}
+
 export function run(argv, io = defaultIo(), env = process.env) {
   const [verb, ...rest] = argv;
   try {
@@ -634,6 +739,11 @@ export function run(argv, io = defaultIo(), env = process.env) {
       case 'map': return cmdMap(rest, io, env);
       case 'correlate': return cmdCorrelate(rest, io, env);
       case 'mcp': return runMcpServer(io, env);
+      case 'lsp': return runLspServer(io, env);
+      case 'guard': return cmdGuard(rest, io, env);
+      case 'shield': return cmdShield(rest, io, env);
+      case 'dashboard':
+      case 'ui': return cmdDashboard(rest, io, env);
       case 'findings': return cmdFindings(rest, io, env);
       case 'context': return cmdContext(rest, io, env);
       case 'sbom': return cmdSbom(rest, io, env);

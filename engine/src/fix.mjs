@@ -105,6 +105,14 @@ export const FIXERS = {
       return next !== content ? next : null;
     },
   },
+  'js/tls-verification-disabled': {
+    name: 'Enable TLS certificate validation (rejectUnauthorized: true)',
+    fix(content) {
+      let next = content.replace(/\brejectUnauthorized\s*:\s*false\b/g, 'rejectUnauthorized: true');
+      next = next.replace(/\bNODE_TLS_REJECT_UNAUTHORIZED\s*([=:])\s*["']?0["']?/g, 'NODE_TLS_REJECT_UNAUTHORIZED $1 "1"');
+      return next !== content ? next : null;
+    },
+  },
 
   'py/requests-verify-false': {
     name: 'Enable TLS verification in Python requests (verify=True)',
@@ -127,6 +135,73 @@ export const FIXERS = {
     fix(content) {
       const next = content.replace(/\bInsecureSkipVerify\s*:\s*true\b/g, 'InsecureSkipVerify: false');
       return next !== content ? next : null;
+    },
+  },
+
+  'js/cookie-missing-httponly': {
+    name: 'Add httpOnly, secure, and sameSite flags to cookie',
+    fix(content) {
+      let modified = false;
+      let next = content.replace(/(res\.cookie\s*\(\s*[^,]+,\s*[^,]+,\s*\{)([^}]*)\}/g, (full, prefix, body) => {
+        if (/httpOnly/i.test(body)) return full;
+        modified = true;
+        const flags = "httpOnly: true, secure: true, sameSite: 'lax'";
+        const trimmed = body.trim();
+        return `${prefix} ${flags}${trimmed ? `, ${trimmed}` : ''} }`;
+      });
+      next = next.replace(/(res\.cookie\s*\(\s*[^,)]+,\s*[^,)]+)\s*\)/g, (full, call) => {
+        if (full.includes('{')) return full;
+        modified = true;
+        return `${call}, { httpOnly: true, secure: true, sameSite: 'lax' })`;
+      });
+      return modified ? next : null;
+    },
+  },
+
+  'js/sql-string-concat': {
+    name: 'Parameterize dynamic SQL query string concatenation',
+    fix(content) {
+      let modified = false;
+      const next = content.replace(/(db|conn|connection|client|pool)\.(query|execute)\s*\(\s*(["'])(SELECT\b(?:(?!\3).)*WHERE\s+[a-zA-Z0-9_.]+\s*=\s*)\3\s*\+\s*([a-zA-Z_$][\w$]*)\s*\)/gi, (full, client, method, quote, sqlPrefix, paramVar) => {
+        modified = true;
+        return `${client}.${method}(${quote}${sqlPrefix}$1${quote}, [${paramVar}])`;
+      });
+      return modified ? next : null;
+    },
+  },
+
+  'py/sql-fstring': {
+    name: 'Parameterize Python f-string in SQL query',
+    fix(content) {
+      let modified = false;
+      const next = content.replace(/(cursor|db|conn)\.execute\s*\(\s*f(["'])(SELECT\b(?:(?!\2).)*WHERE\s+[a-zA-Z0-9_.]+\s*=\s*)\{([a-zA-Z_]\w*)\}\2\s*\)/gi, (full, cur, quote, sqlPrefix, paramVar) => {
+        modified = true;
+        return `${cur}.execute(${quote}${sqlPrefix}%s${quote}, (${paramVar},))`;
+      });
+      return modified ? next : null;
+    },
+  },
+
+  'js/zip-slip-archive-traversal': {
+    name: 'Inject canonical path prefix check before archive extraction write',
+    fix(content) {
+      if (/startsWith/i.test(content) || /Path traversal/i.test(content)) return null;
+      let modified = false;
+      const lines = content.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = /^\s*(?:const|let|var)?\s*([a-zA-Z_$][\w$]*)\s*=\s*(?:path\.join|path\.resolve)\s*\(\s*([a-zA-Z_$][\w$]*)\s*,\s*(?:entry|header|file)\.(?:path|name)\s*\)/.exec(line);
+        if (match) {
+          const destVar = match[1];
+          const targetDir = match[2];
+          const indent = line.match(/^\s*/)[0];
+          const guard = `${indent}if (!path.resolve(${destVar}).startsWith(path.resolve(${targetDir}))) throw new Error('Zip slip path traversal detected');`;
+          lines.splice(i + 1, 0, guard);
+          modified = true;
+          break;
+        }
+      }
+      return modified ? lines.join('\n') : null;
     },
   },
 

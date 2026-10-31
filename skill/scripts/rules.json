@@ -30,6 +30,68 @@
     "fix": "Route AI requests through a backend server or API proxy where credentials remain securely stored in server-side environment variables."
   },
   {
+    "id": "ai/hidden-unicode-instructions",
+    "name": "Hidden zero-width or invisible Unicode characters in text or code",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-74",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.md",
+      "**/*.txt",
+      "**/*.prompt",
+      "**/*.json",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/*.js",
+      "**/*.py"
+    ],
+    "exclude": [
+      "docs/rules.md",
+      "**/rules.json",
+      "engine/rules/**"
+    ],
+    "match": {
+      "regex": "(?:[\\u200B\\u200C\\u200D\\u200E\\u200F\\u2060\\uFEFF]{2,})",
+      "not_regex": "(?i)^\\s*(//|\\*|/\\*|#)"
+    },
+    "message": "Hidden zero-width or invisible Unicode characters detected in context or code",
+    "why": "Consecutive zero-width characters (\\u200B, \\u200C, \\u200D, \\uFEFF) and tag characters are commonly used to smuggle invisible instructions or prompt injections past human reviewers directly into LLM tokenizers.",
+    "fix": "Strip zero-width and invisible Unicode characters from text and documentation."
+  },
+  {
+    "id": "ai/indirect-prompt-injection",
+    "name": "Indirect prompt injection attempt or system override",
+    "domain": "appsec",
+    "severity": "high",
+    "confidence": "firm",
+    "tier": "immediate",
+    "cwe": "CWE-74",
+    "owasp": "A03:2021",
+    "files": [
+      "**/*.md",
+      "**/*.txt",
+      "**/*.prompt",
+      "**/*.json",
+      "**/*.yaml",
+      "**/*.yml"
+    ],
+    "exclude": [
+      "docs/rules.md",
+      "**/rules.json",
+      "engine/rules/**"
+    ],
+    "match": {
+      "regex": "(?i)(?:(?:\\b(?:ignore|disregard|forget)\\s+(?:all\\s+)?(?:previous|prior|above)\\s+(?:instructions|directives|prompts|system\\s+messages?)\\b|\\[(?:SYSTEM|INSTRUCTION|OVERRIDE)\\]\\s*(?:new\\s+instructions|disregard|ignore)|\\bSYSTEM\\s+PROMPT\\s+OVERRIDE\\s*[:\\-]|\\bNEW\\s+DIRECTIVE:\\s*DISREGARD\\b|\\byou\\s+are\\s+now\\s+in\\s+developer\\s+mode\\b))",
+      "not_regex": "(?i)(?:how\\s+to\\s+prevent|mitigate|defense\\s+against|airtight|detection|vulnerability|example|e\\.g\\.|evidence|attack|finding)"
+    },
+    "message": "Indirect prompt injection attempt or system prompt override pattern detected",
+    "why": "Untrusted repository documentation, instructions, or markdown containing prompt injection phrases (such as 'IGNORE PREVIOUS INSTRUCTIONS' or '[SYSTEM OVERRIDE]') can hijack the agent's context and steering when ingested into model memory.",
+    "fix": "Remove untrusted instruction overrides or enclose external/retrieved documentation within strict data delimiters before presenting it to the agent."
+  },
+  {
     "id": "ai/llm-to-exec",
     "name": "LLM output passed to dynamic code execution",
     "domain": "appsec",

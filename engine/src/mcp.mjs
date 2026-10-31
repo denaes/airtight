@@ -23,10 +23,13 @@ import * as store from './store.mjs';
 import { loadControls, verifyControls, frameworkCoverage, frameworksIn } from './controls.mjs';
 import { calculateCvss31, parseCvssVector } from './cvss.mjs';
 import { applyFixes } from './fix.mjs';
+import { evaluateGuard } from './guard.mjs';
+import { scanWorkspaceShield, inspectContentForShield, sanitizeContent } from './shield.mjs';
+import { compileDashboardData } from './dashboard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SERVER_NAME = 'airtight';
-export const SERVER_VERSION = '0.9.0';
+export const SERVER_VERSION = '0.10.0';
 export const PROTOCOL_VERSION = '2024-11-05';
 
 function loadRulesBundle(env = process.env) {
@@ -224,6 +227,77 @@ export const TOOLS = [
         rule: {
           type: 'string',
           description: 'Restrict fix to a specific rule ID',
+        },
+      },
+    },
+  },
+  {
+    name: 'airtight_guard_tool',
+    description: 'Active agent execution guardrail: evaluate bash commands, file writes, SQL queries, or network fetch calls before execution to prevent destructive actions and workspace breakouts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tool: {
+          type: 'string',
+          enum: ['bash', 'write', 'sql', 'fetch'],
+          description: 'The type of tool call being evaluated',
+        },
+        command: {
+          type: 'string',
+          description: 'The bash or shell command string (for tool="bash")',
+        },
+        path: {
+          type: 'string',
+          description: 'The file path being modified or created (for tool="write")',
+        },
+        content: {
+          type: 'string',
+          description: 'The content being written to file (for tool="write")',
+        },
+        query: {
+          type: 'string',
+          description: 'The SQL query string (for tool="sql")',
+        },
+        url: {
+          type: 'string',
+          description: 'The HTTP URL being fetched (for tool="fetch")',
+        },
+      },
+      required: ['tool'],
+    },
+  },
+  {
+    name: 'airtight_shield',
+    description: 'Agent memory and context poisoning shield: detect indirect prompt injection, hidden zero-width unicode smuggling, and instruction override attempts in documentation, web fetches, and memory contexts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Paths or directories to scan (default: ["."])',
+        },
+        content: {
+          type: 'string',
+          description: 'Direct in-memory text/context to inspect for prompt poisoning',
+        },
+        sanitize: {
+          type: 'boolean',
+          description: 'If true and content is provided, returns sanitized text with hidden unicode stripped',
+        },
+      },
+    },
+  },
+  {
+    name: 'airtight_dashboard',
+    description: 'Compile interactive posture telemetry, attack surface graph metrics, guardrail status, and compliance readiness.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Paths or directories to analyze (default: ["."])',
         },
       },
     },
@@ -438,6 +512,39 @@ export async function handleToolCall(name, args = {}, { root = process.cwd(), en
       const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
+    case 'airtight_guard_tool': {
+      const evaluation = evaluateGuard(args);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(evaluation, null, 2) }],
+      };
+    }
+
+    case 'airtight_shield': {
+      if (args.content !== undefined) {
+        const findings = inspectContentForShield(args.content, 'context');
+        const result = { findings };
+        if (args.sanitize) {
+          result.sanitized = sanitizeContent(args.content);
+        }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+      const paths = args.paths?.length ? args.paths : ['.'];
+      const result = scanWorkspaceShield(paths, { root });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
+    case 'airtight_dashboard': {
+      const paths = args.paths?.length ? args.paths : ['.'];
+      const data = compileDashboardData(root, { paths });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
       };
     }
 

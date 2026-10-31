@@ -72,6 +72,26 @@ test('FIXERS unit transforms', () => {
   const phpMem = "ini_set('memory_limit', '-1');";
   const phpMemFixed = FIXERS['php/memory-limit-disabled'].fix(phpMem);
   assert.equal(phpMemFixed, "ini_set('memory_limit', '512M');");
+
+  // 11. JS cookie missing httpOnly
+  const jsCookie = 'res.cookie("auth", token);';
+  const jsCookieFixed = FIXERS['js/cookie-missing-httponly'].fix(jsCookie);
+  assert.equal(jsCookieFixed, "res.cookie(\"auth\", token, { httpOnly: true, secure: true, sameSite: 'lax' });");
+
+  // 12. JS SQL string concatenation
+  const jsSql = 'db.query("SELECT * FROM users WHERE id = "' + ' + userId);';
+  const jsSqlFixed = FIXERS['js/sql-string-concat'].fix(jsSql);
+  assert.equal(jsSqlFixed, 'db.query("SELECT * FROM users WHERE id = $1", [userId]);');
+
+  // 13. Python SQL f-string
+  const pySql = 'cursor.execute(f"SELECT * FROM items WHERE code = {item_code}")';
+  const pySqlFixed = FIXERS['py/sql-fstring'].fix(pySql);
+  assert.equal(pySqlFixed, 'cursor.execute("SELECT * FROM items WHERE code = %s", (item_code,))');
+
+  // 14. JS Zip-Slip archive traversal check
+  const zipCode = 'const destPath = path.join(targetDir, entry.path);\nentry.pipe(fs.createWriteStream(destPath));';
+  const zipFixed = FIXERS['js/zip-slip-archive-traversal'].fix(zipCode);
+  assert.match(zipFixed, /if \(!path\.resolve\(destPath\)\.startsWith\(path\.resolve\(targetDir\)\)\) throw new Error/);
 });
 
 test('applyFixes dryRun produces unified diff without modifying files', () => {

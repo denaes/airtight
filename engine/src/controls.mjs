@@ -143,3 +143,91 @@ export function frameworksIn(controls) {
   for (const c of controls) for (const f of Object.keys(c.frameworks ?? {})) out.add(f);
   return [...out].sort();
 }
+
+/**
+ * Export compliance controls evidence package in json, csv, or markdown format.
+ */
+export function exportControls(root, { format = 'json', framework = 'all', findings = [], rules = [] } = {}) {
+  const loaded = loadControls(root);
+  const knownRuleIds = new Set(rules.map((r) => r.id));
+  const verified = verifyControls(loaded.controls, findings, knownRuleIds);
+  const byId = new Map(verified.map((v) => [v.id, v]));
+
+  let availableFrameworks = frameworksIn(loaded.controls);
+  if (framework !== 'all') {
+    availableFrameworks = availableFrameworks.filter((f) => f.toLowerCase() === framework.toLowerCase());
+  }
+
+  const frameworkReports = {};
+  for (const fw of availableFrameworks) {
+    frameworkReports[fw] = frameworkCoverage(loaded.controls, fw, verified);
+  }
+
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    schemaVersion: loaded.schemaVersion,
+    summary: {
+      totalControls: loaded.controls.length,
+      holding: verified.filter((v) => v.verdict === 'holding').length,
+      failing: verified.filter((v) => v.verdict === 'failing').length,
+      unverifiable: verified.filter((v) => v.verdict === 'unverifiable').length,
+      broken: verified.filter((v) => v.verdict === 'broken').length,
+    },
+    controls: loaded.controls.map((c) => {
+      const v = byId.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        verdict: v?.verdict ?? 'unverifiable',
+        reason: v?.reason ?? '',
+        frameworks: c.frameworks ?? {},
+        verification: c.verification ?? [],
+        failures: v?.failures ?? [],
+      };
+    }),
+    frameworkCoverage: frameworkReports,
+  };
+
+  if (format === 'json') {
+    return JSON.stringify(exportData, null, 2);
+  }
+
+  if (format === 'csv') {
+    const rows = [
+      ['Control ID', 'Name', 'Status', 'Verdict', 'Frameworks', 'Rule Verification', 'Reason'],
+    ];
+    for (const c of exportData.controls) {
+      const fwStr = Object.entries(c.frameworks).map(([k, v]) => `${k}:${v.join(',')}`).join('; ');
+      rows.push([
+        c.id,
+        `"${c.name.replace(/"/g, '""')}"`,
+        c.status,
+        c.verdict,
+        `"${fwStr}"`,
+        `"${c.verification.join(', ')}"`,
+        `"${c.reason.replace(/"/g, '""')}"`,
+      ]);
+    }
+    return rows.map((r) => r.join(',')).join('\n');
+  }
+
+  const lines = [
+    '# Airtight Compliance Control Register Evidence Export',
+    `Generated: ${exportData.exportedAt}`,
+    '',
+    '## Posture Summary',
+    `- Total Controls: ${exportData.summary.totalControls}`,
+    `- Holding (Verified in Code): ${exportData.summary.holding}`,
+    `- Failing: ${exportData.summary.failing}`,
+    `- Unverifiable: ${exportData.summary.unverifiable}`,
+    '',
+    '## Control Evidence',
+    '| Control ID | Name | Status | Verdict | Verification |',
+    '|---|---|---|---|---|',
+  ];
+  for (const c of exportData.controls) {
+    lines.push(`| \`${c.id}\` | ${c.name} | ${c.status} | **${c.verdict}** | \`${c.verification.join(', ') || 'manual'}\` |`);
+  }
+  return lines.join('\n');
+}

@@ -2,7 +2,7 @@
 
 # Rule reference
 
-250 rules across 18 packs. 186 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
+252 rules across 18 packs. 188 are in the immediate tier, meaning the edit hook may interrupt you with them; the rest run at the end of a turn.
 
 Every rule carries a severity and an independent **confidence**. Priority is derived from the pair and is never authored, which is why a `tentative` finding is never P0. See [the severity model](severity.md).
 
@@ -10,7 +10,7 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 
 | Pack | Rules | Immediate | Covers |
 |---|---:|---:|---|
-| [`ai`](#ai) | 6 | 6 | AI and LLM applications |
+| [`ai`](#ai) | 8 | 8 | AI and LLM applications |
 | [`cfn`](#cfn) | 6 | 6 | cfn |
 | [`ci`](#ci) | 10 | 7 | CI and build pipeline |
 | [`cloudflare`](#cloudflare) | 4 | 4 | cloudflare |
@@ -31,7 +31,7 @@ Every rule carries a severity and an independent **confidence**. Priority is der
 
 ## ai
 
-AI and LLM applications. 6 rules.
+AI and LLM applications. 8 rules.
 
 ### `ai/client-model-api-key`
 
@@ -44,6 +44,30 @@ Exposing AI model API keys (OpenAI, Anthropic, Gemini) in client-side code via V
 **Fix.** Route AI requests through a backend server or API proxy where credentials remain securely stored in server-side environment variables.
 
 <sub>Waive: `airtight hooks ignore-value ai/client-model-api-key "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/client-model-api-key -- <reason>`</sub>
+
+### `ai/hidden-unicode-instructions`
+
+Hidden zero-width or invisible Unicode characters in text or code
+
+**high** / firm · `P1` · CWE-74 · A03:2021 · fires on edit
+
+Consecutive zero-width characters (\u200B, \u200C, \u200D, \uFEFF) and tag characters are commonly used to smuggle invisible instructions or prompt injections past human reviewers directly into LLM tokenizers.
+
+**Fix.** Strip zero-width and invisible Unicode characters from text and documentation.
+
+<sub>Waive: `airtight hooks ignore-value ai/hidden-unicode-instructions "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/hidden-unicode-instructions -- <reason>`</sub>
+
+### `ai/indirect-prompt-injection`
+
+Indirect prompt injection attempt or system override
+
+**high** / firm · `P1` · CWE-74 · A03:2021 · fires on edit
+
+Untrusted repository documentation, instructions, or markdown containing prompt injection phrases (such as 'IGNORE PREVIOUS INSTRUCTIONS' or '[SYSTEM OVERRIDE]') can hijack the agent's context and steering when ingested into model memory.
+
+**Fix.** Remove untrusted instruction overrides or enclose external/retrieved documentation within strict data delimiters before presenting it to the agent.
+
+<sub>Waive: `airtight hooks ignore-value ai/indirect-prompt-injection "<value>" --reason "<who decided: evidence>"`, or inline: `airtight-disable-next-line ai/indirect-prompt-injection -- <reason>`</sub>
 
 ### `ai/llm-to-exec`
 

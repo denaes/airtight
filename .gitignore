@@ -1,5 +1,14 @@
-# Planning documents — working notes, not shipped artifacts.
+# Planning documents, diagrams, and working notes — not shipped artifacts.
 docs/plan/
+docs/plans/
+docs/diagrams/
+diagrams/
+scratch/
+conversations/
+X_THREAD_RELEASE.md
+*.plan
+*.plan.md
+
 
 # Airtight working state.
 #

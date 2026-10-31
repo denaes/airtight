@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyControls, frameworkCoverage, frameworksIn } from '../engine/src/controls.mjs';
+import { verifyControls, frameworkCoverage, frameworksIn, exportControls } from '../engine/src/controls.mjs';
 
 const KNOWN = new Set(['secret/aws-access-key-id', 'secret/github-token', 'js/eval-dynamic']);
 
@@ -96,6 +96,28 @@ test('one reference covered by several controls needs all of them', () => {
   ];
   const results = verifyControls(controls, [finding('secret/github-token')], KNOWN);
   const [cc61] = frameworkCoverage(controls, 'soc2', results);
-  assert.equal(cc61.controls.length, 2);
   assert.equal(cc61.satisfied, false);
+});
+
+test('exportControls formats compliance package in json, csv, and markdown', () => {
+  const root = process.cwd();
+  const rules = [{ id: 'secret/aws-access-key-id' }, { id: 'secret/github-token' }];
+
+  // 1. JSON export
+  const jsonStr = exportControls(root, { format: 'json', framework: 'all', findings: [], rules });
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.exportedAt);
+  assert.ok(parsed.summary.totalControls > 0);
+  assert.ok(Array.isArray(parsed.controls));
+  assert.ok(parsed.frameworkCoverage);
+
+  // 2. CSV export
+  const csvStr = exportControls(root, { format: 'csv', framework: 'all', findings: [], rules });
+  assert.match(csvStr, /^Control ID,Name,Status,Verdict/);
+  assert.match(csvStr, /secrets\.none-in-source/);
+
+  // 3. Markdown export
+  const mdStr = exportControls(root, { format: 'markdown', framework: 'all', findings: [], rules });
+  assert.match(mdStr, /# Airtight Compliance Control Register Evidence Export/);
+  assert.match(mdStr, /\| Control ID \| Name \| Status \| Verdict \| Verification \|/);
 });

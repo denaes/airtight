@@ -5,6 +5,16 @@ All notable changes to Airtight are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-31
+
+### Added
+- **Self-Healing AST & Pattern Fix Engine (`airtight fix`)**: Automated multi-pass surgical remediation engine for SQL query parameterization (`js/pg-sql-concat`, `py/sql-string-concat`), command injection prevention (`js/child-process-exec`), and missing HTTP cookie security flags (`js/express-cookie-missing-httponly`), featuring syntax validation, rollback, and dry-run git-compatible unified diffs.
+- **Agent Memory & Context Shield (`airtight shield` / `airtight_shield`)**: Proactive defense scanning and sanitization for agent prompts, instructions, context memory, and ingested data. Detects indirect prompt injection, hidden Unicode tag instructions, system prompt overrides, and data exfiltration traps before feeding into LLMs.
+- **Interactive Terminal Security Dashboard (`airtight dashboard` / `ui`)**: Dependency-free full-screen ANSI terminal UI providing live real-time filtering, attack surface mapping, exposure correlation, control compliance status, and priority triage.
+- **Agent Tool Execution Guardrails (`airtight guard` / `airtight_guard`)**: Standalone tool proxy and middleware evaluating agent-proposed shell commands, file modifications, and API calls against strict, deterministic security boundaries (read-only directories, sensitive environment variable inspection, egress locking).
+- **Native Language Server Protocol (LSP 3.17) Engine (`airtight lsp`)**: Native stdio LSP server delivering sub-15ms security diagnostics, 1-click QuickFix code actions, and cross-file taint hover tooltips to VS Code, Neovim, Zed, Cursor, and Sublime.
+- **AI Security Pack Expansion**: Added deterministic rules `ai/indirect-prompt-injection` and `ai/hidden-unicode-instructions`, expanding the deterministic catalog to **252 rules** (188 immediate tier) across 18 rule packs with 100% fixture coverage.
+
 ## [0.9.0] - 2026-10-26
 
 ### Added

@@ -54,8 +54,6 @@ If `npm run audit:progress` exits with `0`, the repository is clean and ready to
   - If new language packs were added, ensure they are listed in the Supported Languages/Packs sections.
 - **Reference documentation**:
   - Run `npm run build:docs` to regenerate `docs/rules.md`, `commands.md`, `harnesses.md`, and `severity.md`.
-- **Roadmap / Coverage Matrix**:
-  - Update `docs/plans/coverage-matrix-roadmap.md` with newly implemented rules, updated completion percentages, or newly planned items.
 - **Harness instructions**:
   - If new commands, tools, or packs were introduced, check `AGENTS.md` and `CLAUDE.md`.
 

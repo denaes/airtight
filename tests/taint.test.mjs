@@ -196,3 +196,83 @@ test('PHP raw input: traces php://input to gzdecode sink', () => {
   assert.equal(taint.sinkType, 'decompression');
   assert.ok(taint.pathSummary.includes('$body -> decompression'));
 });
+
+test('Cross-File JS/TS: traces req.query in controller through import to SQL sink in service', () => {
+  const controllerCode = `
+    import { queryUser } from './services/userService.js';
+    app.get('/user', (req, res) => {
+      const { id } = req.query;
+      queryUser(id);
+    });
+  `;
+
+  const serviceCode = `
+    export function queryUser(userId) {
+      const sql = "SELECT * FROM users WHERE id = " + userId; // airtight-disable-line js/sql-string-concat
+      db.query(sql);
+    }
+  `;
+
+  const fileContentMap = new Map([
+    ['routes/user.js', controllerCode],
+    ['services/userService.js', serviceCode],
+  ]);
+
+  const findings = [
+    {
+      file: 'services/userService.js',
+      line: 4,
+      snippet: 'db.query(sql);',
+      rule: 'js/sql-string-concat',
+      severity: 'high',
+      confidence: 'firm',
+      priority: 'P2',
+    },
+  ];
+
+  const enriched = enrichFindingsWithTaint(findings, fileContentMap);
+  assert.equal(enriched[0].reachable, true, 'Finding in service must be marked reachable via cross-file taint');
+  assert.equal(enriched[0].confidence, 'confirmed', 'Finding confidence must be elevated to confirmed');
+  assert.equal(enriched[0].priority, 'P1', 'Finding priority must be elevated');
+  assert.ok(enriched[0].taintPath.includes('queryUser(id)'), 'Taint path must trace the caller hop');
+  assert.ok(enriched[0].taintPath.includes('userId'), 'Taint path must trace the callee parameter');
+});
+
+test('Cross-File Python: traces request.args in view through function call to exec sink in tasks', () => {
+  const viewCode = `
+    from tasks import run_task
+    def handle_request(request):
+        cmd = request.args.get('target')
+        run_task(cmd)
+  `;
+
+  const tasksCode = `
+    import os
+    def run_task(command):
+        os.system(command) # airtight-disable-line py/command-injection
+  `;
+
+  const fileContentMap = new Map([
+    ['app/views.py', viewCode],
+    ['app/tasks.py', tasksCode],
+  ]);
+
+  const findings = [
+    {
+      file: 'app/tasks.py',
+      line: 4,
+      snippet: 'os.system(command)',
+      rule: 'py/command-injection',
+      severity: 'critical',
+      confidence: 'firm',
+      priority: 'P1',
+    },
+  ];
+
+  const enriched = enrichFindingsWithTaint(findings, fileContentMap);
+  assert.equal(enriched[0].reachable, true);
+  assert.equal(enriched[0].confidence, 'confirmed');
+  assert.equal(enriched[0].priority, 'P0');
+  assert.ok(enriched[0].taintPath.includes('run_task(cmd)'));
+  assert.ok(enriched[0].taintPath.includes('command'));
+});

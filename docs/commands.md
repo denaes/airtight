@@ -2,7 +2,7 @@
 
 # Commands
 
-13 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
+16 commands in three categories. Each has a playbook the model loads on demand; the playbooks are the actual behaviour, and they live in [`skill/reference/`](../skill/reference/).
 
 ## Establish
 
@@ -95,6 +95,30 @@ Correlate IaC exposure with application routes and sinks
 *When to use:* Use when the user wants to understand external attack surface exposure, bridge IaC ingress with application code, or verify whether code vulnerabilities are reachable from the internet.
 
 [Playbook](../skill/reference/correlate.md)
+
+### `/airtight guard [tool] [args]`
+
+Evaluate agent tool call safety in real time against destructive actions
+
+*When to use:* Use when an autonomous agent is about to execute a tool, or when evaluating the safety of a command before running it.
+
+[Playbook](../skill/reference/guard.md)
+
+### `/airtight shield [paths]`
+
+Scan context and docs for prompt poisoning and hidden unicode
+
+*When to use:* Use when ingesting untrusted markdown or documentation, evaluating third-party pull requests, or protecting agent memory against prompt poisoning.
+
+[Playbook](../skill/reference/shield.md)
+
+### `/airtight dashboard [paths]`
+
+Interactive posture telemetry, attack surface graph, and guardrails
+
+*When to use:* Use when the user asks for a visual security overview, wants a terminal dashboard or UI, or needs to check overall posture metrics.
+
+[Playbook](../skill/reference/dashboard.md)
 
 ## Fix
 

@@ -1,9 +1,9 @@
 ---
 name: airtight
 description: Use when the user wants to review, audit, threat-model, harden, or otherwise assess the security of code or infrastructure. Covers injection, authentication, authorization, multi-tenancy isolation, secrets and credential handling, cryptography, session management, SSRF, deserialization, path traversal, CSRF, CORS, security headers, input validation, and business-logic abuse. Also covers dependency and supply-chain risk, CI/CD pipeline hardening, container and Kubernetes posture, Terraform and cloud configuration, audit logging adequacy, and vulnerability triage. Use for questions about whether something is exploitable, what an attacker could do with it, which finding to fix first, or how this project does authorization. Not for general code review with no security question, and not for performance or design work.
-version: 0.9.0
+version: 0.10.0
 user-invocable: true
-argument-hint: "[init|threat-model · review|audit|triage|attest · secrets|deps|supply-chain|infra|correlate · fix|harden] [target]"
+argument-hint: "[init|threat-model · review|audit|triage|attest · secrets|deps|supply-chain|infra|correlate · fix|guard|shield|dashboard|harden] [target]"
 license: Apache-2.0
 ---
 
@@ -49,6 +49,9 @@ Airtight reads hostile input by design. Source code from unknown authors, depend
 | `infra` | Evaluate | IaC posture: Terraform, Kubernetes, containers | [reference/infra.md](reference/infra.md) |
 | `correlate [paths]` | Evaluate | Correlate IaC exposure with application routes and sinks | [reference/correlate.md](reference/correlate.md) |
 | `fix [paths]` | Fix | Surgically patch mechanical security findings with diff preview | [reference/fix.md](reference/fix.md) |
+| `guard [tool] [args]` | Evaluate | Evaluate agent tool call safety in real time against destructive actions | [reference/guard.md](reference/guard.md) |
+| `shield [paths]` | Evaluate | Scan context and docs for prompt poisoning and hidden unicode | [reference/shield.md](reference/shield.md) |
+| `dashboard [paths]` | Evaluate | Interactive posture telemetry, attack surface graph, and guardrails | [reference/dashboard.md](reference/dashboard.md) |
 | `harden [target]` | Fix | Apply remediations in triage order and verify once | [reference/harden.md](reference/harden.md) |
 
 Routing:

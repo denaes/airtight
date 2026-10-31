@@ -7372,9 +7372,9 @@ var require_dist = __commonJS({
 
 // engine/src/cli.mjs
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { readFileSync as readFileSync15, realpathSync as realpathSync2, statSync as statSync9, readdirSync as readdirSync6, existsSync as existsSync10 } from "node:fs";
-import { dirname as dirname8, join as join14, resolve as resolve9 } from "node:path";
-import { fileURLToPath as fileURLToPath2, pathToFileURL } from "node:url";
+import { readFileSync as readFileSync18, realpathSync as realpathSync2, statSync as statSync10, readdirSync as readdirSync6, existsSync as existsSync12 } from "node:fs";
+import { dirname as dirname10, join as join16, resolve as resolve10 } from "node:path";
+import { fileURLToPath as fileURLToPath4, pathToFileURL } from "node:url";
 
 // engine/src/findings.mjs
 import { createHash } from "node:crypto";
@@ -8669,20 +8669,230 @@ function findTaintPathForSink(taintTracker, sinkLineNo, snippet, windowLines = 3
   }
   return null;
 }
+function resolveImportPath(fromFile, specifier, fileContentMap) {
+  if (!specifier || typeof specifier !== "string") return null;
+  if (specifier.startsWith(".")) {
+    const fromDir = fromFile.includes("/") ? fromFile.replace(/\/[^/]+$/, "") : "";
+    const parts = (fromDir ? `${fromDir}/${specifier}` : specifier).split("/");
+    const normalized = [];
+    for (const part of parts) {
+      if (part === "." || part === "") continue;
+      if (part === "..") normalized.pop();
+      else normalized.push(part);
+    }
+    const basePath = normalized.join("/");
+    const candidates = [
+      basePath,
+      `${basePath}.js`,
+      `${basePath}.mjs`,
+      `${basePath}.ts`,
+      `${basePath}.py`,
+      `${basePath}.php`,
+      `${basePath}/index.js`,
+      `${basePath}/index.ts`
+    ];
+    for (const cand of candidates) {
+      if (fileContentMap.has(cand)) return cand;
+    }
+    return null;
+  }
+  for (const [filePath] of fileContentMap.entries()) {
+    const baseName = filePath.replace(/\.[^.]+$/, "").split("/").pop();
+    if (baseName === specifier) return filePath;
+  }
+  return null;
+}
+function extractFileFunctions(content, ext = "") {
+  const fns = /* @__PURE__ */ new Map();
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNo = i + 1;
+    const jsFnMatch = /(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z_$][\w$]*)\s*\(([^)]*)\)|(?:export\s+)?(?:const|let|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/.exec(line);
+    if (jsFnMatch) {
+      const name = jsFnMatch[1] || jsFnMatch[3];
+      const rawParams = jsFnMatch[2] !== void 0 ? jsFnMatch[2] : jsFnMatch[4];
+      const params = rawParams.split(",").map((p) => p.trim().split(/[:=]/)[0].trim().replace(/^\{([^}]+)\}$/, "$1")).filter(Boolean);
+      fns.set(name, { name, params, line: lineNo });
+      continue;
+    }
+    const pyFnMatch = /(?:async\s+)?def\s+([a-zA-Z_]\w*)\s*\(([^)]*)\)/.exec(line);
+    if (pyFnMatch) {
+      const name = pyFnMatch[1];
+      const params = pyFnMatch[2].split(",").map((p) => p.trim().split(/[:=]/)[0].trim()).filter((p) => p && p !== "self" && p !== "cls");
+      fns.set(name, { name, params, line: lineNo });
+      continue;
+    }
+    const goFnMatch = /func\s+([A-Z][\w$]*)\s*\(([^)]*)\)/.exec(line);
+    if (goFnMatch) {
+      const name = goFnMatch[1];
+      const params = goFnMatch[2].split(",").map((p) => p.trim().split(/\s+/)[0].trim()).filter(Boolean);
+      fns.set(name, { name, params, line: lineNo });
+      continue;
+    }
+    const phpFnMatch = /function\s+([a-zA-Z_]\w*)\s*\(([^)]*)\)/.exec(line);
+    if (phpFnMatch) {
+      const name = phpFnMatch[1];
+      const params = phpFnMatch[2].split(",").map((p) => p.trim().split(/[:=]/)[0].trim()).filter(Boolean);
+      fns.set(name, { name, params, line: lineNo });
+    }
+  }
+  return fns;
+}
+function extractFileImports(content, ext = "") {
+  const imports = /* @__PURE__ */ new Map();
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const esImport = /import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/.exec(line);
+    if (esImport) {
+      const symbols = esImport[1].split(",").map((s) => s.trim().split(/\s+as\s+/)[0].trim());
+      const spec = esImport[2];
+      for (const sym of symbols) imports.set(sym, spec);
+      continue;
+    }
+    const defaultImport = /import\s+([a-zA-Z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]/.exec(line);
+    if (defaultImport) {
+      imports.set(defaultImport[1], defaultImport[2]);
+      continue;
+    }
+    const reqImport = /(?:const|let|var)\s+\{([^}]+)\}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/.exec(line);
+    if (reqImport) {
+      const symbols = reqImport[1].split(",").map((s) => s.trim().split(":")[0].trim());
+      const spec = reqImport[2];
+      for (const sym of symbols) imports.set(sym, spec);
+      continue;
+    }
+    const pyFromImport = /from\s+([.\w]+)\s+import\s+([\w,\s]+)/.exec(line);
+    if (pyFromImport) {
+      const spec = pyFromImport[1];
+      const symbols = pyFromImport[2].split(",").map((s) => s.trim());
+      for (const sym of symbols) imports.set(sym, spec);
+      continue;
+    }
+  }
+  return imports;
+}
+function traceProjectTaint(fileContentMap) {
+  const fileTrackers = /* @__PURE__ */ new Map();
+  const fileFunctions = /* @__PURE__ */ new Map();
+  const fileImports = /* @__PURE__ */ new Map();
+  for (const [filePath, content] of fileContentMap.entries()) {
+    const lines = content.split(/\r?\n/);
+    const extMatch = /\.[^.]+$/.exec(filePath);
+    const ext = extMatch ? extMatch[0].toLowerCase() : "";
+    const tracker = traceFileTaint(content, lines, ext);
+    fileTrackers.set(filePath, tracker);
+    fileFunctions.set(filePath, extractFileFunctions(content, ext));
+    fileImports.set(filePath, extractFileImports(content, ext));
+  }
+  let propagated = true;
+  let iterations = 0;
+  const MAX_ITERATIONS = 5;
+  while (propagated && iterations < MAX_ITERATIONS) {
+    propagated = false;
+    iterations++;
+    for (const [callerPath, content] of fileContentMap.entries()) {
+      const tracker = fileTrackers.get(callerPath);
+      if (!tracker || tracker.taintedVars.size === 0) continue;
+      const lines = content.split(/\r?\n/);
+      const imports = fileImports.get(callerPath) || /* @__PURE__ */ new Map();
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineNo = i + 1;
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("#")) continue;
+        const callRegex = /(?:([a-zA-Z_$][\w$]*)\.)?([a-zA-Z_$][\w$]*)\s*\(([^)]*)\)/g;
+        let callMatch;
+        while ((callMatch = callRegex.exec(line)) !== null) {
+          const calleeName = callMatch[2];
+          const rawArgs = callMatch[3];
+          if (!rawArgs.trim()) continue;
+          const args = rawArgs.split(",").map((a) => a.trim());
+          for (let argIdx = 0; argIdx < args.length; argIdx++) {
+            const argExpr = args[argIdx];
+            for (const [taintedName, prev] of tracker.taintedVars.entries()) {
+              const varRegex = createVarRegex(taintedName);
+              if (varRegex.test(argExpr) && prev.line <= lineNo) {
+                let targetFile = null;
+                const specifier = imports.get(calleeName);
+                if (specifier) {
+                  targetFile = resolveImportPath(callerPath, specifier, fileContentMap);
+                }
+                if (!targetFile) {
+                  for (const [otherFile, fns] of fileFunctions.entries()) {
+                    if (otherFile !== callerPath && fns.has(calleeName)) {
+                      targetFile = otherFile;
+                      break;
+                    }
+                  }
+                }
+                if (targetFile && fileTrackers.has(targetFile)) {
+                  const targetFns = fileFunctions.get(targetFile);
+                  const fnDef = targetFns?.get(calleeName);
+                  if (fnDef && fnDef.params[argIdx]) {
+                    const paramName = fnDef.params[argIdx];
+                    const targetTracker = fileTrackers.get(targetFile);
+                    if (!targetTracker.taintedVars.has(paramName)) {
+                      const crossHop = `${callerPath}:${lineNo}:${calleeName}(${argExpr})`;
+                      const paramHop = `${targetFile}:${fnDef.line}:${paramName}`;
+                      const newHops = [...prev.hops, crossHop, paramHop];
+                      const paramEntry = {
+                        name: paramName,
+                        line: fnDef.line,
+                        sourceExpr: prev.sourceExpr,
+                        hops: newHops,
+                        isCrossFile: true,
+                        callerFile: callerPath
+                      };
+                      targetTracker.taintedVars.set(paramName, paramEntry);
+                      targetTracker.taintHistory.push(paramEntry);
+                      propagated = true;
+                      const targetLines = fileContentMap.get(targetFile).split(/\r?\n/);
+                      for (let j = fnDef.line - 1; j < targetLines.length; j++) {
+                        const tLine = targetLines[j];
+                        const tLineNo = j + 1;
+                        const assignMatch = /^\s*(?:(?:const|let|var|string|var|val|\$)\s+)?([$a-zA-Z_]\w*)\s*(?::=|=)\s*(.+)$/.exec(tLine);
+                        if (assignMatch) {
+                          const destVar = assignMatch[1];
+                          const rhs = assignMatch[2];
+                          for (const [tName, tPrev] of targetTracker.taintedVars.entries()) {
+                            const vReg = createVarRegex(tName);
+                            if (vReg.test(rhs) && destVar !== tName && !targetTracker.taintedVars.has(destVar)) {
+                              const destHops = [...tPrev.hops, `${targetFile}:${tLineNo}:${destVar}`];
+                              const destEntry = {
+                                name: destVar,
+                                line: tLineNo,
+                                sourceExpr: tPrev.sourceExpr,
+                                hops: destHops,
+                                isCrossFile: true
+                              };
+                              targetTracker.taintedVars.set(destVar, destEntry);
+                              targetTracker.taintHistory.push(destEntry);
+                              propagated = true;
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return fileTrackers;
+}
 function enrichFindingsWithTaint(findings, fileContentMap) {
   if (!findings || findings.length === 0) return findings;
-  const fileTaintCache = /* @__PURE__ */ new Map();
+  const projectTrackers = traceProjectTaint(fileContentMap);
   for (const f of findings) {
     if (!f.file || !f.line) continue;
-    let taintData = fileTaintCache.get(f.file);
-    if (!taintData && fileContentMap.has(f.file)) {
-      const content = fileContentMap.get(f.file);
-      const lines = content.split(/\r?\n/);
-      const extMatch = /\.[^.]+$/.exec(f.file);
-      const ext = extMatch ? extMatch[0].toLowerCase() : "";
-      taintData = traceFileTaint(content, lines, ext);
-      fileTaintCache.set(f.file, taintData);
-    }
+    const taintData = projectTrackers.get(f.file);
     if (taintData) {
       const taint = findTaintPathForSink(taintData, f.line, f.snippet ?? "");
       if (taint) {
@@ -11172,6 +11382,14 @@ var FIXERS = {
       return next !== content ? next : null;
     }
   },
+  "js/tls-verification-disabled": {
+    name: "Enable TLS certificate validation (rejectUnauthorized: true)",
+    fix(content) {
+      let next = content.replace(/\brejectUnauthorized\s*:\s*false\b/g, "rejectUnauthorized: true");
+      next = next.replace(/\bNODE_TLS_REJECT_UNAUTHORIZED\s*([=:])\s*["']?0["']?/g, 'NODE_TLS_REJECT_UNAUTHORIZED $1 "1"');
+      return next !== content ? next : null;
+    }
+  },
   "py/requests-verify-false": {
     name: "Enable TLS verification in Python requests (verify=True)",
     fix(content) {
@@ -11191,6 +11409,69 @@ var FIXERS = {
     fix(content) {
       const next = content.replace(/\bInsecureSkipVerify\s*:\s*true\b/g, "InsecureSkipVerify: false");
       return next !== content ? next : null;
+    }
+  },
+  "js/cookie-missing-httponly": {
+    name: "Add httpOnly, secure, and sameSite flags to cookie",
+    fix(content) {
+      let modified = false;
+      let next = content.replace(/(res\.cookie\s*\(\s*[^,]+,\s*[^,]+,\s*\{)([^}]*)\}/g, (full, prefix, body) => {
+        if (/httpOnly/i.test(body)) return full;
+        modified = true;
+        const flags = "httpOnly: true, secure: true, sameSite: 'lax'";
+        const trimmed = body.trim();
+        return `${prefix} ${flags}${trimmed ? `, ${trimmed}` : ""} }`;
+      });
+      next = next.replace(/(res\.cookie\s*\(\s*[^,)]+,\s*[^,)]+)\s*\)/g, (full, call) => {
+        if (full.includes("{")) return full;
+        modified = true;
+        return `${call}, { httpOnly: true, secure: true, sameSite: 'lax' })`;
+      });
+      return modified ? next : null;
+    }
+  },
+  "js/sql-string-concat": {
+    name: "Parameterize dynamic SQL query string concatenation",
+    fix(content) {
+      let modified = false;
+      const next = content.replace(/(db|conn|connection|client|pool)\.(query|execute)\s*\(\s*(["'])(SELECT\b(?:(?!\3).)*WHERE\s+[a-zA-Z0-9_.]+\s*=\s*)\3\s*\+\s*([a-zA-Z_$][\w$]*)\s*\)/gi, (full, client, method, quote, sqlPrefix, paramVar) => {
+        modified = true;
+        return `${client}.${method}(${quote}${sqlPrefix}$1${quote}, [${paramVar}])`;
+      });
+      return modified ? next : null;
+    }
+  },
+  "py/sql-fstring": {
+    name: "Parameterize Python f-string in SQL query",
+    fix(content) {
+      let modified = false;
+      const next = content.replace(/(cursor|db|conn)\.execute\s*\(\s*f(["'])(SELECT\b(?:(?!\2).)*WHERE\s+[a-zA-Z0-9_.]+\s*=\s*)\{([a-zA-Z_]\w*)\}\2\s*\)/gi, (full, cur, quote, sqlPrefix, paramVar) => {
+        modified = true;
+        return `${cur}.execute(${quote}${sqlPrefix}%s${quote}, (${paramVar},))`;
+      });
+      return modified ? next : null;
+    }
+  },
+  "js/zip-slip-archive-traversal": {
+    name: "Inject canonical path prefix check before archive extraction write",
+    fix(content) {
+      if (/startsWith/i.test(content) || /Path traversal/i.test(content)) return null;
+      let modified = false;
+      const lines = content.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = /^\s*(?:const|let|var)?\s*([a-zA-Z_$][\w$]*)\s*=\s*(?:path\.join|path\.resolve)\s*\(\s*([a-zA-Z_$][\w$]*)\s*,\s*(?:entry|header|file)\.(?:path|name)\s*\)/.exec(line);
+        if (match) {
+          const destVar = match[1];
+          const targetDir = match[2];
+          const indent = line.match(/^\s*/)[0];
+          const guard = `${indent}if (!path.resolve(${destVar}).startsWith(path.resolve(${targetDir}))) throw new Error('Zip slip path traversal detected');`;
+          lines.splice(i + 1, 0, guard);
+          modified = true;
+          break;
+        }
+      }
+      return modified ? lines.join("\n") : null;
     }
   },
   "cfn/ebs-unencrypted": {
@@ -11439,9 +11720,9 @@ function applyFixes(targetPaths = ["."], {
 
 // engine/src/mcp.mjs
 import { createInterface } from "node:readline";
-import { readFileSync as readFileSync11, existsSync as existsSync7 } from "node:fs";
-import { dirname as dirname5, join as join10, resolve as resolve7 } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync as readFileSync13, existsSync as existsSync8 } from "node:fs";
+import { dirname as dirname6, join as join11, resolve as resolve8 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // engine/src/osv.mjs
 import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync9, writeFileSync as writeFileSync3 } from "node:fs";
@@ -11746,6 +12027,84 @@ function frameworksIn(controls) {
   for (const c of controls) for (const f of Object.keys(c.frameworks ?? {})) out.add(f);
   return [...out].sort();
 }
+function exportControls(root, { format = "json", framework = "all", findings = [], rules = [] } = {}) {
+  const loaded = loadControls(root);
+  const knownRuleIds = new Set(rules.map((r) => r.id));
+  const verified = verifyControls(loaded.controls, findings, knownRuleIds);
+  const byId = new Map(verified.map((v) => [v.id, v]));
+  let availableFrameworks = frameworksIn(loaded.controls);
+  if (framework !== "all") {
+    availableFrameworks = availableFrameworks.filter((f) => f.toLowerCase() === framework.toLowerCase());
+  }
+  const frameworkReports = {};
+  for (const fw of availableFrameworks) {
+    frameworkReports[fw] = frameworkCoverage(loaded.controls, fw, verified);
+  }
+  const exportData = {
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    schemaVersion: loaded.schemaVersion,
+    summary: {
+      totalControls: loaded.controls.length,
+      holding: verified.filter((v) => v.verdict === "holding").length,
+      failing: verified.filter((v) => v.verdict === "failing").length,
+      unverifiable: verified.filter((v) => v.verdict === "unverifiable").length,
+      broken: verified.filter((v) => v.verdict === "broken").length
+    },
+    controls: loaded.controls.map((c) => {
+      const v = byId.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        verdict: v?.verdict ?? "unverifiable",
+        reason: v?.reason ?? "",
+        frameworks: c.frameworks ?? {},
+        verification: c.verification ?? [],
+        failures: v?.failures ?? []
+      };
+    }),
+    frameworkCoverage: frameworkReports
+  };
+  if (format === "json") {
+    return JSON.stringify(exportData, null, 2);
+  }
+  if (format === "csv") {
+    const rows = [
+      ["Control ID", "Name", "Status", "Verdict", "Frameworks", "Rule Verification", "Reason"]
+    ];
+    for (const c of exportData.controls) {
+      const fwStr = Object.entries(c.frameworks).map(([k, v]) => `${k}:${v.join(",")}`).join("; ");
+      rows.push([
+        c.id,
+        `"${c.name.replace(/"/g, '""')}"`,
+        c.status,
+        c.verdict,
+        `"${fwStr}"`,
+        `"${c.verification.join(", ")}"`,
+        `"${c.reason.replace(/"/g, '""')}"`
+      ]);
+    }
+    return rows.map((r) => r.join(",")).join("\n");
+  }
+  const lines = [
+    "# Airtight Compliance Control Register Evidence Export",
+    `Generated: ${exportData.exportedAt}`,
+    "",
+    "## Posture Summary",
+    `- Total Controls: ${exportData.summary.totalControls}`,
+    `- Holding (Verified in Code): ${exportData.summary.holding}`,
+    `- Failing: ${exportData.summary.failing}`,
+    `- Unverifiable: ${exportData.summary.unverifiable}`,
+    "",
+    "## Control Evidence",
+    "| Control ID | Name | Status | Verdict | Verification |",
+    "|---|---|---|---|---|"
+  ];
+  for (const c of exportData.controls) {
+    lines.push(`| \`${c.id}\` | ${c.name} | ${c.status} | **${c.verdict}** | \`${c.verification.join(", ") || "manual"}\` |`);
+  }
+  return lines.join("\n");
+}
 
 // engine/src/cvss.mjs
 var CVSS_METRICS = {
@@ -11896,23 +12255,419 @@ function parseCvssVector(vectorStr) {
   return calculateCvss31(metrics);
 }
 
-// engine/src/mcp.mjs
+// engine/src/guard.mjs
+var GUARD_RULES = [
+  // ----------------------------------------------------------------- Bash / Shell
+  {
+    id: "guard/bash-root-rm",
+    tool: "bash",
+    action: "block",
+    cwe: "CWE-78",
+    match: (input) => /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+(?:\/|~|\$HOME|\.\/|\*|\/\*|\$ROOT)(?:\s|$)/i.test(input.command || ""),
+    reason: "Destructive recursive filesystem deletion target (root, home, or wildcard).",
+    suggestion: "Scope deletion to an explicit subpath inside the workspace."
+  },
+  {
+    id: "guard/bash-pipe-to-shell",
+    tool: "bash",
+    action: "block",
+    cwe: "CWE-494",
+    match: (input) => /(?:curl|wget)\s+[^\n|;&]+\|\s*(?:bash|sh|zsh|python|perl|ruby)\b/i.test(input.command || ""),
+    reason: "Piping untrusted remote network downloads directly into shell interpreter.",
+    suggestion: "Download script to disk, inspect or checksum verify, then execute."
+  },
+  {
+    id: "guard/bash-disk-wipe",
+    tool: "bash",
+    action: "block",
+    cwe: "CWE-78",
+    match: (input) => /\b(?:mkfs(?:\.[a-z0-9]+)?|dd\s+if=[^\s]+\s+of=\/dev\/(?:sd[a-z]|nvme[0-9]+[a-z0-9]*|hd[a-z]|vd[a-z]))(?:\s|$)/i.test(input.command || ""),
+    reason: "Raw block device wipe or filesystem format command detected.",
+    suggestion: "Do not format physical block storage devices via agent commands."
+  },
+  {
+    id: "guard/bash-credential-exfil",
+    tool: "bash",
+    action: "block",
+    cwe: "CWE-200",
+    match: (input) => /(?:curl|wget|nc|netcat)\s+[^\n|;&]+(?:@|\/|\$)(?:\.env|id_[rd]sa|\.aws\/credentials|\/etc\/shadow)/i.test(input.command || ""),
+    reason: "Outbound network transfer referencing sensitive credential or key files.",
+    suggestion: "Do not pipe or send private keys and environment files to remote hosts."
+  },
+  {
+    id: "guard/bash-force-push",
+    tool: "bash",
+    action: "warn",
+    cwe: "CWE-284",
+    match: (input) => /\bgit\s+push\s+(?:--force|-f)\s+(?:origin|upstream)\s+(?:main|master|release)\b/i.test(input.command || ""),
+    reason: "Force-pushing to default production branches can rewrite shared commit history.",
+    suggestion: "Use normal git push or push to a feature branch."
+  },
+  {
+    id: "guard/bash-disable-security",
+    tool: "bash",
+    action: "block",
+    cwe: "CWE-276",
+    match: (input) => /\b(?:setenforce\s+0|ufw\s+disable|iptables\s+-F|systemctl\s+stop\s+(?:firewalld|apparmor))\b/i.test(input.command || ""),
+    reason: "Disabling host firewall, SELinux, or kernel security enforcement.",
+    suggestion: "Configure explicit granular firewall rules rather than disabling subsystem."
+  },
+  // ------------------------------------------------------------- File Write / Edit
+  {
+    id: "guard/write-vcs-tamper",
+    tool: "write",
+    action: "block",
+    cwe: "CWE-276",
+    match: (input) => /(?:^|[/\\])\.git[/\\](?:config|hooks[/\\][a-zA-Z0-9_-]+)$/i.test(input.path || ""),
+    reason: "Attempting to overwrite VCS configuration or hook scripts directly.",
+    suggestion: "Modify repository files inside the working tree, not internal .git metadata."
+  },
+  {
+    id: "guard/write-ssh-key",
+    tool: "write",
+    action: "block",
+    cwe: "CWE-276",
+    match: (input) => /(?:^|[/\\])\.ssh[/\\](?:authorized_keys|id_[rd]sa|known_hosts)$/i.test(input.path || ""),
+    reason: "Attempting to tamper with SSH keys or authorized_keys identity files.",
+    suggestion: "Do not write directly to SSH identity files via automated tools."
+  },
+  {
+    id: "guard/write-system-file",
+    tool: "write",
+    action: "block",
+    cwe: "CWE-276",
+    match: (input) => /^\/(?:etc\/(?:passwd|shadow|sudoers|hosts|crontab)|boot\/|sys\/)/i.test(input.path || ""),
+    reason: "Target path is an immutable host system configuration file.",
+    suggestion: "Limit file modifications to project repository directories."
+  },
+  // ----------------------------------------------------------- SQL / Database
+  {
+    id: "guard/sql-drop-table",
+    tool: "sql",
+    action: "block",
+    cwe: "CWE-89",
+    match: (input) => /\bDROP\s+(?:TABLE|DATABASE|SCHEMA)\s+/i.test(input.query || ""),
+    reason: "Destructive DDL drop table or database statement.",
+    suggestion: "Use non-destructive schema migrations or soft deletes."
+  },
+  {
+    id: "guard/sql-unbounded-delete",
+    tool: "sql",
+    action: "block",
+    cwe: "CWE-89",
+    match: (input) => {
+      const q = (input.query || "").trim();
+      return /^\s*DELETE\s+FROM\s+[`"']?[a-zA-Z0-9_]+[`"']?\s*(?:;)?$/i.test(q);
+    },
+    reason: "DELETE statement executed without a WHERE constraint clause (mass truncation).",
+    suggestion: "Specify an explicit WHERE clause or condition to scope deletion."
+  },
+  {
+    id: "guard/sql-unbounded-update",
+    tool: "sql",
+    action: "block",
+    cwe: "CWE-89",
+    match: (input) => {
+      const q = (input.query || "").trim();
+      return /^\s*UPDATE\s+[`"']?[a-zA-Z0-9_]+[`"']?\s+SET\s+[^;]+$/i.test(q) && !/\bWHERE\b/i.test(q);
+    },
+    reason: "UPDATE statement executed without a WHERE constraint clause (mass overwrite).",
+    suggestion: "Specify an explicit WHERE clause to restrict rows updated."
+  },
+  // ------------------------------------------------------------- Network / Fetch
+  {
+    id: "guard/fetch-cloud-metadata",
+    tool: "fetch",
+    action: "block",
+    cwe: "CWE-918",
+    match: (input) => /(?:169\.254\.169\.254|metadata\.google\.internal|100\.100\.100\.200)\b/i.test(input.url || ""),
+    reason: "Target URL addresses cloud provider instance metadata service (SSRF vector).",
+    suggestion: "Filter out private/link-local IP addresses before making HTTP requests."
+  },
+  {
+    id: "guard/fetch-internal-daemon",
+    tool: "fetch",
+    action: "warn",
+    cwe: "CWE-918",
+    match: (input) => /(?:127\.0\.0\.1|localhost):(2375|6379|9200|27017)\b/i.test(input.url || ""),
+    reason: "Target URL targets sensitive internal service ports (Docker, Redis, Elastic, Mongo).",
+    suggestion: "Verify authorization and authenticate before connecting to internal daemons."
+  }
+];
+function evaluateGuard(input = {}) {
+  const tool = (input.tool || "bash").toLowerCase();
+  for (const rule of GUARD_RULES) {
+    if (rule.tool !== tool) continue;
+    if (rule.match(input)) {
+      return {
+        verdict: rule.action,
+        rule: rule.id,
+        reason: rule.reason,
+        cwe: rule.cwe,
+        suggestion: rule.suggestion,
+        tool
+      };
+    }
+  }
+  return {
+    verdict: "allow",
+    tool,
+    reason: "Command satisfies agent safety invariants."
+  };
+}
+
+// engine/src/shield.mjs
+import { readFileSync as readFileSync11, writeFileSync as writeFileSync4, statSync as statSync7 } from "node:fs";
+import { resolve as resolve7, relative as relative7, basename as basename3 } from "node:path";
+var ZERO_WIDTH_REGEX = /[\u200B\u200C\u200D\u200E\u200F\u2060\uFEFF]/g;
+var ZERO_WIDTH_SEQUENCE_REGEX = /[\u200B\u200C\u200D\u2060\uFEFF]{2,}/;
+var INJECTION_PATTERNS = [
+  {
+    type: "instruction-override",
+    regex: /(?:\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions|directives|prompts|system\s+messages?)\b|\[(?:SYSTEM|INSTRUCTION|OVERRIDE)\]\s*(?:new\s+instructions|disregard|ignore)|\bSYSTEM\s+PROMPT\s+OVERRIDE\s*[:\-]|\bNEW\s+DIRECTIVE:\s*DISREGARD\b|\byou\s+are\s+now\s+in\s+developer\s+mode\b)/i,
+    notRegex: /(?:how\s+to\s+prevent|mitigate|defense\s+against|airtight|detection|vulnerability|example|e\.g\.|evidence|attack|finding)/i,
+    severity: "critical",
+    cwe: "CWE-74",
+    description: "System instruction override / jailbreak directive detected"
+  },
+  {
+    type: "exfiltration-lure",
+    regex: /(?:(?:\b(?:send|exfiltrate|transmit|upload|post)\s+(?:all\s+)?(?:the\s+contents\s+of\s+)?(?:\.env|id_[rd]sa|api[_-]?keys?|secrets?|credentials?)\b\s+(?:to|at)\s+https?:\/\/|(?:curl|wget)\s+[^\n|;&]+(?:@|\/|\$)(?:\.env|id_[rd]sa|\.aws\/credentials)))/i,
+    severity: "critical",
+    cwe: "CWE-200",
+    description: "Credential exfiltration lure targeting model file access"
+  },
+  {
+    type: "delimiter-hijacking",
+    regex: /(?:<\/context>[\s\S]*<context>|<\/system>[\s\S]*<system>|<\/instruction>[\s\S]*<instruction>)/i,
+    severity: "high",
+    cwe: "CWE-74",
+    description: "Fake prompt boundary delimiter injection"
+  }
+];
+function inspectContentForShield(content, filePath = "inline") {
+  const threats = [];
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNo = i + 1;
+    if (ZERO_WIDTH_SEQUENCE_REGEX.test(line)) {
+      const match = line.match(ZERO_WIDTH_REGEX);
+      threats.push({
+        file: filePath,
+        line: lineNo,
+        type: "invisible-unicode",
+        severity: "high",
+        cwe: "CWE-74",
+        snippet: line.trim().slice(0, 100),
+        description: `Embedded ${match?.length || 2}+ hidden zero-width Unicode characters`,
+        remediation: "Strip invisible zero-width unicode characters using: airtight shield --sanitize"
+      });
+    }
+    for (const pat of INJECTION_PATTERNS) {
+      if (pat.regex.test(line)) {
+        if (pat.notRegex && pat.notRegex.test(line)) continue;
+        threats.push({
+          file: filePath,
+          line: lineNo,
+          type: pat.type,
+          severity: pat.severity,
+          cwe: pat.cwe,
+          snippet: line.trim().slice(0, 120),
+          description: pat.description,
+          remediation: "Enclose untrusted external input within strict data delimiters or remove malicious directive."
+        });
+      }
+    }
+  }
+  return threats;
+}
+function sanitizeContent(content) {
+  return content.replace(ZERO_WIDTH_REGEX, "");
+}
+function scanWorkspaceShield(targetPaths = ["."], { root = process.cwd(), sanitize = false } = {}) {
+  const absPaths = targetPaths.map((p) => resolve7(root, p));
+  const files = collectTargets(root, absPaths);
+  const relevantFiles = files.filter((f) => {
+    const b = basename3(f);
+    return /\.(md|txt|prompt|json|yaml|yml|js|ts|py)$/i.test(b) && !/(node_modules|dist|\.git|\.airtight|fixtures|engine\/rules)[/\\]/.test(f) && !f.endsWith("rules.json") && !f.endsWith("docs/rules.md");
+  });
+  const threats = [];
+  let sanitizedCount = 0;
+  for (const absFile of relevantFiles) {
+    const relFile = relative7(root, absFile);
+    let content;
+    try {
+      content = readFileSync11(absFile, "utf8");
+    } catch {
+      continue;
+    }
+    const fileThreats = inspectContentForShield(content, relFile);
+    if (fileThreats.length > 0) {
+      threats.push(...fileThreats);
+      if (sanitize) {
+        const cleaned = sanitizeContent(content);
+        if (cleaned !== content) {
+          writeFileSync4(absFile, cleaned, "utf8");
+          sanitizedCount++;
+        }
+      }
+    }
+  }
+  return {
+    scannedFiles: relevantFiles.length,
+    threats,
+    threatsCount: threats.length,
+    sanitizedCount
+  };
+}
+
+// engine/src/dashboard.mjs
+import { existsSync as existsSync7, readFileSync as readFileSync12 } from "node:fs";
+import { join as join10, dirname as dirname5 } from "node:path";
+import { fileURLToPath } from "node:url";
 var HERE = dirname5(fileURLToPath(import.meta.url));
-var SERVER_NAME = "airtight";
-var SERVER_VERSION = "0.9.0";
-var PROTOCOL_VERSION = "2024-11-05";
-function loadRulesBundle(env = process.env) {
+var BOLD = "\x1B[1m";
+var DIM = "\x1B[2m";
+var RESET = "\x1B[0m";
+var GREEN = "\x1B[32m";
+var RED = "\x1B[31m";
+var YELLOW = "\x1B[33m";
+var CYAN = "\x1B[36m";
+function loadRules(root, env = process.env) {
   if (env.AIRTIGHT_RULES && existsSync7(env.AIRTIGHT_RULES)) {
-    return compileAll(JSON.parse(readFileSync11(env.AIRTIGHT_RULES, "utf8")));
+    return compileAll(JSON.parse(readFileSync12(env.AIRTIGHT_RULES, "utf8")));
   }
   const candidates = [
     join10(HERE, "..", "build", "rules.json"),
     join10(HERE, "..", "..", "skill", "scripts", "rules.json"),
-    join10(HERE, "..", "..", "rules.json")
+    join10(root, "engine", "build", "rules.json")
+  ];
+  for (const c of candidates) {
+    if (existsSync7(c)) return compileAll(JSON.parse(readFileSync12(c, "utf8")));
+  }
+  return [];
+}
+function progressBar(pct, width = 20) {
+  const filled = Math.round(pct / 100 * width);
+  const empty = width - filled;
+  const bar = "\u2588".repeat(filled) + "\u2591".repeat(empty);
+  const color = pct === 100 ? GREEN : pct >= 70 ? YELLOW : RED;
+  return `${color}${bar}${RESET} ${pct.toString().padStart(3)}%`;
+}
+function compileDashboardData(root = process.cwd(), { paths = ["."] } = {}) {
+  let controlsData = { summary: { total: 0, holding: 0, failing: 0 }, frameworks: {} };
+  try {
+    const loaded = loadControls(root);
+    const rules = loadRules(root);
+    const verified = verifyControls(loaded.controls, [], new Set(rules.map((r) => r.id)));
+    const holding = verified.filter((v) => v.verdict === "holding").length;
+    const failing = verified.filter((v) => v.verdict === "failing").length;
+    const fws = frameworksIn(loaded.controls);
+    const fwMetrics = {};
+    for (const fw of fws) {
+      const cov = frameworkCoverage(loaded.controls, fw, verified);
+      const satisfied = cov.filter((c) => c.satisfied).length;
+      const total = cov.length;
+      const pct = total > 0 ? Math.round(satisfied / total * 100) : 100;
+      fwMetrics[fw] = { satisfied, total, pct };
+    }
+    controlsData = {
+      summary: { total: loaded.controls.length, holding, failing },
+      frameworks: fwMetrics
+    };
+  } catch {
+  }
+  let attackSurface = { attackPaths: [], ingressRules: [], servicePorts: [], totalRoutes: 0 };
+  try {
+    const correlation = correlateAttackSurface(paths, { root });
+    attackSurface = {
+      attackPaths: correlation.attackPaths || [],
+      ingressRules: correlation.ingressRules || [],
+      servicePorts: correlation.servicePorts || [],
+      totalRoutes: correlation.summary?.totalRoutes || 0
+    };
+  } catch {
+  }
+  const guardTelemetry = {
+    totalRules: GUARD_RULES.length,
+    byTool: {
+      bash: GUARD_RULES.filter((r) => r.tool === "bash").length,
+      write: GUARD_RULES.filter((r) => r.tool === "write").length,
+      sql: GUARD_RULES.filter((r) => r.tool === "sql").length,
+      fetch: GUARD_RULES.filter((r) => r.tool === "fetch").length
+    },
+    actions: {
+      block: GUARD_RULES.filter((r) => r.action === "block").length,
+      warn: GUARD_RULES.filter((r) => r.action === "warn").length
+    }
+  };
+  return {
+    version: "0.9.0",
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    controls: controlsData,
+    attackSurface,
+    guard: guardTelemetry
+  };
+}
+function renderTerminalDashboard(data) {
+  const out = [];
+  out.push(`${CYAN}\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557${RESET}`);
+  out.push(`${CYAN}\u2551${RESET}  ${BOLD}AIRTIGHT SECURITY DASHBOARD \u2014 v${data.version}${RESET}                                       ${CYAN}\u2551${RESET}`);
+  out.push(`${CYAN}\u2551${RESET}  Deterministic Mechanical Floor \xB7 Zero Dependencies \xB7 Cold Start <15ms       ${CYAN}\u2551${RESET}`);
+  out.push(`${CYAN}\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D${RESET}
+`);
+  out.push(`${BOLD}\u25B8 COMPLIANCE & CONTROL READINESS${RESET}`);
+  const { summary, frameworks } = data.controls;
+  out.push(`  Controls Active: ${BOLD}${summary.total}${RESET}  (Holding: ${GREEN}${summary.holding}${RESET}, Failing: ${summary.failing > 0 ? RED : GREEN}${summary.failing}${RESET})
+`);
+  for (const [fw, m] of Object.entries(frameworks)) {
+    const fwLabel = fw.toUpperCase().padEnd(10);
+    out.push(`  ${fwLabel} [${progressBar(m.pct)}]  (${m.satisfied}/${m.total} requirements satisfied)`);
+  }
+  out.push("");
+  out.push(`${BOLD}\u25B8 ATTACK SURFACE & INGRESS EXPOSURE${RESET}`);
+  const { ingressRules, servicePorts, totalRoutes, attackPaths } = data.attackSurface;
+  out.push(`  Public Ingress Rules: ${BOLD}${ingressRules.length}${RESET} | Exposed Service Ports: ${BOLD}${servicePorts.length}${RESET} | Discovered HTTP Routes: ${BOLD}${totalRoutes}${RESET}`);
+  if (attackPaths.length > 0) {
+    out.push(`  ${RED}\u26A0 ${attackPaths.length} Exposed Internet Attack Path(s) Discovered:${RESET}`);
+    for (const p of attackPaths.slice(0, 5)) {
+      out.push(`    ${RED}\u25CF${RESET} ${DIM}[${p.exposedPort || "80"}/tcp]${RESET} ${p.method} ${p.path} \u2794 ${p.sinkType?.toUpperCase() || "SINK"} (${p.routeFile}:${p.routeLine})`);
+    }
+  } else {
+    out.push(`  ${GREEN}\u2713 No unmitigated public internet ingress paths to dangerous sinks.${RESET}`);
+  }
+  out.push("");
+  out.push(`${BOLD}\u25B8 AGENT TOOL FIREWALL & GUARDRAIL TELEMETRY${RESET}`);
+  const { byTool, actions, totalRules } = data.guard;
+  out.push(`  Active Guard Rules: ${BOLD}${totalRules}${RESET} (Blocking: ${RED}${actions.block}${RESET}, Warnings: ${YELLOW}${actions.warn}${RESET})`);
+  out.push(`  Protected Tool Vectors:`);
+  out.push(`    \u2022 ${CYAN}bash${RESET}  (${byTool.bash} rules): root rm, curl|bash, disk format, cred exfil, selinux`);
+  out.push(`    \u2022 ${CYAN}write${RESET} (${byTool.write} rules): .git/config, .ssh/authorized_keys, /etc/passwd`);
+  out.push(`    \u2022 ${CYAN}sql${RESET}   (${byTool.sql} rules): DROP TABLE, mass unconstrained DELETE/UPDATE`);
+  out.push(`    \u2022 ${CYAN}fetch${RESET} (${byTool.fetch} rules): 169.254.169.254 metadata SSRF, internal daemons
+`);
+  out.push(`${DIM}Run 'airtight detect .' for full findings or 'airtight fix' to auto-remediate.${RESET}`);
+  return out.join("\n");
+}
+
+// engine/src/mcp.mjs
+var HERE2 = dirname6(fileURLToPath2(import.meta.url));
+var SERVER_NAME = "airtight";
+var SERVER_VERSION = "0.10.0";
+var PROTOCOL_VERSION = "2024-11-05";
+function loadRulesBundle(env = process.env) {
+  if (env.AIRTIGHT_RULES && existsSync8(env.AIRTIGHT_RULES)) {
+    return compileAll(JSON.parse(readFileSync13(env.AIRTIGHT_RULES, "utf8")));
+  }
+  const candidates = [
+    join11(HERE2, "..", "build", "rules.json"),
+    join11(HERE2, "..", "..", "skill", "scripts", "rules.json"),
+    join11(HERE2, "..", "..", "rules.json")
   ];
   for (const p of candidates) {
-    if (existsSync7(p)) {
-      return compileAll(JSON.parse(readFileSync11(p, "utf8")));
+    if (existsSync8(p)) {
+      return compileAll(JSON.parse(readFileSync13(p, "utf8")));
     }
   }
   return [];
@@ -12098,6 +12853,77 @@ var TOOLS = [
         }
       }
     }
+  },
+  {
+    name: "airtight_guard_tool",
+    description: "Active agent execution guardrail: evaluate bash commands, file writes, SQL queries, or network fetch calls before execution to prevent destructive actions and workspace breakouts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tool: {
+          type: "string",
+          enum: ["bash", "write", "sql", "fetch"],
+          description: "The type of tool call being evaluated"
+        },
+        command: {
+          type: "string",
+          description: 'The bash or shell command string (for tool="bash")'
+        },
+        path: {
+          type: "string",
+          description: 'The file path being modified or created (for tool="write")'
+        },
+        content: {
+          type: "string",
+          description: 'The content being written to file (for tool="write")'
+        },
+        query: {
+          type: "string",
+          description: 'The SQL query string (for tool="sql")'
+        },
+        url: {
+          type: "string",
+          description: 'The HTTP URL being fetched (for tool="fetch")'
+        }
+      },
+      required: ["tool"]
+    }
+  },
+  {
+    name: "airtight_shield",
+    description: "Agent memory and context poisoning shield: detect indirect prompt injection, hidden zero-width unicode smuggling, and instruction override attempts in documentation, web fetches, and memory contexts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Paths or directories to scan (default: ["."])'
+        },
+        content: {
+          type: "string",
+          description: "Direct in-memory text/context to inspect for prompt poisoning"
+        },
+        sanitize: {
+          type: "boolean",
+          description: "If true and content is provided, returns sanitized text with hidden unicode stripped"
+        }
+      }
+    }
+  },
+  {
+    name: "airtight_dashboard",
+    description: "Compile interactive posture telemetry, attack surface graph metrics, guardrail status, and compliance readiness.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Paths or directories to analyze (default: ["."])'
+        }
+      }
+    }
   }
 ];
 async function handleToolCall(name, args = {}, { root = process.cwd(), env = process.env } = {}) {
@@ -12115,7 +12941,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
       }
       if (args.tier === "immediate") rules = immediateTier(rules);
       if (args.packs?.length) rules = rules.filter((r) => args.packs.includes(r.pack));
-      const files = collectTargets(root, paths.map((p) => resolve7(root, p)));
+      const files = collectTargets(root, paths.map((p) => resolve8(root, p)));
       const scanned = scanFiles({ root, files, rules, config, isSuppressed });
       let findings = scanned.findings;
       if (args.tier !== "immediate" && (!args.packs?.length || args.packs.includes("dep"))) {
@@ -12124,7 +12950,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
           const allDeps = [];
           for (const lf of lockfiles) {
             try {
-              const content = readFileSync11(lf, "utf8");
+              const content = readFileSync13(lf, "utf8");
               const parsed = parseLockfile(lf, content);
               if (parsed?.dependencies?.length) allDeps.push(...parsed.dependencies);
             } catch {
@@ -12132,7 +12958,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
           }
           if (allDeps.length > 0) {
             const advisories = queryOsv(allDeps, {
-              cacheDir: join10(root, ".airtight", "cache", "osv.json"),
+              cacheDir: join11(root, ".airtight", "cache", "osv.json"),
               offline: false
             });
             for (const adv of advisories) {
@@ -12270,7 +13096,7 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
       };
     }
     case "airtight_sbom": {
-      const target = args.path ? resolve7(root, args.path) : root;
+      const target = args.path ? resolve8(root, args.path) : root;
       const sbom = generateCycloneDx({ root: target });
       return {
         content: [{ type: "text", text: sbom }]
@@ -12295,6 +13121,36 @@ async function handleToolCall(name, args = {}, { root = process.cwd(), env = pro
       const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+    case "airtight_guard_tool": {
+      const evaluation = evaluateGuard(args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(evaluation, null, 2) }]
+      };
+    }
+    case "airtight_shield": {
+      if (args.content !== void 0) {
+        const findings = inspectContentForShield(args.content, "context");
+        const result2 = { findings };
+        if (args.sanitize) {
+          result2.sanitized = sanitizeContent(args.content);
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(result2, null, 2) }]
+        };
+      }
+      const paths = args.paths?.length ? args.paths : ["."];
+      const result = scanWorkspaceShield(paths, { root });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+    case "airtight_dashboard": {
+      const paths = args.paths?.length ? args.paths : ["."];
+      const data = compileDashboardData(root, { paths });
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
       };
     }
     default:
@@ -12393,7 +13249,7 @@ function createMcpServer({ root = process.cwd(), env = process.env, input = proc
   };
 }
 function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = process.env) {
-  return new Promise((resolve10) => {
+  return new Promise((resolve11) => {
     const server = createMcpServer({
       root: process.cwd(),
       env,
@@ -12405,7 +13261,7 @@ function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = proces
       if (finished) return;
       finished = true;
       server.close();
-      resolve10(0);
+      resolve11(0);
     };
     process.stdin.on("close", finish);
     process.stdin.on("end", finish);
@@ -12413,8 +13269,8 @@ function runMcpServer(io = { out: (s) => process.stdout.write(s) }, env = proces
 }
 
 // engine/src/context.mjs
-import { existsSync as existsSync8, readFileSync as readFileSync12, statSync as statSync7 } from "node:fs";
-import { join as join11 } from "node:path";
+import { existsSync as existsSync9, readFileSync as readFileSync14, statSync as statSync8 } from "node:fs";
+import { join as join12 } from "node:path";
 var SEP = "\n\n---\n\n";
 function detectStack(root, ignoreFiles = []) {
   const stack = {
@@ -12440,7 +13296,7 @@ function detectStack(root, ignoreFiles = []) {
     else if (base === "go.mod") stack.go = true;
     else if (/\.ya?ml$/.test(rel) && !rel.startsWith(".github/")) {
       try {
-        const head = readFileSync12(abs, "utf8").slice(0, 2048);
+        const head = readFileSync14(abs, "utf8").slice(0, 2048);
         if (/^\s*apiVersion:/m.test(head) && /^\s*kind:/m.test(head)) stack.kubernetes = true;
       } catch {
       }
@@ -12449,18 +13305,18 @@ function detectStack(root, ignoreFiles = []) {
   return stack;
 }
 function readIfPresent(root, name) {
-  const path = join11(root, name);
+  const path = join12(root, name);
   try {
-    return statSync7(path).isFile() ? readFileSync12(path, "utf8") : null;
+    return statSync8(path).isFile() ? readFileSync14(path, "utf8") : null;
   } catch {
     return null;
   }
 }
 function hookActive(root) {
-  const settings = join11(root, ".claude", "settings.json");
-  if (!existsSync8(settings)) return false;
+  const settings = join12(root, ".claude", "settings.json");
+  if (!existsSync9(settings)) return false;
   try {
-    return readFileSync12(settings, "utf8").includes("airtight");
+    return readFileSync14(settings, "utf8").includes("airtight");
   } catch {
     return false;
   }
@@ -12580,8 +13436,8 @@ ${JSON.stringify({
 }
 
 // engine/src/hook.mjs
-import { readFileSync as readFileSync13, writeFileSync as writeFileSync4, mkdirSync as mkdirSync3, statSync as statSync8, realpathSync } from "node:fs";
-import { dirname as dirname6, join as join12, relative as relative7, resolve as resolve8, sep as sep5 } from "node:path";
+import { readFileSync as readFileSync15, writeFileSync as writeFileSync5, mkdirSync as mkdirSync3, statSync as statSync9, realpathSync } from "node:fs";
+import { dirname as dirname7, join as join13, relative as relative8, resolve as resolve9, sep as sep5 } from "node:path";
 var ENVELOPE = "[airtight@1]";
 var CACHE_PATH = ".airtight/hook.cache.json";
 var MAX_SESSIONS = 8;
@@ -12641,14 +13497,14 @@ function payload(text, eventName, harness) {
 }
 function loadCache(root) {
   try {
-    return JSON.parse(readFileSync13(join12(root, CACHE_PATH), "utf8"));
+    return JSON.parse(readFileSync15(join13(root, CACHE_PATH), "utf8"));
   } catch {
     return { sessions: {} };
   }
 }
 function saveCache(root, cache2) {
   try {
-    if (!statSync8(join12(root, ".airtight")).isDirectory()) return;
+    if (!statSync9(join13(root, ".airtight")).isDirectory()) return;
   } catch {
     return;
   }
@@ -12657,8 +13513,8 @@ function saveCache(root, cache2) {
     for (const id of ids.slice(0, ids.length - MAX_SESSIONS)) delete cache2.sessions[id];
   }
   try {
-    mkdirSync3(dirname6(join12(root, CACHE_PATH)), { recursive: true });
-    writeFileSync4(join12(root, CACHE_PATH), JSON.stringify(cache2));
+    mkdirSync3(dirname7(join13(root, CACHE_PATH)), { recursive: true });
+    writeFileSync5(join13(root, CACHE_PATH), JSON.stringify(cache2));
   } catch {
   }
 }
@@ -12686,7 +13542,7 @@ function insideProject(root, abs) {
         return realpathSync(probe).startsWith(realRoot);
       } catch {
       }
-      const parent = dirname6(probe);
+      const parent = dirname7(probe);
       if (parent === probe) return false;
       probe = parent;
     }
@@ -12736,12 +13592,12 @@ function clampToBudget(text, maxChars) {
   if (withShort.length <= maxChars) return withShort;
   return `${withShort.slice(0, Math.max(0, maxChars - 1))}\u2026`;
 }
-function loadRules(env, root) {
-  const here = dirname6(new URL(import.meta.url).pathname);
-  for (const path of [env.AIRTIGHT_RULES, join12(here, "..", "rules.json"), join12(here, "..", "build", "rules.json")]) {
+function loadRules2(env, root) {
+  const here = dirname7(new URL(import.meta.url).pathname);
+  for (const path of [env.AIRTIGHT_RULES, join13(here, "..", "rules.json"), join13(here, "..", "build", "rules.json")]) {
     if (!path) continue;
     try {
-      return compileAll(JSON.parse(readFileSync13(path, "utf8")));
+      return compileAll(JSON.parse(readFileSync15(path, "utf8")));
     } catch {
     }
   }
@@ -12764,7 +13620,7 @@ function runHook(io, env, stdinText) {
   const stop = isStopEvent(input);
   const eventName = stop ? "Stop" : "PostToolUse";
   if (stop && input.stop_hook_active) return 0;
-  const rules = loadRules(env, root);
+  const rules = loadRules2(env, root);
   if (!rules) return 0;
   const cache2 = loadCache(root);
   const sessionId = String(input.session_id ?? input.conversation_id ?? input.turn_id ?? "default");
@@ -12775,15 +13631,15 @@ function runHook(io, env, stdinText) {
   } else {
     rels = [];
     for (const p of resolveTargets(input)) {
-      const abs = resolve8(root, p);
+      const abs = resolve9(root, p);
       if (!insideProject(root, abs)) continue;
-      const rel = relative7(root, abs).split(sep5).join("/");
+      const rel = relative8(root, abs).split(sep5).join("/");
       if (rel.startsWith("..")) continue;
       if (GENERATED.test(`/${rel}`) || GENERATED_FILE.test(rel)) continue;
       if (!isScannable(rel)) continue;
       if (matchesAny(rel, config.detector?.ignoreFiles ?? [])) continue;
       try {
-        if (statSync8(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
+        if (statSync9(abs).size > (config.scan?.maxFileBytes ?? 1048576)) continue;
       } catch {
         continue;
       }
@@ -12799,7 +13655,7 @@ function runHook(io, env, stdinText) {
   const active = stop ? rules : immediateTier(rules);
   const { findings, vault } = scanFiles({
     root,
-    files: rels.map((r) => join12(root, r)),
+    files: rels.map((r) => join13(root, r)),
     rules: active,
     config,
     isSuppressed: buildFilter(config)
@@ -12861,15 +13717,15 @@ This write introduced a confirmed critical finding. Fix it before continuing.`);
 }
 function readStdin() {
   try {
-    return readFileSync13(0, "utf8");
+    return readFileSync15(0, "utf8");
   } catch {
     return "";
   }
 }
 
 // engine/src/hooks-admin.mjs
-import { readFileSync as readFileSync14, writeFileSync as writeFileSync5, mkdirSync as mkdirSync4, existsSync as existsSync9 } from "node:fs";
-import { dirname as dirname7, join as join13 } from "node:path";
+import { readFileSync as readFileSync16, writeFileSync as writeFileSync6, mkdirSync as mkdirSync4, existsSync as existsSync10 } from "node:fs";
+import { dirname as dirname8, join as join14 } from "node:path";
 var SETTINGS = ".claude/settings.json";
 var CONFIG = ".airtight/config.json";
 var LAUNCHER = "${CLAUDE_PROJECT_DIR}/.claude/skills/airtight/scripts/airtight";
@@ -12885,19 +13741,19 @@ var MANIFEST = {
 };
 function readJson(path, fallback) {
   try {
-    return JSON.parse(readFileSync14(path, "utf8"));
+    return JSON.parse(readFileSync16(path, "utf8"));
   } catch {
     return fallback;
   }
 }
 function writeJson(path, value) {
-  mkdirSync4(dirname7(path), { recursive: true });
-  writeFileSync5(path, `${JSON.stringify(value, null, 2)}
+  mkdirSync4(dirname8(path), { recursive: true });
+  writeFileSync6(path, `${JSON.stringify(value, null, 2)}
 `);
 }
 var isOurs = (entry) => JSON.stringify(entry).includes("airtight");
 function install(root) {
-  const path = join13(root, SETTINGS);
+  const path = join14(root, SETTINGS);
   const settings = readJson(path, {});
   settings.hooks ??= {};
   for (const [event, entries] of Object.entries(MANIFEST)) {
@@ -12907,8 +13763,8 @@ function install(root) {
   return path;
 }
 function uninstall(root) {
-  const path = join13(root, SETTINGS);
-  if (!existsSync9(path)) return null;
+  const path = join14(root, SETTINGS);
+  if (!existsSync10(path)) return null;
   const settings = readJson(path, {});
   if (!settings.hooks) return null;
   for (const event of Object.keys(MANIFEST)) {
@@ -12920,7 +13776,7 @@ function uninstall(root) {
   return path;
 }
 function status(root) {
-  const settings = readJson(join13(root, SETTINGS), {});
+  const settings = readJson(join14(root, SETTINGS), {});
   const events = Object.keys(MANIFEST).filter((e) => (settings.hooks?.[e] ?? []).some(isOurs));
   const config = loadConfig(root);
   const d = config.detector ?? {};
@@ -12937,7 +13793,7 @@ function status(root) {
   };
 }
 function mutateConfig(root, fn) {
-  const path = join13(root, CONFIG);
+  const path = join14(root, CONFIG);
   const config = readJson(path, { detector: { ignoreRules: [], ignoreFiles: [], ignoreValues: [] } });
   config.detector ??= {};
   config.detector.ignoreRules ??= [];
@@ -12948,7 +13804,7 @@ function mutateConfig(root, fn) {
   return path;
 }
 function setEnabled(root, enabled) {
-  const path = join13(root, CONFIG);
+  const path = join14(root, CONFIG);
   const config = readJson(path, {});
   config.hook = { ...config.hook ?? {}, enabled };
   writeJson(path, config);
@@ -12986,9 +13842,275 @@ function ignoreRule(root, rule) {
 }
 var ESCALATION_NOTICE = "ignore-file and ignore-rule suppress far more than one finding, including rules that do not exist yet. Confirm with the user before running this, and never run it to get past a blocked write.";
 
+// engine/src/lsp.mjs
+import { existsSync as existsSync11, readFileSync as readFileSync17 } from "node:fs";
+import { dirname as dirname9, join as join15, basename as basename4 } from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+var HERE3 = dirname9(fileURLToPath3(import.meta.url));
+var LSP_SERVER_NAME = "airtight-lsp";
+var LSP_SERVER_VERSION = "0.10.0";
+function loadRulesBundle2(env = process.env) {
+  if (env.AIRTIGHT_RULES && existsSync11(env.AIRTIGHT_RULES)) {
+    return compileAll(JSON.parse(readFileSync17(env.AIRTIGHT_RULES, "utf8")));
+  }
+  const candidates = [
+    join15(HERE3, "..", "build", "rules.json"),
+    join15(HERE3, "..", "..", "skill", "scripts", "rules.json"),
+    join15(HERE3, "..", "..", "rules.json")
+  ];
+  for (const p of candidates) {
+    if (existsSync11(p)) {
+      return compileAll(JSON.parse(readFileSync17(p, "utf8")));
+    }
+  }
+  return [];
+}
+function scanDocumentForLsp(uri, text, rules) {
+  let relPath = uri;
+  try {
+    if (uri.startsWith("file://")) {
+      relPath = basename4(fileURLToPath3(uri));
+    }
+  } catch {
+    relPath = uri.split("/").pop() || "document.js";
+  }
+  const lines = text.split(/\r?\n/);
+  const isWaived = buildWaiverIndex(lines);
+  const vault = createVault();
+  const parseCache = /* @__PURE__ */ new Map();
+  const ctx = {
+    content: text,
+    lines,
+    relPath,
+    vault,
+    isWaived,
+    parseCache,
+    sensitiveFile: false
+  };
+  const applicable = rules.filter((r) => matchesAny(relPath, r.files) && !matchesAny(relPath, r.exclude));
+  const findings = [];
+  for (const rule of applicable) {
+    try {
+      if (rule.parse === "text") findings.push(...matchText(rule, ctx));
+      else if (rule.parse === "js") findings.push(...matchCustom(rule, ctx));
+      else findings.push(...matchStructured(rule, ctx));
+    } catch {
+    }
+  }
+  return findings.map((f) => {
+    const lineIndex = Math.max(0, (f.line || 1) - 1);
+    const lineLen = lines[lineIndex]?.length || 80;
+    const severity = f.priority === "P0" || f.priority === "P1" || f.severity === "critical" ? 1 : 2;
+    return {
+      range: {
+        start: { line: lineIndex, character: 0 },
+        end: { line: lineIndex, character: lineLen }
+      },
+      severity,
+      code: f.rule,
+      source: "airtight",
+      message: `${f.title || f.rule}${f.cwe ? ` [${f.cwe}]` : ""}: ${f.why || "Security policy violation."}${f.fix ? `
+Fix: ${f.fix}` : ""}`,
+      data: {
+        rule: f.rule,
+        fixable: Boolean(FIXERS[f.rule])
+      }
+    };
+  });
+}
+function createLspServer({ input = process.stdin, output = process.stdout, env = process.env } = {}) {
+  const documents = /* @__PURE__ */ new Map();
+  const docDiagnostics = /* @__PURE__ */ new Map();
+  let rules = immediateTier(loadRulesBundle2(env));
+  let isShutdown = false;
+  let buffer = Buffer.alloc(0);
+  function send(msg) {
+    const json = JSON.stringify(msg);
+    const len = Buffer.byteLength(json, "utf8");
+    output.write(`Content-Length: ${len}\r
+\r
+${json}`);
+  }
+  function sendResult(id, result) {
+    send({ jsonrpc: "2.0", id, result });
+  }
+  function sendNotification(method, params) {
+    send({ jsonrpc: "2.0", method, params });
+  }
+  function sendError(id, code, message) {
+    send({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
+  }
+  function publishDiagnostics(uri, text) {
+    const diagnostics = scanDocumentForLsp(uri, text, rules);
+    docDiagnostics.set(uri, diagnostics);
+    sendNotification("textDocument/publishDiagnostics", {
+      uri,
+      diagnostics
+    });
+  }
+  async function handleMessage(msg) {
+    const { id, method, params } = msg;
+    if (id === void 0 || id === null) {
+      switch (method) {
+        case "initialized":
+          break;
+        case "textDocument/didOpen": {
+          if (params?.textDocument) {
+            const { uri, text, version } = params.textDocument;
+            documents.set(uri, { text, version });
+            publishDiagnostics(uri, text);
+          }
+          break;
+        }
+        case "textDocument/didChange": {
+          if (params?.textDocument && params.contentChanges?.length) {
+            const { uri, version } = params.textDocument;
+            const text = params.contentChanges[params.contentChanges.length - 1].text;
+            documents.set(uri, { text, version });
+            publishDiagnostics(uri, text);
+          }
+          break;
+        }
+        case "textDocument/didClose": {
+          if (params?.textDocument?.uri) {
+            const { uri } = params.textDocument;
+            documents.delete(uri);
+            docDiagnostics.delete(uri);
+            sendNotification("textDocument/publishDiagnostics", { uri, diagnostics: [] });
+          }
+          break;
+        }
+        case "exit": {
+          process.exit(isShutdown ? 0 : 1);
+          break;
+        }
+      }
+      return;
+    }
+    try {
+      switch (method) {
+        case "initialize": {
+          sendResult(id, {
+            capabilities: {
+              textDocumentSync: 1,
+              // Full document sync
+              codeActionProvider: true
+            },
+            serverInfo: {
+              name: LSP_SERVER_NAME,
+              version: LSP_SERVER_VERSION
+            }
+          });
+          break;
+        }
+        case "shutdown": {
+          isShutdown = true;
+          sendResult(id, null);
+          break;
+        }
+        case "textDocument/codeAction": {
+          const uri = params?.textDocument?.uri;
+          const range = params?.range;
+          const actions = [];
+          if (uri && range && documents.has(uri)) {
+            const doc = documents.get(uri);
+            const diagnostics = docDiagnostics.get(uri) || [];
+            for (const diag of diagnostics) {
+              const lineMatch = Math.abs(diag.range.start.line - range.start.line) <= 2;
+              if (lineMatch && diag.data?.fixable) {
+                const fixer = FIXERS[diag.data.rule];
+                if (fixer) {
+                  const fixedText = fixer.fix(doc.text);
+                  if (fixedText && fixedText !== doc.text) {
+                    const lineCount = doc.text.split(/\r?\n/).length;
+                    actions.push({
+                      title: `Airtight: ${fixer.name}`,
+                      kind: "quickfix",
+                      isPreferred: true,
+                      diagnostics: [diag],
+                      edit: {
+                        changes: {
+                          [uri]: [
+                            {
+                              range: {
+                                start: { line: 0, character: 0 },
+                                end: { line: lineCount + 1, character: 0 }
+                              },
+                              newText: fixedText
+                            }
+                          ]
+                        }
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          }
+          sendResult(id, actions);
+          break;
+        }
+        default: {
+          sendError(id, -32601, `Method not found: ${method}`);
+          break;
+        }
+      }
+    } catch (err) {
+      sendError(id, -32603, `Internal error: ${err.message}`);
+    }
+  }
+  const onData = (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    while (true) {
+      const headerEnd = buffer.indexOf("\r\n\r\n");
+      if (headerEnd === -1) break;
+      const header = buffer.subarray(0, headerEnd).toString("utf8");
+      const match = /Content-Length:\s*(\d+)/i.exec(header);
+      if (!match) {
+        buffer = buffer.subarray(headerEnd + 4);
+        continue;
+      }
+      const contentLength = parseInt(match[1], 10);
+      const bodyStart = headerEnd + 4;
+      if (buffer.length < bodyStart + contentLength) {
+        break;
+      }
+      const body = buffer.subarray(bodyStart, bodyStart + contentLength).toString("utf8");
+      buffer = buffer.subarray(bodyStart + contentLength);
+      try {
+        const msg = JSON.parse(body);
+        handleMessage(msg);
+      } catch {
+      }
+    }
+  };
+  input.on("data", onData);
+  return {
+    close: () => {
+      input.removeListener("data", onData);
+    },
+    send
+  };
+}
+function runLspServer(io = { out: (s) => process.stdout.write(s) }, env = process.env) {
+  return new Promise((resolve11) => {
+    const server = createLspServer({
+      input: process.stdin,
+      output: process.stdout,
+      env
+    });
+    const finish = () => {
+      server.close();
+      resolve11(0);
+    };
+    process.stdin.on("close", finish);
+    process.stdin.on("end", finish);
+  });
+}
+
 // engine/src/cli.mjs
-var HERE2 = dirname8(fileURLToPath2(import.meta.url));
-var VERSION = "0.9.0";
+var HERE4 = dirname10(fileURLToPath4(import.meta.url));
+var VERSION = "0.10.0";
 var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
 
   airtight detect [paths...]        scan for security findings (default: .)
@@ -12998,7 +14120,11 @@ var USAGE = `airtight ${VERSION} \u2014 deterministic security rule engine
   airtight correlate [paths...]     correlate IaC exposure with application sinks
   airtight mcp                      start Model Context Protocol (MCP) stdio server
   airtight findings <sub>           sync | list | accept | overdue
-  airtight controls <sub>           verify | coverage
+  airtight controls <sub>           verify | coverage | export
+  airtight guard <tool> [args...]   evaluate agent tool call safety in real time
+  airtight shield [paths...]        scan context & documentation for prompt poisoning
+  airtight dashboard                render interactive posture & attack surface dashboard
+  airtight lsp                      start Language Server Protocol (LSP 3.17) stdio server
   airtight context                  project truth and session directives
   airtight sbom [paths...]          generate CycloneDX 1.5 SBOM from lockfiles
   airtight hook                     edit-hook entry point (reads stdin)
@@ -13026,12 +14152,12 @@ Options
 `;
 function checkStaleRules(bundlePath) {
   try {
-    const rulesDir = join14(HERE2, "..", "rules");
-    if (!existsSync10(rulesDir)) return;
-    const bundleStat = statSync9(bundlePath);
+    const rulesDir = join16(HERE4, "..", "rules");
+    if (!existsSync12(rulesDir)) return;
+    const bundleStat = statSync10(bundlePath);
     const yamlFiles = readdirSync6(rulesDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const f of yamlFiles) {
-      const yamlStat = statSync9(join14(rulesDir, f));
+      const yamlStat = statSync10(join16(rulesDir, f));
       if (yamlStat.mtimeMs > bundleStat.mtimeMs) {
         process.stderr.write(
           `[airtight warning] rule source 'engine/rules/${f}' is newer than compiled bundle '${bundlePath}'. Run: npm run build:rules
@@ -13043,15 +14169,15 @@ function checkStaleRules(bundlePath) {
   } catch {
   }
 }
-function loadRules2(env) {
+function loadRules3(env) {
   const candidates = [
     env.AIRTIGHT_RULES,
-    join14(HERE2, "..", "rules.json"),
-    join14(HERE2, "..", "build", "rules.json")
+    join16(HERE4, "..", "rules.json"),
+    join16(HERE4, "..", "build", "rules.json")
   ].filter(Boolean);
   for (const path of candidates) {
     try {
-      const data = JSON.parse(readFileSync15(path, "utf8"));
+      const data = JSON.parse(readFileSync18(path, "utf8"));
       checkStaleRules(path);
       return compileAll(data);
     } catch (err) {
@@ -13088,9 +14214,9 @@ function getChangedFilesSince(root, ref) {
     });
     const set = new Set(
       `${diffOut}
-${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve9(root, p)).filter((p) => {
+${untrackedOut}`.split("\n").map((l) => l.trim()).filter(Boolean).map((p) => resolve10(root, p)).filter((p) => {
         try {
-          return statSync9(p).isFile();
+          return statSync10(p).isFile();
         } catch {
           return false;
         }
@@ -13126,7 +14252,7 @@ function parseArgs(argv) {
 }
 function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   const root = process.cwd();
-  let rules = loadRules2(env);
+  let rules = loadRules3(env);
   const config = opts.useConfig ? loadConfig(root) : { detector: {} };
   const isSuppressed = opts.useConfig ? buildFilter(config) : null;
   if (opts.useConfig && config.rulePaths?.length > 0) {
@@ -13145,14 +14271,14 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   if (opts.flags.since) {
     const changed = getChangedFilesSince(root, opts.flags.since);
     if (opts.paths.length) {
-      const targetPaths = opts.paths.map((p) => resolve9(root, p));
+      const targetPaths = opts.paths.map((p) => resolve10(root, p));
       files = changed.filter((f) => targetPaths.some((t) => f === t || f.startsWith(t.endsWith("/") ? t : `${t}/`)));
     } else {
       files = changed;
     }
   } else {
     const paths = opts.paths.length ? opts.paths : defaultPaths;
-    files = collectTargets(root, paths.map((p) => resolve9(root, p)));
+    files = collectTargets(root, paths.map((p) => resolve10(root, p)));
   }
   const scanned = scanFiles({ root, files, rules, config, isSuppressed });
   let findings = scanned.findings;
@@ -13162,7 +14288,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       const allDeps = [];
       for (const lf of lockfiles) {
         try {
-          const content = readFileSync15(lf, "utf8");
+          const content = readFileSync18(lf, "utf8");
           const parsed = parseLockfile(lf, content);
           if (parsed?.dependencies?.length) {
             allDeps.push(...parsed.dependencies);
@@ -13172,7 +14298,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
       }
       if (allDeps.length > 0) {
         const advisories = queryOsv(allDeps, {
-          cacheDir: join14(root, ".airtight", "cache", "osv.json"),
+          cacheDir: join16(root, ".airtight", "cache", "osv.json"),
           offline: false
         });
         for (const adv of advisories) {
@@ -13207,7 +14333,7 @@ function runScan(opts, env, { defaultPaths = ["."] } = {}) {
   }
   let baselineIgnored = 0;
   if (opts.flags.baseline) {
-    const baselineIds = loadBaseline(resolve9(root, opts.flags.baseline));
+    const baselineIds = loadBaseline(resolve10(root, opts.flags.baseline));
     const totalBefore = findings.length;
     findings = filterBaseline(findings, baselineIds);
     baselineIgnored = totalBefore - findings.length;
@@ -13243,7 +14369,7 @@ function cmdDetect(argv, io, env) {
 }
 function cmdRules(argv, io, env) {
   const opts = parseArgs(argv);
-  let rules = loadRules2(env);
+  let rules = loadRules3(env);
   if (opts.packs.length) rules = rules.filter((r) => opts.packs.includes(r.pack));
   if (opts.flags["count-by-pack"]) {
     const counts = {};
@@ -13341,7 +14467,7 @@ function cmdContext(argv, io, env) {
   const root = process.cwd();
   let ruleIds = /* @__PURE__ */ new Set();
   try {
-    ruleIds = new Set(loadRules2(env).map((r) => r.id));
+    ruleIds = new Set(loadRules3(env).map((r) => r.id));
   } catch {
   }
   io.out(buildContext(root, { ruleIds }));
@@ -13432,8 +14558,16 @@ ${coverage.length} ${framework} reference(s), ${gaps} with a gap.`);
     }
     return coverage.some((c) => !c.satisfied) ? 2 : 0;
   }
+  if (sub === "export") {
+    const format = opts.flags.format || "json";
+    const framework = opts.flags.framework || "all";
+    const rules = loadRules3(env);
+    const out = exportControls(root, { format, framework, findings, rules });
+    io.out(out);
+    return 0;
+  }
   if (sub !== "verify") {
-    io.err("usage: airtight controls <verify|coverage>");
+    io.err("usage: airtight controls <verify|coverage|export>");
     return 1;
   }
   if (opts.json) {
@@ -13455,7 +14589,7 @@ ${results.length} control(s): ${results.length - failing - broken - unverifiable
 function cmdSbom(argv, io, env) {
   const opts = parseArgs(argv);
   const root = process.cwd();
-  const target = opts.paths.length ? resolve9(root, opts.paths[0]) : root;
+  const target = opts.paths.length ? resolve10(root, opts.paths[0]) : root;
   const sbom = generateCycloneDx({ root: target });
   io.out(sbom);
   return 0;
@@ -13512,11 +14646,11 @@ function cmdCorrelate(argv, io, env) {
 }
 function cmdFix(argv, io, env) {
   const opts = parseArgs(argv);
-  const root = opts.paths.length === 1 && existsSync10(opts.paths[0]) && statSync9(opts.paths[0]).isDirectory() ? resolve9(opts.paths[0]) : process.cwd();
+  const root = opts.paths.length === 1 && existsSync12(opts.paths[0]) && statSync10(opts.paths[0]).isDirectory() ? resolve10(opts.paths[0]) : process.cwd();
   const paths = opts.paths.length ? opts.paths : ["."];
   const dryRun = Boolean(opts.flags["dry-run"]);
   const ruleFilter = opts.flags.rule || null;
-  const rules = loadRules2(env);
+  const rules = loadRules3(env);
   const result = applyFixes(paths, { root, dryRun, ruleFilter, rules });
   if (opts.json) {
     io.out(JSON.stringify(result, null, 2));
@@ -13538,6 +14672,77 @@ function cmdFix(argv, io, env) {
     io.out(`
 [ok] Successfully applied fixes.${result.storeUpdated ? " Updated .airtight/findings.ndjson." : ""}`);
   }
+  return 0;
+}
+function cmdGuard(argv, io, env) {
+  const [toolName, ...rest] = argv;
+  const opts = parseArgs(rest);
+  if (!toolName) {
+    io.err("usage: airtight guard <bash|write|sql|fetch> [target/command]");
+    return 1;
+  }
+  const tool = toolName.toLowerCase();
+  const input = { tool };
+  const target = opts.paths.join(" ");
+  if (tool === "bash") input.command = target;
+  else if (tool === "write") input.path = opts.paths[0] || target;
+  else if (tool === "sql") input.query = target;
+  else if (tool === "fetch") input.url = target;
+  const result = evaluateGuard(input);
+  if (opts.json) {
+    io.out(JSON.stringify(result, null, 2));
+    return result.verdict === "block" ? 2 : 0;
+  }
+  if (result.verdict === "block") {
+    io.err(`[BLOCKED] ${result.rule} (${result.cwe || "CWE"}): ${result.reason}`);
+    if (result.suggestion) io.err(`Suggested:  ${result.suggestion}`);
+    return 2;
+  }
+  if (result.verdict === "warn") {
+    io.out(`[WARNING] ${result.rule} (${result.cwe || "CWE"}): ${result.reason}`);
+    if (result.suggestion) io.out(`Suggested:  ${result.suggestion}`);
+    return 0;
+  }
+  io.out(`[ALLOWED] ${result.reason}`);
+  return 0;
+}
+function cmdShield(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ["."];
+  const sanitize = Boolean(opts.flags.sanitize || opts.flags.clean);
+  const result = scanWorkspaceShield(paths, { root, sanitize });
+  if (opts.json) {
+    io.out(JSON.stringify(result, null, 2));
+    return result.threatsCount > 0 ? 2 : 0;
+  }
+  if (result.threatsCount === 0) {
+    io.out(`airtight shield: clean across ${result.scannedFiles} file(s). No prompt poisoning or invisible unicode detected.`);
+    return 0;
+  }
+  io.err(`airtight shield: detected ${result.threatsCount} threat(s) across ${result.scannedFiles} file(s):`);
+  for (const t of result.threats) {
+    io.err(`
+[${t.severity.toUpperCase()}] ${t.file}:${t.line} \u2014 ${t.description} [${t.cwe}]`);
+    io.err(`  Snippet:     ${t.snippet}`);
+    io.err(`  Remediation: ${t.remediation}`);
+  }
+  if (sanitize && result.sanitizedCount > 0) {
+    io.out(`
+[ok] Sanitized invisible unicode characters in ${result.sanitizedCount} file(s).`);
+  }
+  return 2;
+}
+function cmdDashboard(argv, io, env) {
+  const opts = parseArgs(argv);
+  const root = process.cwd();
+  const paths = opts.paths.length ? opts.paths : ["."];
+  const data = compileDashboardData(root, { paths });
+  if (opts.json) {
+    io.out(JSON.stringify(data, null, 2));
+    return 0;
+  }
+  io.out(renderTerminalDashboard(data));
   return 0;
 }
 function run(argv, io = defaultIo(), env = process.env) {
@@ -13569,6 +14774,15 @@ function run(argv, io = defaultIo(), env = process.env) {
         return cmdCorrelate(rest, io, env);
       case "mcp":
         return runMcpServer(io, env);
+      case "lsp":
+        return runLspServer(io, env);
+      case "guard":
+        return cmdGuard(rest, io, env);
+      case "shield":
+        return cmdShield(rest, io, env);
+      case "dashboard":
+      case "ui":
+        return cmdDashboard(rest, io, env);
       case "findings":
         return cmdFindings(rest, io, env);
       case "context":

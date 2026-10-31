@@ -168,7 +168,7 @@ function parse(argv) {
 
 const ENGINE_VERBS = new Set([
   'detect', 'rules', 'fix', 'map', 'correlate', 'mcp', 'findings', 'controls', 'context',
-  'hook', 'hooks', 'engine-probe', 'sbom',
+  'hook', 'hooks', 'engine-probe', 'sbom', 'guard', 'shield', 'dashboard', 'ui', 'lsp',
 ]);
 
 function findEngine() {
@@ -221,7 +221,11 @@ Analysis and posture
   npx airtight mcp              start Model Context Protocol (MCP) stdio server
   npx airtight sbom [paths]     generate CycloneDX 1.5 SBOM from lockfiles
   npx airtight findings <sub>   sync | list | accept | overdue
-  npx airtight controls <sub>   verify | coverage
+  npx airtight controls <sub>   verify | coverage | export
+  npx airtight guard <tool>     evaluate agent tool call safety in real time
+  npx airtight shield [paths]   scan context & docs for prompt poisoning
+  npx airtight dashboard        render interactive posture & attack surface dashboard
+  npx airtight lsp              start Language Server Protocol (LSP 3.17) server
   npx airtight context          project truth and session directives
   npx airtight hooks <sub>      on | off | status
 

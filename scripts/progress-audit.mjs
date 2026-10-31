@@ -151,14 +151,6 @@ function auditDocs(rulesInfo) {
       pass('docs/ generated references are fully up to date.');
     }
   }
-
-  // Check coverage roadmap
-  const roadmapPath = join(ROOT, 'docs/plans/coverage-matrix-roadmap.md');
-  if (existsSync(roadmapPath)) {
-    pass('Coverage matrix roadmap present at docs/plans/coverage-matrix-roadmap.md.');
-  } else {
-    warn('docs/plans/coverage-matrix-roadmap.md not found.');
-  }
 }
 
 // --------------------------------------------------------- 3. Demo Golden Suite

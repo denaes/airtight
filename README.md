@@ -3,8 +3,8 @@
 Security guidance for AI coding agents. One skill, deterministic rule packs, and
 an edit hook that catches the mechanical failures at the edit site.
 
-> **Status:** v0.9.0, installable from npm across 18 harnesses. Engine with 250
-> rules, findings store, control register, 13 commands, edit hook, installer,
+> **Status:** v0.10.0, installable from npm across 18 harnesses. Engine with 252
+> rules, findings store, control register, 16 commands, edit hook, installer,
 > docs, and a demo. Benchmarked against 14 real repositories; see
 > [docs/benchmark.md](docs/benchmark.md) for what that
 > covers and what it does not.
@@ -108,7 +108,7 @@ hardcoded private keys, unverified JWTs, public RDS instances, and privileged co
 
 ## Commands
 
-`skill/` is the source of truth. 13 commands in three categories:
+`skill/` is the source of truth. 16 commands in three categories:
 
 | Command | Category | Does |
 |---|---|---|
@@ -121,6 +121,9 @@ hardcoded private keys, unverified JWTs, public RDS instances, and privileged co
 | `supply-chain` | Evaluate | CI triggers, token scope, action pinning, provenance |
 | `infra` | Evaluate | Terraform, Kubernetes, containers |
 | `correlate` | Evaluate | Cross-layer IaC exposure & application sink graph |
+| `guard` | Evaluate | Active agent execution guardrail & tool firewall |
+| `shield` | Evaluate | Agent memory & context poisoning shield against indirect injection |
+| `dashboard` | Evaluate | Interactive posture telemetry, attack surface graph, and guardrails |
 | `triage` | Evaluate | Reconcile external scanner reports (SARIF, Snyk, Dependabot) |
 | `attest` | Evaluate | Machine-verified control evidence for SOC 2 / ISO 27001 |
 | `fix` | Fix | Surgically patch mechanical security findings with diff preview |
@@ -146,7 +149,7 @@ prevent.
 | `go` | 19 | text | SQL injection, shell exec, TLS verification, temporary files, XXE, SSRF |
 | `java` | 18 | text | Command execution, SQL concat, XXE parsers, path traversal, LDAP, SSRF |
 | `rust` | 8 | text | Command injection, SQL formatting, insecure temporary files, weak RNG |
-| `ai` | 6 | text | LLM output to execution, unparameterized SQL, RAG interpolation, dangerous MCP tools, client API keys |
+| `ai` | 8 | text | LLM output to execution, unparameterized SQL, RAG interpolation, dangerous MCP tools, indirect prompt injection, hidden unicode |
 | `compose` | 5 | yaml | Privileged mode, host network mode, docker socket mounts, root filesystem mounts |
 | `cloudflare` | 4 | text | Plaintext secrets in wrangler, worker SSRF, D1 SQL concatenation, CORS wildcard |
 | `cfn` | 6 | yaml | Public S3 buckets, open security group ingress, wildcard IAM, unencrypted EBS, public RDS, disabled CloudTrail |
@@ -239,7 +242,7 @@ credential in three files is three edits to make but one key to rotate.
 Scan pull requests and push findings to GitHub Code Scanning via the composite action:
 
 ```yaml
-- uses: denaes/airtight@v0.9.0
+- uses: denaes/airtight@v0.10.0
   with:
     paths: '.'
     format: 'sarif'
